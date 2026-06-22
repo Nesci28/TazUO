@@ -96,6 +96,177 @@ class ApiGameObject:
         """
         pass
 
+class ApiTileFlagInfo:
+    ""
+    Value: int = None
+    Names: str = None
+    IsSurface: bool = None
+    IsBridge: bool = None
+    IsWet: bool = None
+    IsFoliage: bool = None
+    IsWall: bool = None
+    IsDoor: bool = None
+    IsImpassable: bool = None
+    IsNoHouse: bool = None
+    IsNoDiagonal: bool = None
+    IsRoof: bool = None
+    IsBackground: bool = None
+
+class ApiLandTileInfo:
+    ""
+    X: int = None
+    Y: int = None
+    Z: int = None
+    Graphic: int = None
+    GraphicHex: str = None
+    Name: str = None
+    IsRoadCandidate: bool = None
+    Flags = None
+
+class ApiStaticTileInfo:
+    ""
+    X: int = None
+    Y: int = None
+    Z: int = None
+    Graphic: int = None
+    GraphicHex: str = None
+    Hue: int = None
+    HueHex: str = None
+    Height: int = None
+    Name: str = None
+    IsTree: bool = None
+    IsVegetation: bool = None
+    IsCave: bool = None
+    Flags = None
+
+class ApiMultiComponentInfo:
+    ""
+    HouseSerial: int = None
+    HouseSerialHex: str = None
+    MultiID: int = None
+    MultiIDHex: str = None
+    X: int = None
+    Y: int = None
+    Z: int = None
+    Graphic: int = None
+    GraphicHex: str = None
+    Hue: int = None
+    HueHex: str = None
+    Height: int = None
+    Name: str = None
+    MultiOffsetX: int = None
+    MultiOffsetY: int = None
+    MultiOffsetZ: int = None
+    IsCustom: bool = None
+    IsMovable: bool = None
+    Flags = None
+
+class ApiRegionInfo:
+    ""
+    RegionDataAvailable: bool = None
+    RegionName: str = None
+    IsGuardZone: bool = None
+    NoHousing: bool = None
+    IsTown: bool = None
+    IsDungeon: bool = None
+    Source: str = None
+
+class ApiTileInfo:
+    ""
+    X: int = None
+    Y: int = None
+    Map: int = None
+    InMapBounds: bool = None
+    HasLand: bool = None
+    Land = None
+    Statics: list[Any] = None
+    Multis: list[Any] = None
+    Region = None
+    HasNoHouseFlag: bool = None
+    IsRoadCandidate: bool = None
+    HasImpassable: bool = None
+    HasWet: bool = None
+    HasSurfaceStatic: bool = None
+    HasBridgeStatic: bool = None
+    HasWallOrDoor: bool = None
+
+class ApiHouseInfo:
+    ""
+    Serial: int = None
+    SerialHex: str = None
+    MultiID: int = None
+    MultiIDHex: str = None
+    IsCustom: bool = None
+    Revision: int = None
+    RawMinX: int = None
+    RawMinY: int = None
+    RawMaxX: int = None
+    RawMaxY: int = None
+    OriginX: int = None
+    OriginY: int = None
+    OriginZ: int = None
+    BoundsFromComponents: bool = None
+    MinX: int = None
+    MinY: int = None
+    MaxX: int = None
+    MaxY: int = None
+    MinZ: int = None
+    MaxZ: int = None
+    Width: int = None
+    Depth: int = None
+    ComponentCount: int = None
+    Components: list[Any] = None
+
+class ApiHousePlacementBlocker:
+    ""
+    Kind: str = None
+    Reason: str = None
+    X: int = None
+    Y: int = None
+    Z: int = None
+    Graphic: int = None
+    GraphicHex: str = None
+    Name: str = None
+    HouseSerial: int = None
+    HouseSerialHex: str = None
+    InsideFootprint: bool = None
+    InClearance: bool = None
+    ClearanceArea: str = None
+
+class ApiHousePlacementResult:
+    ""
+    Ok: bool = None
+    Reason: str = None
+    Reasons: list[str] = None
+    X: int = None
+    Y: int = None
+    Width: int = None
+    Depth: int = None
+    Direction: str = None
+    FrontClearance: int = None
+    BackClearance: int = None
+    SideClearance: int = None
+    IncludeSteps: bool = None
+    AllowSmallPlants: bool = None
+    MaxZDelta: int = None
+    Map: int = None
+    ClientEstimate: bool = None
+    Validator: str = None
+    CheckedTiles: int = None
+    CheckedClearanceTiles: int = None
+    MinZ: int = None
+    MaxZ: int = None
+    SearchResult: bool = None
+    SearchCenterX: int = None
+    SearchCenterY: int = None
+    SearchRadius: int = None
+    MinSize: int = None
+    MaxSize: int = None
+    TestedPlacements: int = None
+    UncheckedServerSideRules: list[str] = None
+    Blockers: list[Any] = None
+    BlockingHouses: list[Any] = None
+
 class ApiItem(ApiEntity):
     ""
     Amount: int = None
@@ -3073,6 +3244,56 @@ def GetMultisInArea(x1: "int", y1: "int", x2: "int", y2: "int") -> "list[ApiMult
     """
     pass
 
+def GetTileInfo(x: "int", y: "int") -> "Any":
+    """
+     Get detailed land/static/multi/region metadata for one map tile.
+
+    """
+    pass
+
+def GetRegionInfo(x: "int", y: "int") -> "Any":
+    """
+     Get region metadata available to the client for one map tile.
+
+    """
+    pass
+
+def GetTilesInArea(x1: "int", y1: "int", x2: "int", y2: "int", maxTiles: "int" = 4096) -> "list[Any]":
+    """
+     Get detailed tile metadata for a rectangular area.
+
+    """
+    pass
+
+def GetHousesInArea(x1: "int", y1: "int", x2: "int", y2: "int", clearance: "int" = 0) -> "list[Any]":
+    """
+     Get known house/multi group data intersecting a rectangular area.
+
+    """
+    pass
+
+def CanPlaceHouse(x: "int", y: "int", width: "int", depth: "int", direction: "str" = "south", frontClearance: "int" = 6, backClearance: "int" = 5, sideClearance: "int" = 1, maxZDelta: "int" = 2, allowSmallPlants: "bool" = True, includeSteps: "bool" = True) -> "Any":
+    """
+     Estimate whether a rectangular house footprint can be placed using Atlantic-style official clearance rules.
+     The result is still a client-side estimate; account ownership, cooldown, and unavailable server region data are reported as unchecked rules.
+
+    """
+    pass
+
+def FindLargestHousePlot(centerX: "int", centerY: "int", searchRadius: "int", minSize: "int" = 7, maxSize: "int" = 29, direction: "str" = "south", frontClearance: "int" = 6, backClearance: "int" = 5, sideClearance: "int" = 1, maxZDelta: "int" = 2, allowSmallPlants: "bool" = True, includeSteps: "bool" = True) -> "Any":
+    """
+     Search a square area centered on a coordinate and return the largest valid square house plot estimate.
+
+    """
+    pass
+
+def FindHousePlotFromSizes(centerX: "int", centerY: "int", searchRadius: "int", sizes: "str", direction: "str" = "south", frontClearance: "int" = 6, backClearance: "int" = 5, sideClearance: "int" = 1, maxZDelta: "int" = 2, allowSmallPlants: "bool" = True, includeSteps: "bool" = True) -> "Any":
+    """
+     Search around a coordinate for the largest nearest valid rectangular house plot from a comma-separated size list.
+
+    """
+    pass
+
 def IsFriend(serial: "int") -> "bool":
     """
      Check if a mobile is in the friends list.
@@ -3667,4 +3888,3 @@ class EventSinkApiDeclaration:
         
         """
         pass
-

@@ -4058,6 +4058,1410 @@ namespace ClassicUO.LegionScripting
             return multis;
         });
 
+    /// <summary>
+    /// Get detailed land/static/multi/region metadata for one map tile.
+    /// </summary>
+    public ApiTileInfo GetTileInfo(int x, int y) => OnMain(() => BuildTileInfo(x, y));
+
+    /// <summary>
+    /// Get region metadata available to the client for one map tile.
+    /// </summary>
+    public ApiRegionInfo GetRegionInfo(int x, int y) => OnMain(() => BuildTileInfo(x, y).Region);
+
+    /// <summary>
+    /// Get detailed tile metadata for a rectangular area.
+    /// </summary>
+    public List<ApiTileInfo> GetTilesInArea(int x1, int y1, int x2, int y2, int maxTiles = 4096) => OnMain(() =>
+    {
+        var tiles = new List<ApiTileInfo>();
+
+        int minX = Math.Min(x1, x2);
+        int maxX = Math.Max(x1, x2);
+        int minY = Math.Min(y1, y2);
+        int maxY = Math.Max(y1, y2);
+        int limit = Math.Max(1, maxTiles);
+
+        for (int x = minX; x <= maxX && tiles.Count < limit; x++)
+        {
+            for (int y = minY; y <= maxY && tiles.Count < limit; y++)
+            {
+                tiles.Add(BuildTileInfo(x, y));
+            }
+        }
+
+        return tiles;
+    });
+
+    /// <summary>
+    /// Get known house/multi group data intersecting a rectangular area.
+    /// </summary>
+    public List<ApiHouseInfo> GetHousesInArea(int x1, int y1, int x2, int y2, int clearance = 0) => OnMain(() =>
+    {
+        return BuildHouseInfosInArea(x1, y1, x2, y2, clearance);
+    });
+
+    /// <summary>
+    /// Estimate whether a rectangular house footprint can be placed using Atlantic-style official clearance rules.
+    /// The result is still a client-side estimate; account ownership, cooldown, and unavailable server region data are reported as unchecked rules.
+    /// </summary>
+    public ApiHousePlacementResult CanPlaceHouse(
+        int x,
+        int y,
+        int width,
+        int depth,
+        string direction = "south",
+        int frontClearance = 6,
+        int backClearance = 5,
+        int sideClearance = 1,
+        int maxZDelta = 2,
+        bool allowSmallPlants = true,
+        bool includeSteps = true) => OnMain(() => BuildHousePlacementResult(
+            x,
+            y,
+            width,
+            depth,
+            direction,
+            frontClearance,
+            backClearance,
+            sideClearance,
+            maxZDelta,
+            allowSmallPlants,
+            includeSteps));
+
+    /// <summary>
+    /// Search a square area centered on a coordinate and return the largest valid square house plot estimate.
+    /// </summary>
+    /// <param name="centerX">Center X coordinate for the search.</param>
+    /// <param name="centerY">Center Y coordinate for the search.</param>
+    /// <param name="searchRadius">Number of tiles to search in each direction from the center.</param>
+    /// <param name="minSize">Smallest square footprint to consider.</param>
+    /// <param name="maxSize">Largest square footprint to consider.</param>
+    /// <param name="direction">House facing direction: north, east, south, or west.</param>
+    /// <param name="frontClearance">Front clearance tiles required.</param>
+    /// <param name="backClearance">Back clearance tiles required.</param>
+    /// <param name="sideClearance">Side clearance tiles required.</param>
+    /// <param name="maxZDelta">Maximum allowed z difference across the footprint.</param>
+    /// <param name="allowSmallPlants">Whether passable small foliage/background statics should be ignored.</param>
+    /// <param name="includeSteps">Whether the first front-clearance band should require buildable land for steps.</param>
+    /// <returns>The largest nearest valid placement estimate, or a failed placement estimate if no candidate fits.</returns>
+    public ApiHousePlacementResult FindLargestHousePlot(
+        int centerX,
+        int centerY,
+        int searchRadius,
+        int minSize = 7,
+        int maxSize = 29,
+        string direction = "south",
+        int frontClearance = 6,
+        int backClearance = 5,
+        int sideClearance = 1,
+        int maxZDelta = 2,
+        bool allowSmallPlants = true,
+        bool includeSteps = true) => OnMain(() =>
+    {
+        int map = World?.Map?.Index ?? -1;
+
+        return FindLargestHousePlotCore(
+            centerX,
+            centerY,
+            searchRadius,
+            minSize,
+            maxSize,
+            map,
+            (candidateX, candidateY, size) => BuildHousePlacementResult(
+                candidateX,
+                candidateY,
+                size,
+                size,
+                direction,
+                frontClearance,
+                backClearance,
+                sideClearance,
+                maxZDelta,
+                allowSmallPlants,
+                includeSteps));
+    });
+
+/// <summary>
+/// Search around a coordinate for the largest nearest valid rectangular house plot from a comma-separated size list.
+/// </summary>
+/// <param name="centerX">Center X coordinate for search.</param>
+/// <param name="centerY">Center Y coordinate for search.</param>
+/// <param name="searchRadius">Number of tiles in each direction from center that candidate footprints may intersect.</param>
+/// <param name="sizes">Comma-separated sizes like 7x7,9x14,18x18.</param>
+/// <param name="direction">House facing direction: north, east, south, west.</param>
+/// <param name="frontClearance">Front clearance tiles required.</param>
+/// <param name="backClearance">Back clearance tiles required.</param>
+/// <param name="sideClearance">Side clearance tiles required.</param>
+/// <param name="maxZDelta">Maximum allowed z difference across footprint.</param>
+/// <param name="allowSmallPlants">Whether passable small foliage/background statics should be ignored.</param>
+/// <param name="includeSteps">Whether first front-clearance band requires buildable land steps.</param>
+/// <returns>The largest nearest valid placement estimate, or a failed placement estimate if no candidate fits.</returns>
+public ApiHousePlacementResult FindHousePlotFromSizes(
+    int centerX,
+    int centerY,
+    int searchRadius,
+    string sizes,
+    string direction = "south",
+    int frontClearance = 6,
+    int backClearance = 5,
+    int sideClearance = 1,
+    int maxZDelta = 2,
+    bool allowSmallPlants = true,
+    bool includeSteps = true) => OnMain(() =>
+    {
+        int map = World?.Map?.Index ?? -1;
+        IReadOnlyList<HousePlotSize> parsedSizes = ParseHousePlotSizes(sizes);
+
+        return FindHousePlotFromSizesCore(
+            centerX,
+            centerY,
+            searchRadius,
+            parsedSizes,
+            map,
+            (candidateX, candidateY, width, depth) => BuildHousePlacementResult(
+                candidateX,
+                candidateY,
+                width,
+                depth,
+                direction,
+                frontClearance,
+                backClearance,
+                sideClearance,
+                maxZDelta,
+                allowSmallPlants,
+                includeSteps));
+    });
+
+internal static ApiHousePlacementResult FindLargestHousePlotCore(
+    int centerX,
+    int centerY,
+    int searchRadius,
+        int minSize,
+        int maxSize,
+        int map,
+        Func<int, int, int, ApiHousePlacementResult> validatePlacement)
+    {
+        ArgumentNullException.ThrowIfNull(validatePlacement);
+
+        int safeRadius = Math.Max(0, searchRadius);
+        int safeMinSize = Math.Max(1, minSize);
+        int safeMaxSize = Math.Max(safeMinSize, maxSize);
+        int testedPlacements = 0;
+        ApiHousePlacementResult closestRejected = null;
+        long closestRejectedScore = long.MaxValue;
+
+        for (int size = safeMaxSize; size >= safeMinSize; size--)
+        {
+            int minTopLeftX = centerX - safeRadius;
+            int minTopLeftY = centerY - safeRadius;
+            int maxTopLeftX = centerX + safeRadius - size + 1;
+            int maxTopLeftY = centerY + safeRadius - size + 1;
+
+            if (maxTopLeftX < minTopLeftX || maxTopLeftY < minTopLeftY)
+                continue;
+
+            ApiHousePlacementResult bestForSize = null;
+            long bestScore = long.MaxValue;
+
+            for (int x = minTopLeftX; x <= maxTopLeftX; x++)
+            {
+                for (int y = minTopLeftY; y <= maxTopLeftY; y++)
+                {
+                    testedPlacements++;
+                    ApiHousePlacementResult result = validatePlacement(x, y, size) ?? BuildSearchFailureResult(
+                        centerX,
+                        centerY,
+                        safeRadius,
+                        safeMinSize,
+                        safeMaxSize,
+                        map,
+                        testedPlacements,
+                        "Placement validator returned no result.");
+
+                    DecorateSearchResult(result, centerX, centerY, safeRadius, safeMinSize, safeMaxSize, testedPlacements);
+                    long score = GetPlacementDistanceScore(centerX, centerY, x, y, size);
+
+                    if (result.Ok)
+                    {
+                        if (IsBetterSearchCandidate(result, score, bestForSize, bestScore))
+                        {
+                            bestForSize = result;
+                            bestScore = score;
+                        }
+                    }
+                    else if (IsBetterSearchCandidate(result, score, closestRejected, closestRejectedScore))
+                    {
+                        closestRejected = result;
+                        closestRejectedScore = score;
+                    }
+                }
+            }
+
+            if (bestForSize != null)
+            {
+                DecorateSearchResult(bestForSize, centerX, centerY, safeRadius, safeMinSize, safeMaxSize, testedPlacements);
+                return bestForSize;
+            }
+        }
+
+        string reason = testedPlacements == 0
+            ? "No candidate footprint fits inside the search radius."
+            : "No valid house placement found in the search area.";
+
+        if (closestRejected != null && !string.IsNullOrWhiteSpace(closestRejected.Reason))
+            reason = $"{reason} Closest rejected candidate failed: {closestRejected.Reason}";
+
+    return BuildSearchFailureResult(
+        centerX,
+        centerY,
+        safeRadius,
+        safeMinSize,
+            safeMaxSize,
+            map,
+            testedPlacements,
+        reason);
+}
+
+private static IReadOnlyList<HousePlotSize> ParseHousePlotSizes(string sizes)
+{
+    if (string.IsNullOrWhiteSpace(sizes))
+        return Array.Empty<HousePlotSize>();
+
+    var parsedSizes = new List<HousePlotSize>();
+    var seen = new HashSet<(int Width, int Depth)>();
+
+    foreach (string token in sizes.Split(new[] { ',', ';' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+    {
+        string[] parts = token.Split(new[] { 'x', 'X' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length != 2)
+            continue;
+
+        if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int width))
+            continue;
+
+        if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int depth))
+            continue;
+
+        if (width <= 0 || depth <= 0)
+            continue;
+
+        if (!seen.Add((width, depth)))
+            continue;
+
+        parsedSizes.Add(new HousePlotSize(width, depth));
+    }
+
+    return parsedSizes
+        .OrderByDescending(size => size.Area)
+        .ThenByDescending(size => size.Width)
+        .ThenByDescending(size => size.Depth)
+        .ToList();
+}
+
+private static ApiHousePlacementResult FindHousePlotFromSizesCore(
+    int centerX,
+    int centerY,
+    int searchRadius,
+    IReadOnlyList<HousePlotSize> sizes,
+    int map,
+    Func<int, int, int, int, ApiHousePlacementResult> validatePlacement)
+{
+    ArgumentNullException.ThrowIfNull(validatePlacement);
+
+    int safeRadius = Math.Max(0, searchRadius);
+
+    if (sizes == null || sizes.Count == 0)
+        return BuildSearchFailureResult(centerX, centerY, safeRadius, 0, 0, map, 0, "No valid house plot sizes were supplied.");
+
+    int minSize = sizes.Min(size => Math.Min(size.Width, size.Depth));
+    int maxSize = sizes.Max(size => Math.Max(size.Width, size.Depth));
+    int testedPlacements = 0;
+    ApiHousePlacementResult bestRejected = null;
+    long bestRejectedScore = long.MaxValue;
+
+    foreach (HousePlotSize size in sizes)
+    {
+        int minTopLeftX = centerX - safeRadius - size.Width + 1;
+        int minTopLeftY = centerY - safeRadius - size.Depth + 1;
+        int maxTopLeftX = centerX + safeRadius;
+        int maxTopLeftY = centerY + safeRadius;
+        var candidates = new List<(int X, int Y, long Score)>();
+
+        for (int x = minTopLeftX; x <= maxTopLeftX; x++)
+        {
+            for (int y = minTopLeftY; y <= maxTopLeftY; y++)
+                candidates.Add((x, y, GetPlacementDistanceScore(centerX, centerY, x, y, size.Width, size.Depth)));
+        }
+
+        foreach ((int x, int y, long score) in candidates.OrderBy(candidate => candidate.Score).ThenBy(candidate => candidate.X).ThenBy(candidate => candidate.Y))
+        {
+            testedPlacements++;
+            ApiHousePlacementResult result = validatePlacement(x, y, size.Width, size.Depth) ?? BuildSearchFailureResult(
+                centerX,
+                centerY,
+                safeRadius,
+                minSize,
+                maxSize,
+                map,
+                testedPlacements,
+                "Placement validator returned no result.");
+
+            DecorateSearchResult(result, centerX, centerY, safeRadius, minSize, maxSize, testedPlacements);
+
+            if (result.Ok)
+                return result;
+
+            if (IsBetterRejectedSearchCandidate(result, score, bestRejected, bestRejectedScore))
+            {
+                bestRejected = result;
+                bestRejectedScore = score;
+            }
+        }
+    }
+
+    if (bestRejected != null)
+    {
+        DecorateSearchResult(bestRejected, centerX, centerY, safeRadius, minSize, maxSize, testedPlacements);
+        return bestRejected;
+    }
+
+    return BuildSearchFailureResult(
+        centerX,
+        centerY,
+        safeRadius,
+        minSize,
+        maxSize,
+        map,
+        testedPlacements,
+        "No candidate footprint intersects the search radius.");
+}
+
+private ApiHousePlacementResult BuildHousePlacementResult(
+    int x,
+    int y,
+        int width,
+        int depth,
+        string direction,
+        int frontClearance,
+        int backClearance,
+        int sideClearance,
+        int maxZDelta,
+        bool allowSmallPlants,
+        bool includeSteps)
+    {
+        int safeFrontClearance = Math.Max(0, frontClearance);
+        int safeBackClearance = Math.Max(0, backClearance);
+        int safeSideClearance = Math.Max(0, sideClearance);
+        int safeMaxZDelta = Math.Max(0, maxZDelta);
+        string normalizedDirection = NormalizeHouseDirection(direction);
+
+        var result = new ApiHousePlacementResult
+        {
+            X = x,
+            Y = y,
+            Width = width,
+            Depth = depth,
+            Direction = normalizedDirection,
+            FrontClearance = safeFrontClearance,
+            BackClearance = safeBackClearance,
+            SideClearance = safeSideClearance,
+            MaxZDelta = safeMaxZDelta,
+            IncludeSteps = includeSteps,
+            AllowSmallPlants = allowSmallPlants,
+            Map = World?.Map?.Index ?? -1,
+            ClientEstimate = true,
+            Validator = "client-official-house-placement-estimate"
+        };
+
+        AddOfficialPlacementUncheckedRules(result);
+
+        if (World?.Map == null)
+        {
+            AddPlacementBlocker(result, new ApiHousePlacementBlocker { Kind = "map", Reason = "Map is not available." });
+            return FinalizePlacementResult(result);
+        }
+
+        if (width <= 0 || depth <= 0)
+        {
+            AddPlacementBlocker(result, new ApiHousePlacementBlocker { Kind = "input", Reason = "House width and depth must be positive." });
+            return FinalizePlacementResult(result);
+        }
+
+        int minX = x;
+        int minY = y;
+        int maxX = x + width - 1;
+        int maxY = y + depth - 1;
+        int minZ = int.MaxValue;
+        int maxZ = int.MinValue;
+        var footprint = new HousePlacementArea("footprint", minX, minY, maxX, maxY, false, true);
+        IReadOnlyList<HousePlacementArea> clearanceAreas = BuildOfficialHousePlacementAreas(
+            x,
+            y,
+            width,
+            depth,
+            normalizedDirection,
+            safeFrontClearance,
+            safeBackClearance,
+            safeSideClearance,
+            includeSteps);
+
+        CheckHousePlacementAreaTiles(result, footprint, allowSmallPlants, ref minZ, ref maxZ);
+
+        foreach (HousePlacementArea area in clearanceAreas)
+            CheckHousePlacementAreaTiles(result, area, allowSmallPlants, ref minZ, ref maxZ);
+
+        if (minZ != int.MaxValue)
+        {
+            result.MinZ = minZ;
+            result.MaxZ = maxZ;
+
+            if (maxZ - minZ > safeMaxZDelta)
+            {
+                AddPlacementBlocker(result, new ApiHousePlacementBlocker
+                {
+                    Kind = "terrain",
+                    Reason = $"Footprint z range {maxZ - minZ} exceeds maxZDelta {safeMaxZDelta}.",
+                    X = minX,
+                    Y = minY,
+                    Z = minZ,
+                    InsideFootprint = true,
+                    ClearanceArea = "footprint"
+                });
+            }
+        }
+
+        AddDirectionalMultiPlacementBlockers(result, footprint, clearanceAreas);
+        HousePlacementArea union = BuildAreaUnion(footprint, clearanceAreas);
+        result.BlockingHouses = BuildBlockingHouseInfos(result, union.MinX, union.MinY, union.MaxX, union.MaxY, 0);
+
+        return FinalizePlacementResult(result);
+    }
+
+    private static bool IsBetterSearchCandidate(ApiHousePlacementResult candidate, long candidateScore, ApiHousePlacementResult currentBest, long currentScore)
+    {
+        if (currentBest == null)
+            return true;
+
+        if (candidateScore != currentScore)
+            return candidateScore < currentScore;
+
+        if (candidate.X != currentBest.X)
+            return candidate.X < currentBest.X;
+
+    return candidate.Y < currentBest.Y;
+}
+
+private static bool IsBetterRejectedSearchCandidate(ApiHousePlacementResult candidate, long candidateScore, ApiHousePlacementResult currentBest, long currentScore)
+{
+    if (currentBest == null)
+        return true;
+
+    int candidateBlockers = candidate.Blockers?.Count ?? int.MaxValue;
+    int currentBlockers = currentBest.Blockers?.Count ?? int.MaxValue;
+
+    if (candidateBlockers != currentBlockers)
+        return candidateBlockers < currentBlockers;
+
+    return IsBetterSearchCandidate(candidate, candidateScore, currentBest, currentScore);
+}
+
+private static long GetPlacementDistanceScore(int centerX, int centerY, int x, int y, int size)
+{
+    long candidateCenterX2 = (long)x * 2 + size - 1;
+    long candidateCenterY2 = (long)y * 2 + size - 1;
+    long centerX2 = (long)centerX * 2;
+        long centerY2 = (long)centerY * 2;
+        long dx = candidateCenterX2 - centerX2;
+        long dy = candidateCenterY2 - centerY2;
+
+    return dx * dx + dy * dy;
+}
+
+private static long GetPlacementDistanceScore(int centerX, int centerY, int x, int y, int width, int depth)
+{
+    long candidateCenterX2 = (long)x * 2 + width - 1;
+    long candidateCenterY2 = (long)y * 2 + depth - 1;
+    long centerX2 = (long)centerX * 2;
+    long centerY2 = (long)centerY * 2;
+    long dx = candidateCenterX2 - centerX2;
+    long dy = candidateCenterY2 - centerY2;
+
+    return dx * dx + dy * dy;
+}
+
+private static void DecorateSearchResult(
+    ApiHousePlacementResult result,
+        int centerX,
+        int centerY,
+        int searchRadius,
+        int minSize,
+        int maxSize,
+        int testedPlacements)
+    {
+        result.SearchResult = true;
+        result.SearchCenterX = centerX;
+        result.SearchCenterY = centerY;
+        result.SearchRadius = searchRadius;
+        result.MinSize = minSize;
+        result.MaxSize = maxSize;
+        result.TestedPlacements = testedPlacements;
+    }
+
+    private static ApiHousePlacementResult BuildSearchFailureResult(
+        int centerX,
+        int centerY,
+        int searchRadius,
+        int minSize,
+        int maxSize,
+        int map,
+        int testedPlacements,
+        string reason)
+    {
+        var result = new ApiHousePlacementResult
+        {
+            X = centerX,
+            Y = centerY,
+            Width = 0,
+            Depth = 0,
+            Direction = "search",
+            Map = map,
+            ClientEstimate = true,
+            Validator = "client-largest-house-plot-search"
+        };
+
+        AddOfficialPlacementUncheckedRules(result);
+        DecorateSearchResult(result, centerX, centerY, searchRadius, minSize, maxSize, testedPlacements);
+        AddPlacementBlocker(result, new ApiHousePlacementBlocker
+        {
+            Kind = "search",
+            Reason = reason,
+            X = centerX,
+            Y = centerY
+        });
+
+        return FinalizePlacementResult(result);
+    }
+
+    private ApiGameObject WrapGameObject(GameObject obj)
+    {
+        return obj switch
+        {
+            null => null,
+            Mobile mobile => new ApiMobile(mobile),
+            Item item => new ApiItem(item),
+            Static staticObj => new ApiStatic(staticObj),
+            Multi multi => new ApiMulti(multi, FindHouseSerialForMulti(multi)),
+            Land land => new ApiLand(land),
+            _ => new ApiGameObject(obj)
+        };
+    }
+
+    private uint FindHouseSerialForMulti(Multi multi)
+    {
+        if (multi == null || World?.HouseManager == null)
+            return 0;
+
+        foreach (House house in World.HouseManager.Houses)
+        {
+            foreach (Multi component in house.Components)
+            {
+                if (ReferenceEquals(component, multi))
+                    return house.Serial;
+            }
+        }
+
+        return 0;
+    }
+
+    private readonly struct HousePlotSize
+    {
+        public HousePlotSize(int width, int depth)
+        {
+            Width = width;
+            Depth = depth;
+        }
+
+        public int Width { get; }
+        public int Depth { get; }
+        public int Area => Width * Depth;
+    }
+
+
+    internal readonly struct HousePlacementArea
+    {
+        public HousePlacementArea(string name, int minX, int minY, int maxX, int maxY, bool isClearance, bool requiresBuildableLand)
+        {
+            Name = name ?? string.Empty;
+            MinX = Math.Min(minX, maxX);
+            MinY = Math.Min(minY, maxY);
+            MaxX = Math.Max(minX, maxX);
+            MaxY = Math.Max(minY, maxY);
+            IsClearance = isClearance;
+            RequiresBuildableLand = requiresBuildableLand;
+        }
+
+        public string Name { get; }
+        public int MinX { get; }
+        public int MinY { get; }
+        public int MaxX { get; }
+        public int MaxY { get; }
+        public bool IsClearance { get; }
+        public bool RequiresBuildableLand { get; }
+    }
+
+    internal static IReadOnlyList<HousePlacementArea> BuildOfficialHousePlacementAreas(
+        int x,
+        int y,
+        int width,
+        int depth,
+        string direction,
+        int frontClearance,
+        int backClearance,
+        int sideClearance,
+        bool includeSteps)
+    {
+        var areas = new List<HousePlacementArea>();
+
+        if (width <= 0 || depth <= 0)
+            return areas;
+
+        int minX = x;
+        int minY = y;
+        int maxX = x + width - 1;
+        int maxY = y + depth - 1;
+        int safeFrontClearance = Math.Max(0, frontClearance);
+        int safeBackClearance = Math.Max(0, backClearance);
+        int safeSideClearance = Math.Max(0, sideClearance);
+        (int frontDx, int frontDy) = GetDirectionVector(direction);
+        int backDx = -frontDx;
+        int backDy = -frontDy;
+        int leftDx = frontDy;
+        int leftDy = -frontDx;
+        int rightDx = -frontDy;
+        int rightDy = frontDx;
+
+    if (includeSteps && safeFrontClearance > 0)
+    {
+        areas.Add(BuildProjectedArea("step", minX, minY, maxX, maxY, frontDx, frontDy, 1, 1, true, true));
+
+        if (safeFrontClearance > 1)
+                areas.Add(BuildProjectedArea("front", minX, minY, maxX, maxY, frontDx, frontDy, 2, safeFrontClearance - 1, true, false));
+    }
+    else if (safeFrontClearance > 0)
+    {
+            areas.Add(BuildProjectedArea("front", minX, minY, maxX, maxY, frontDx, frontDy, 1, safeFrontClearance, true, false));
+    }
+
+    if (safeBackClearance > 0)
+        areas.Add(BuildProjectedArea("back", minX, minY, maxX, maxY, backDx, backDy, 1, safeBackClearance, true, true));
+
+    if (safeSideClearance > 0)
+    {
+        areas.Add(BuildProjectedArea("left", minX, minY, maxX, maxY, leftDx, leftDy, 1, safeSideClearance, true, true));
+        areas.Add(BuildProjectedArea("right", minX, minY, maxX, maxY, rightDx, rightDy, 1, safeSideClearance, true, true));
+    }
+
+        return areas;
+    }
+
+    private static HousePlacementArea BuildProjectedArea(
+        string name,
+        int minX,
+        int minY,
+        int maxX,
+        int maxY,
+        int dx,
+        int dy,
+        int startOffset,
+        int length,
+        bool isClearance,
+        bool requiresBuildableLand)
+    {
+        if (dx > 0)
+            return new HousePlacementArea(name, maxX + startOffset, minY, maxX + startOffset + length - 1, maxY, isClearance, requiresBuildableLand);
+
+        if (dx < 0)
+            return new HousePlacementArea(name, minX - startOffset - length + 1, minY, minX - startOffset, maxY, isClearance, requiresBuildableLand);
+
+        if (dy > 0)
+            return new HousePlacementArea(name, minX, maxY + startOffset, maxX, maxY + startOffset + length - 1, isClearance, requiresBuildableLand);
+
+        return new HousePlacementArea(name, minX, minY - startOffset - length + 1, maxX, minY - startOffset, isClearance, requiresBuildableLand);
+    }
+
+    private static (int dx, int dy) GetDirectionVector(string direction)
+    {
+        return NormalizeHouseDirection(direction) switch
+        {
+            "north" => (0, -1),
+            "east" => (1, 0),
+            "west" => (-1, 0),
+            _ => (0, 1)
+        };
+    }
+
+    private static HousePlacementArea BuildAreaUnion(HousePlacementArea footprint, IReadOnlyList<HousePlacementArea> areas)
+    {
+        int minX = footprint.MinX;
+        int minY = footprint.MinY;
+        int maxX = footprint.MaxX;
+        int maxY = footprint.MaxY;
+
+        foreach (HousePlacementArea area in areas)
+        {
+            minX = Math.Min(minX, area.MinX);
+            minY = Math.Min(minY, area.MinY);
+            maxX = Math.Max(maxX, area.MaxX);
+            maxY = Math.Max(maxY, area.MaxY);
+        }
+
+        return new HousePlacementArea("union", minX, minY, maxX, maxY, false, false);
+    }
+
+    private void CheckHousePlacementAreaTiles(ApiHousePlacementResult result, HousePlacementArea area, bool allowSmallPlants, ref int minZ, ref int maxZ)
+    {
+        for (int tx = area.MinX; tx <= area.MaxX; tx++)
+        {
+            for (int ty = area.MinY; ty <= area.MaxY; ty++)
+            {
+                if (area.IsClearance)
+                    result.CheckedClearanceTiles++;
+                else
+                    result.CheckedTiles++;
+
+                if (!IsInCurrentMapBounds(tx, ty))
+                {
+                    AddPlacementBlocker(result, new ApiHousePlacementBlocker
+                    {
+                        Kind = "map",
+                        Reason = area.IsClearance ? "House clearance extends outside map bounds." : "House footprint extends outside map bounds.",
+                        X = tx,
+                        Y = ty,
+                        InsideFootprint = !area.IsClearance,
+                        InClearance = area.IsClearance,
+                        ClearanceArea = area.Name
+                    });
+
+                    continue;
+                }
+
+                Land land = World.Map.GetTile(tx, ty, true) as Land;
+
+                if (land == null)
+                {
+                    AddPlacementBlocker(result, new ApiHousePlacementBlocker
+                    {
+                        Kind = "land",
+                        Reason = area.IsClearance ? "Clearance land tile is not loaded or missing." : "Land tile is not loaded or missing.",
+                        X = tx,
+                        Y = ty,
+                        InsideFootprint = !area.IsClearance,
+                        InClearance = area.IsClearance,
+                        ClearanceArea = area.Name
+                    });
+
+                    continue;
+                }
+
+                if (!area.IsClearance)
+                {
+                    minZ = Math.Min(minZ, land.Z);
+                    maxZ = Math.Max(maxZ, land.Z);
+                }
+
+                if (area.RequiresBuildableLand)
+                    AddLandPlacementBlockers(result, area, land, checkRoads: true);
+
+                foreach (Static staticObj in EnumerateStaticsAt(tx, ty, true))
+                {
+                    if (!IsStaticBlockingHousePlacement(staticObj, allowSmallPlants, out string staticReason))
+                        continue;
+
+                    AddPlacementBlocker(result, BuildPlacementBlocker(
+                        "static",
+                        staticReason,
+                        staticObj.X,
+                        staticObj.Y,
+                        staticObj.Z,
+                        staticObj.OriginalGraphic,
+                        staticObj.Name,
+                        !area.IsClearance,
+                        area.IsClearance,
+                        area.Name));
+                }
+            }
+        }
+    }
+
+    private void AddLandPlacementBlockers(ApiHousePlacementResult result, HousePlacementArea area, Land land, bool checkRoads)
+    {
+        TileFlag landFlags = land.TileData.Flags;
+        bool insideFootprint = !area.IsClearance;
+        bool inClearance = area.IsClearance;
+
+        if ((landFlags & TileFlag.NoHouse) != 0)
+            AddPlacementBlocker(result, BuildPlacementBlocker("land", "Land tile has NoHouse flag.", land.X, land.Y, land.Z, land.OriginalGraphic, land.TileData.Name, insideFootprint, inClearance, area.Name));
+
+        if ((landFlags & TileFlag.Impassable) != 0)
+            AddPlacementBlocker(result, BuildPlacementBlocker("land", "Land tile is impassable.", land.X, land.Y, land.Z, land.OriginalGraphic, land.TileData.Name, insideFootprint, inClearance, area.Name));
+
+        if ((landFlags & TileFlag.Wet) != 0)
+            AddPlacementBlocker(result, BuildPlacementBlocker("land", "Land tile is wet.", land.X, land.Y, land.Z, land.OriginalGraphic, land.TileData.Name, insideFootprint, inClearance, area.Name));
+
+        if (checkRoads && IsRoadCandidate(land.OriginalGraphic, land.TileData.Name, landFlags))
+            AddPlacementBlocker(result, BuildPlacementBlocker("land", "Land tile appears to be a road.", land.X, land.Y, land.Z, land.OriginalGraphic, land.TileData.Name, insideFootprint, inClearance, area.Name));
+    }
+
+    private ApiTileInfo BuildTileInfo(int x, int y)
+    {
+        var info = new ApiTileInfo
+        {
+            X = x,
+            Y = y,
+            Map = World?.Map?.Index ?? -1,
+            InMapBounds = World?.Map != null && IsInCurrentMapBounds(x, y)
+        };
+
+        if (World?.Map == null || !info.InMapBounds)
+        {
+            info.Region = BuildRegionInfo(info);
+            return info;
+        }
+
+        if (World.Map.GetTile(x, y, true) is Land land)
+        {
+            info.HasLand = true;
+            info.Land = BuildLandTileInfo(land);
+            info.HasNoHouseFlag |= info.Land.Flags.IsNoHouse;
+            info.IsRoadCandidate |= info.Land.IsRoadCandidate;
+            info.HasImpassable |= info.Land.Flags.IsImpassable;
+            info.HasWet |= info.Land.Flags.IsWet;
+        }
+
+        foreach (Static staticObj in EnumerateStaticsAt(x, y, true))
+        {
+            ApiStaticTileInfo staticInfo = BuildStaticTileInfo(staticObj);
+            info.Statics.Add(staticInfo);
+            info.HasNoHouseFlag |= staticInfo.Flags.IsNoHouse;
+            info.HasImpassable |= staticInfo.Flags.IsImpassable;
+            info.HasWet |= staticInfo.Flags.IsWet;
+            info.HasSurfaceStatic |= staticInfo.Flags.IsSurface;
+            info.HasBridgeStatic |= staticInfo.Flags.IsBridge;
+            info.HasWallOrDoor |= staticInfo.Flags.IsWall || staticInfo.Flags.IsDoor;
+        }
+
+        if (World.HouseManager != null)
+        {
+            foreach (House house in World.HouseManager.Houses)
+            {
+                foreach (Multi multi in house.GetMultiAt(x, y))
+                {
+                    info.Multis.Add(BuildMultiComponentInfo(multi, house.Serial));
+                }
+            }
+        }
+
+        info.Region = BuildRegionInfo(info);
+        return info;
+    }
+
+    private ApiLandTileInfo BuildLandTileInfo(Land land)
+    {
+        return new ApiLandTileInfo
+        {
+            X = land.X,
+            Y = land.Y,
+            Z = land.Z,
+            Graphic = land.OriginalGraphic,
+            GraphicHex = $"0x{land.OriginalGraphic:X4}",
+            Name = land.TileData.Name,
+            IsRoadCandidate = IsRoadCandidate(land.OriginalGraphic, land.TileData.Name, land.TileData.Flags),
+            Flags = BuildFlagInfo(land.TileData.Flags)
+        };
+    }
+
+    private ApiStaticTileInfo BuildStaticTileInfo(Static staticObj)
+    {
+        return new ApiStaticTileInfo
+        {
+            X = staticObj.X,
+            Y = staticObj.Y,
+            Z = staticObj.Z,
+            Graphic = staticObj.OriginalGraphic,
+            GraphicHex = $"0x{staticObj.OriginalGraphic:X4}",
+            Hue = staticObj.Hue,
+            HueHex = $"0x{staticObj.Hue:X4}",
+            Height = staticObj.ItemData.Height,
+            Name = staticObj.Name,
+            IsTree = StaticFilters.IsTree(staticObj.OriginalGraphic, out _),
+            IsVegetation = staticObj.IsVegetation,
+            IsCave = StaticFilters.IsCave(staticObj.OriginalGraphic),
+            Flags = BuildFlagInfo(staticObj.ItemData.Flags)
+        };
+    }
+
+    private ApiMultiComponentInfo BuildMultiComponentInfo(Multi multi, uint houseSerial)
+    {
+        return new ApiMultiComponentInfo
+        {
+            HouseSerial = houseSerial,
+            HouseSerialHex = $"0x{houseSerial:X8}",
+            MultiID = multi.OriginalGraphic,
+            MultiIDHex = $"0x{multi.OriginalGraphic:X4}",
+            X = multi.X,
+            Y = multi.Y,
+            Z = multi.Z,
+            Graphic = multi.OriginalGraphic,
+            GraphicHex = $"0x{multi.OriginalGraphic:X4}",
+            Hue = multi.Hue,
+            HueHex = $"0x{multi.Hue:X4}",
+            Height = multi.ItemData.Height,
+            Name = multi.Name,
+            MultiOffsetX = multi.MultiOffsetX,
+            MultiOffsetY = multi.MultiOffsetY,
+            MultiOffsetZ = multi.MultiOffsetZ,
+            IsCustom = multi.IsCustom,
+            IsMovable = multi.IsMovable,
+            Flags = BuildFlagInfo(multi.ItemData.Flags)
+        };
+    }
+
+    private static ApiTileFlagInfo BuildFlagInfo(TileFlag flags)
+    {
+        return new ApiTileFlagInfo
+        {
+            Value = (ulong)flags,
+            Names = flags.ToString(),
+            IsSurface = (flags & TileFlag.Surface) != 0,
+            IsBridge = (flags & TileFlag.Bridge) != 0,
+            IsWet = (flags & TileFlag.Wet) != 0,
+            IsFoliage = (flags & TileFlag.Foliage) != 0,
+            IsWall = (flags & TileFlag.Wall) != 0,
+            IsDoor = (flags & TileFlag.Door) != 0,
+            IsImpassable = (flags & TileFlag.Impassable) != 0,
+            IsNoHouse = (flags & TileFlag.NoHouse) != 0,
+            IsNoDiagonal = (flags & TileFlag.NoDiagonal) != 0,
+            IsRoof = (flags & TileFlag.Roof) != 0,
+            IsBackground = (flags & TileFlag.Background) != 0
+        };
+    }
+
+    private IEnumerable<Static> EnumerateStaticsAt(int x, int y, bool load)
+    {
+        if (World?.Map == null || !IsInCurrentMapBounds(x, y))
+            yield break;
+
+        Game.Map.Chunk chunk = World.Map.GetChunk(x, y, load);
+
+        if (chunk == null)
+            yield break;
+
+        GameObject obj = chunk.GetHeadObject(x % 8, y % 8);
+
+        while (obj != null)
+        {
+            if (obj is Static staticObj)
+                yield return staticObj;
+
+            obj = obj.TNext;
+        }
+    }
+
+    private ApiRegionInfo BuildRegionInfo(ApiTileInfo tileInfo)
+    {
+        return new ApiRegionInfo
+        {
+            RegionDataAvailable = false,
+            RegionName = string.Empty,
+            IsGuardZone = false,
+            NoHousing = tileInfo.HasNoHouseFlag,
+            IsTown = false,
+            IsDungeon = false,
+            Source = tileInfo.HasNoHouseFlag ? "tiledata-nohouse" : "not-available"
+        };
+    }
+
+    private List<ApiHouseInfo> BuildHouseInfosInArea(int x1, int y1, int x2, int y2, int clearance)
+    {
+        var houses = new List<ApiHouseInfo>();
+
+        if (World?.HouseManager == null)
+            return houses;
+
+        int minX = Math.Min(x1, x2) - Math.Max(0, clearance);
+        int maxX = Math.Max(x1, x2) + Math.Max(0, clearance);
+        int minY = Math.Min(y1, y2) - Math.Max(0, clearance);
+        int maxY = Math.Max(y1, y2) + Math.Max(0, clearance);
+
+        foreach (House house in World.HouseManager.Houses)
+        {
+            if (!HouseIntersectsArea(house, minX, minY, maxX, maxY))
+                continue;
+
+            houses.Add(BuildHouseInfo(house));
+        }
+
+        return houses;
+    }
+
+    private List<ApiHouseInfo> BuildBlockingHouseInfos(ApiHousePlacementResult result, int x1, int y1, int x2, int y2, int clearance)
+    {
+        HashSet<uint> blockingSerials = result.Blockers
+            .Where(b => b.HouseSerial != 0)
+            .Select(b => b.HouseSerial)
+            .ToHashSet();
+
+        if (blockingSerials.Count == 0)
+            return new List<ApiHouseInfo>();
+
+        return BuildHouseInfosInArea(x1, y1, x2, y2, clearance)
+            .Where(h => blockingSerials.Contains(h.Serial))
+            .ToList();
+    }
+
+    private ApiHouseInfo BuildHouseInfo(House house)
+    {
+        Item foundation = World?.Items?.Get(house.Serial);
+
+        var info = new ApiHouseInfo
+        {
+            Serial = house.Serial,
+            SerialHex = $"0x{house.Serial:X8}",
+            MultiID = foundation?.OriginalGraphic ?? 0,
+            MultiIDHex = foundation == null ? string.Empty : $"0x{foundation.OriginalGraphic:X4}",
+            IsCustom = house.IsCustom,
+            Revision = house.Revision,
+            RawMinX = house.Bounds.X,
+            RawMinY = house.Bounds.Y,
+            RawMaxX = house.Bounds.Width,
+            RawMaxY = house.Bounds.Height,
+            OriginX = foundation?.X ?? 0,
+            OriginY = foundation?.Y ?? 0,
+            OriginZ = foundation?.Z ?? 0,
+            MinX = int.MaxValue,
+            MinY = int.MaxValue,
+            MinZ = int.MaxValue,
+            MaxX = int.MinValue,
+            MaxY = int.MinValue,
+            MaxZ = int.MinValue
+        };
+
+        foreach (Multi component in house.Components)
+        {
+            if (component == null || component.IsDestroyed)
+                continue;
+
+            info.Components.Add(BuildMultiComponentInfo(component, house.Serial));
+            info.MinX = Math.Min(info.MinX, component.X);
+            info.MinY = Math.Min(info.MinY, component.Y);
+            info.MinZ = Math.Min(info.MinZ, component.Z);
+            info.MaxX = Math.Max(info.MaxX, component.X);
+            info.MaxY = Math.Max(info.MaxY, component.Y);
+            info.MaxZ = Math.Max(info.MaxZ, component.Z);
+        }
+
+        info.ComponentCount = info.Components.Count;
+        info.BoundsFromComponents = info.ComponentCount > 0;
+
+        if (info.ComponentCount == 0)
+        {
+            if (foundation != null)
+            {
+                info.MinX = foundation.X + info.RawMinX;
+                info.MinY = foundation.Y + info.RawMinY;
+                info.MaxX = foundation.X + info.RawMaxX;
+                info.MaxY = foundation.Y + info.RawMaxY;
+                info.MinZ = foundation.Z;
+                info.MaxZ = foundation.Z;
+            }
+            else
+            {
+                info.MinX = info.RawMinX;
+                info.MinY = info.RawMinY;
+                info.MaxX = info.RawMaxX;
+                info.MaxY = info.RawMaxY;
+                info.MinZ = 0;
+                info.MaxZ = 0;
+            }
+        }
+
+        info.Width = info.MaxX >= info.MinX ? info.MaxX - info.MinX + 1 : 0;
+        info.Depth = info.MaxY >= info.MinY ? info.MaxY - info.MinY + 1 : 0;
+
+        return info;
+    }
+
+    private bool HouseIntersectsArea(House house, int minX, int minY, int maxX, int maxY)
+    {
+        foreach (Multi component in house.Components)
+        {
+            if (component == null || component.IsDestroyed)
+                continue;
+
+            if (component.X >= minX && component.X <= maxX && component.Y >= minY && component.Y <= maxY)
+                return true;
+        }
+
+        ApiHouseInfo info = BuildHouseInfo(house);
+        return RectsIntersect(info.MinX, info.MinY, info.MaxX, info.MaxY, minX, minY, maxX, maxY);
+    }
+
+    private void AddDirectionalMultiPlacementBlockers(ApiHousePlacementResult result, HousePlacementArea footprint, IReadOnlyList<HousePlacementArea> clearanceAreas)
+    {
+        if (World?.HouseManager == null)
+            return;
+
+        foreach (House house in World.HouseManager.Houses)
+        {
+            foreach (Multi component in house.Components)
+            {
+                if (component == null || component.IsDestroyed)
+                    continue;
+
+                if (PointInArea(component.X, component.Y, footprint))
+                {
+                    ApiHousePlacementBlocker componentBlocker = BuildPlacementBlocker(
+                        "multi",
+                        "Existing multi component inside footprint.",
+                        component.X,
+                        component.Y,
+                        component.Z,
+                        component.OriginalGraphic,
+                        component.Name,
+                        true,
+                        false,
+                        "footprint");
+
+                    componentBlocker.HouseSerial = house.Serial;
+                    componentBlocker.HouseSerialHex = $"0x{house.Serial:X8}";
+                    AddPlacementBlocker(result, componentBlocker);
+                    continue;
+                }
+
+                foreach (HousePlacementArea area in clearanceAreas)
+                {
+                    if (!PointInArea(component.X, component.Y, area))
+                        continue;
+
+                    ApiHousePlacementBlocker componentBlocker = BuildPlacementBlocker(
+                        "multi",
+                        $"Existing multi component inside {area.Name} clearance.",
+                        component.X,
+                        component.Y,
+                        component.Z,
+                        component.OriginalGraphic,
+                        component.Name,
+                        false,
+                        true,
+                        area.Name);
+
+                    componentBlocker.HouseSerial = house.Serial;
+                    componentBlocker.HouseSerialHex = $"0x{house.Serial:X8}";
+                    AddPlacementBlocker(result, componentBlocker);
+                    break;
+                }
+            }
+
+            ApiHouseInfo info = BuildHouseInfo(house);
+
+            if (RectsIntersect(info.MinX, info.MinY, info.MaxX, info.MaxY, footprint.MinX, footprint.MinY, footprint.MaxX, footprint.MaxY))
+            {
+                AddHouseBoundsPlacementBlocker(result, house.Serial, info, "Existing house bounds intersect footprint.", true, false, "footprint");
+                continue;
+            }
+
+            foreach (HousePlacementArea area in clearanceAreas)
+            {
+                if (!RectsIntersect(info.MinX, info.MinY, info.MaxX, info.MaxY, area.MinX, area.MinY, area.MaxX, area.MaxY))
+                    continue;
+
+                AddHouseBoundsPlacementBlocker(result, house.Serial, info, $"Existing house bounds intersect {area.Name} clearance.", false, true, area.Name);
+                break;
+            }
+        }
+    }
+
+    private static bool PointInArea(int x, int y, HousePlacementArea area) =>
+        x >= area.MinX && x <= area.MaxX && y >= area.MinY && y <= area.MaxY;
+
+    private static void AddHouseBoundsPlacementBlocker(
+        ApiHousePlacementResult result,
+        uint houseSerial,
+        ApiHouseInfo info,
+        string reason,
+        bool insideFootprint,
+        bool inClearance,
+        string clearanceArea)
+    {
+        var blocker = new ApiHousePlacementBlocker
+        {
+            Kind = "multi",
+            Reason = reason,
+            X = info.MinX,
+            Y = info.MinY,
+            Z = info.MinZ,
+            Graphic = info.MultiID > ushort.MaxValue ? ushort.MaxValue : (ushort)info.MultiID,
+            GraphicHex = info.MultiIDHex,
+            Name = "Known house bounds",
+            HouseSerial = houseSerial,
+            HouseSerialHex = $"0x{houseSerial:X8}",
+            InsideFootprint = insideFootprint,
+            InClearance = inClearance,
+            ClearanceArea = clearanceArea
+        };
+
+        AddPlacementBlocker(result, blocker);
+    }
+
+    private static bool RectsIntersect(int minX1, int minY1, int maxX1, int maxY1, int minX2, int minY2, int maxX2, int maxY2) =>
+        minX1 <= maxX2 && maxX1 >= minX2 && minY1 <= maxY2 && maxY1 >= minY2;
+
+    private static bool IsStaticBlockingHousePlacement(Static staticObj, bool allowSmallPlants, out string reason)
+    {
+    reason = string.Empty;
+    TileFlag flags = staticObj.ItemData.Flags;
+    bool isSmallPlant = (flags & TileFlag.Foliage) != 0 ||
+                        (flags & TileFlag.Background) != 0 ||
+                        staticObj.IsVegetation;
+    bool isCave = StaticFilters.IsCave(staticObj.OriginalGraphic);
+    bool isTree = StaticFilters.IsTree(staticObj.OriginalGraphic, out _);
+    bool hasHardBlocker = (flags & TileFlag.NoHouse) != 0 ||
+                          (flags & TileFlag.Impassable) != 0 ||
+                          (flags & TileFlag.Wall) != 0 ||
+                          (flags & TileFlag.Door) != 0 ||
+                          (flags & TileFlag.Bridge) != 0 ||
+                          (flags & TileFlag.Wet) != 0 ||
+                          isCave ||
+                          isTree;
+
+    if (isSmallPlant && allowSmallPlants && !hasHardBlocker)
+        return false;
+
+    if (isCave)
+        reason = "Static tile is cave terrain.";
+    else if (isTree)
+        reason = "Static tile is a tree.";
+    else if ((flags & TileFlag.Wall) != 0)
+        reason = "Static tile is a wall.";
+    else if ((flags & TileFlag.Door) != 0)
+        reason = "Static tile is a door.";
+    else if ((flags & TileFlag.Bridge) != 0)
+        reason = "Static tile is a bridge.";
+    else if ((flags & TileFlag.Wet) != 0)
+        reason = "Static tile is wet.";
+    else if ((flags & TileFlag.NoHouse) != 0)
+        reason = "Static tile has NoHouse flag.";
+    else if ((flags & TileFlag.Impassable) != 0)
+        reason = "Static tile is impassable.";
+    else if (isSmallPlant)
+        reason = "Static tile is vegetation.";
+    else if (staticObj.ItemData.Height > 0)
+        reason = "Static tile has blocking height.";
+
+    return !string.IsNullOrEmpty(reason);
+}
+
+    internal static bool IsRoadCandidate(ushort graphic, string name, TileFlag flags)
+    {
+        string normalizedName = (name ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (string.IsNullOrEmpty(normalizedName))
+            return false;
+
+        return normalizedName.Contains("road", StringComparison.Ordinal) ||
+               normalizedName.Contains("paved", StringComparison.Ordinal) ||
+               normalizedName.Contains("pavement", StringComparison.Ordinal) ||
+               normalizedName.Contains("cobble", StringComparison.Ordinal) ||
+               normalizedName.Contains("flagstone", StringComparison.Ordinal) ||
+               normalizedName.Contains("flag stone", StringComparison.Ordinal);
+    }
+
+    private static void AddOfficialPlacementUncheckedRules(ApiHousePlacementResult result)
+    {
+        result.UncheckedServerSideRules.Add("Account ownership and seven-day housing cooldown are not available from client tile data.");
+        result.UncheckedServerSideRules.Add("Guard zone, town, dungeon, and no-housing region data is limited to tile NoHouse flags unless the server exposes region data.");
+        result.UncheckedServerSideRules.Add("The shard server performs the final placement validation and may reject a client-side estimate.");
+    }
+
+    private static ApiHousePlacementBlocker BuildPlacementBlocker(
+        string kind,
+        string reason,
+        int x,
+        int y,
+        int z,
+        ushort graphic,
+        string name,
+        bool insideFootprint,
+        bool inClearance = false,
+        string clearanceArea = "")
+    {
+        return new ApiHousePlacementBlocker
+        {
+            Kind = kind,
+            Reason = reason,
+            X = x,
+            Y = y,
+            Z = z,
+            Graphic = graphic,
+            GraphicHex = $"0x{graphic:X4}",
+            Name = name ?? string.Empty,
+            InsideFootprint = insideFootprint,
+            InClearance = inClearance,
+            ClearanceArea = clearanceArea
+        };
+    }
+
+    private static void AddPlacementBlocker(ApiHousePlacementResult result, ApiHousePlacementBlocker blocker)
+    {
+        result.Blockers.Add(blocker);
+
+        if (!result.Reasons.Contains(blocker.Reason))
+            result.Reasons.Add(blocker.Reason);
+    }
+
+    private static ApiHousePlacementResult FinalizePlacementResult(ApiHousePlacementResult result)
+    {
+        result.Ok = result.Blockers.Count == 0;
+        result.Reason = result.Ok ? "OK" : string.Join("; ", result.Reasons);
+        return result;
+    }
+
+    private bool IsInCurrentMapBounds(int x, int y)
+    {
+        if (World?.Map == null)
+            return false;
+
+        try
+        {
+            int mapIndex = World.Map.Index;
+            int width = Client.Game.UO.FileManager.Maps.MapBlocksSize[mapIndex, 0] * 8;
+            int height = Client.Game.UO.FileManager.Maps.MapBlocksSize[mapIndex, 1] * 8;
+            return x >= 0 && y >= 0 && x < width && y < height;
+        }
+        catch
+        {
+            return x >= 0 && y >= 0;
+        }
+    }
+
+    private static string NormalizeHouseDirection(string direction)
+    {
+        if (string.IsNullOrWhiteSpace(direction))
+            return "south";
+
+        string normalized = direction.Trim().ToLowerInvariant();
+
+        return normalized switch
+        {
+            "n" or "north" => "north",
+            "e" or "east" => "east",
+            "s" or "south" => "south",
+            "w" or "west" => "west",
+            _ => normalized
+        };
+    }
+
         #region Friends List
 
         /// <summary>
