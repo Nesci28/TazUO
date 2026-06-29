@@ -38,8 +38,8 @@ namespace ClassicUO.Game.UI.Gumps
         private int _nameBandHeight;
         private int _resourceBarHeight;
         private int _resourceBarCount;
-        private int _leftAdornmentReserveWidth;
-        private int _rightAdornmentReserveWidth;
+        private int _sideAdornmentReserveWidth;
+        private int _topAdornmentHeight;
         private bool _useSplitLayout;
         private static int currentHeight = 22;
         private static readonly int COLLISION_SPACING = 8;
@@ -51,7 +51,12 @@ namespace ClassicUO.Game.UI.Gumps
         private const int WORD_OF_DEATH_SPELL_ID = 614;
         private const double WORD_OF_DEATH_HEALTH_THRESHOLD = 0.30d;
         private const int WORD_OF_DEATH_ICON_PADDING = 3;
-        private const int NAMEPLATE_ADORNMENT_GAP = 2;
+        private const int NAMEPLATE_SIDE_ADORNMENT_GAP = 2;
+        private const int NAMEPLATE_DISTANCE_BADGE_HORIZONTAL_PADDING = 5;
+        private const int NAMEPLATE_DISTANCE_BADGE_VERTICAL_PADDING = 2;
+        private const int NAMEPLATE_DISTANCE_BADGE_TOP_PADDING = 1;
+        private const int NAMEPLATE_DISTANCE_BADGE_OVERLAP = 2;
+        private const int NAMEPLATE_DISTANCE_TARGET_TICK = 3;
         private const string NAMEPLATE_DISTANCE_RESERVE_TEXT = "999";
         private static readonly Color MissingHealthBackgroundColor = new Color(14, 14, 14);
 
@@ -197,23 +202,23 @@ namespace ClassicUO.Game.UI.Gumps
             _text.Font = profile.NamePlateFont;
             _text.FontSize = profile.NamePlateFontSize;
             SetMeasuredText(name);
-            _leftAdornmentReserveWidth = GetLeftAdornmentReserveWidth(profile, entity);
-            _rightAdornmentReserveWidth = GetRightAdornmentReserveWidth(profile, entity);
-            int adornmentReserveWidth = _leftAdornmentReserveWidth + _rightAdornmentReserveWidth;
+            _sideAdornmentReserveWidth = GetSideAdornmentReserveWidth(profile, entity);
+            _topAdornmentHeight = GetTopAdornmentHeight(profile, entity);
+            int sideAdornmentReserveWidth = _sideAdornmentReserveWidth * 2;
             int nameWidth;
 
             if (profile.NamePlateUseFixedWidth)
             {
                 nameWidth = Math.Clamp(profile.NamePlateFixedWidth, 60, 300);
-                SetFittedText(name, Math.Max(1, nameWidth - NAMEPLATE_HORIZONTAL_PADDING - adornmentReserveWidth));
+                SetFittedText(name, Math.Max(1, nameWidth - NAMEPLATE_HORIZONTAL_PADDING - sideAdornmentReserveWidth));
             }
             else
             {
-                nameWidth = Math.Max(MIN_NAMEPLATE_WIDTH, _text.Width + adornmentReserveWidth) + NAMEPLATE_HORIZONTAL_PADDING;
+                nameWidth = Math.Max(MIN_NAMEPLATE_WIDTH, _text.Width + sideAdornmentReserveWidth) + NAMEPLATE_HORIZONTAL_PADDING;
             }
 
             int healthBarWidth = GetHealthBarWidth(profile, nameWidth, entity);
-            int width = Math.Max(nameWidth, healthBarWidth);
+            int width = Math.Max(Math.Max(nameWidth, healthBarWidth), GetTopAdornmentReserveWidth(profile, entity));
 
             int minimumNameBandHeight = Math.Max(Constants.OBJECT_HANDLES_GUMP_HEIGHT, _text.Height) + NAMEPLATE_VERTICAL_PADDING;
             _namePlateWidth = nameWidth;
@@ -242,10 +247,10 @@ namespace ClassicUO.Game.UI.Gumps
             }
 
             Width = _background.Width = width;
-            Height = _background.Height = CurrentHeight = height;
-            int textAreaWidth = Math.Max(1, _namePlateWidth - NAMEPLATE_HORIZONTAL_PADDING - adornmentReserveWidth);
-            _textDrawOffset.X = _leftAdornmentReserveWidth + Math.Max(0, (textAreaWidth - _text.Width) >> 1);
-            _textDrawOffset.Y = Math.Max(0, ((_useSplitLayout ? _nameBandHeight : Height) - _text.Height) >> 1);
+            Height = _background.Height = CurrentHeight = height + _topAdornmentHeight;
+            int textAreaWidth = Math.Max(1, _namePlateWidth - NAMEPLATE_HORIZONTAL_PADDING - sideAdornmentReserveWidth);
+            _textDrawOffset.X = _sideAdornmentReserveWidth + Math.Max(0, (textAreaWidth - _text.Width) >> 1);
+            _textDrawOffset.Y = Math.Max(0, ((_useSplitLayout ? _nameBandHeight : height) - _text.Height) >> 1);
             _lastLayoutSignature = GetLayoutSignature(profile, entity);
             WantUpdateSize = false;
         }
@@ -272,7 +277,17 @@ namespace ClassicUO.Game.UI.Gumps
             }
         }
 
-        private int GetLeftAdornmentReserveWidth(Profile profile, Entity entity)
+        private int GetSideAdornmentReserveWidth(Profile profile, Entity entity)
+        {
+            if (entity is not Mobile mobile || !ShouldReserveWordOfDeathIcon(profile, mobile))
+            {
+                return 0;
+            }
+
+            return Math.Max(1, _text.Height + 2) + WORD_OF_DEATH_ICON_PADDING + NAMEPLATE_SIDE_ADORNMENT_GAP;
+        }
+
+        private int GetTopAdornmentHeight(Profile profile, Entity entity)
         {
             if (entity is not Mobile mobile || !ShouldReserveDistanceText(profile, mobile))
             {
@@ -283,17 +298,21 @@ namespace ClassicUO.Game.UI.Gumps
             distanceText.Text = NAMEPLATE_DISTANCE_RESERVE_TEXT;
             distanceText.Update();
 
-            return distanceText.Width + WORD_OF_DEATH_ICON_PADDING + NAMEPLATE_ADORNMENT_GAP;
+            return Math.Max(0, GetDistanceBadgeSize(distanceText).Y + NAMEPLATE_DISTANCE_BADGE_TOP_PADDING - NAMEPLATE_DISTANCE_BADGE_OVERLAP);
         }
 
-        private int GetRightAdornmentReserveWidth(Profile profile, Entity entity)
+        private int GetTopAdornmentReserveWidth(Profile profile, Entity entity)
         {
-            if (entity is not Mobile || !profile.NamePlateShowWordOfDeathIcon)
+            if (entity is not Mobile mobile || !ShouldReserveDistanceText(profile, mobile))
             {
                 return 0;
             }
 
-            return Math.Max(1, _text.Height + 2) + WORD_OF_DEATH_ICON_PADDING;
+            TextBox distanceText = EnsureDistanceText(profile);
+            distanceText.Text = NAMEPLATE_DISTANCE_RESERVE_TEXT;
+            distanceText.Update();
+
+            return GetDistanceBadgeSize(distanceText).X;
         }
 
         private int GetSplitResourceBarCount(Profile profile, Entity entity)
@@ -1006,7 +1025,7 @@ namespace ClassicUO.Game.UI.Gumps
             int cornerRadius = GetCornerRadius(nameBounds.Width, nameBounds.Height);
             DrawNamePlateBackground(batcher, nameplateEntity, nameBounds, cornerRadius);
 
-            int textY = y;
+            int textY = nameBounds.Y;
 
             if (ProfileManager.CurrentProfile.NamePlateHealthBar && _isMobile)
             {
@@ -1062,29 +1081,31 @@ namespace ClassicUO.Game.UI.Gumps
             }
 
             Mobile textMobile = _isMobile ? World.Mobiles.Get(LocalSerial) : null;
+            DrawDistanceBadge(batcher, textMobile, nameBounds);
             Color textColor = GetContrastingTextColor(GetTextSurfaceColor(nameplateEntity, textMobile));
             int textX = (int)(nameBounds.X + 2 + _textDrawOffset.X);
             int textDrawY = (int)(textY + 2 + _textDrawOffset.Y);
 
             bool result = _text.Draw(batcher, textX, textDrawY, textColor);
-            DrawDistanceText(batcher, textMobile, nameBounds, textDrawY, nameBounds.X + WORD_OF_DEATH_ICON_PADDING, textColor);
             DrawWordOfDeathIcon(batcher, textMobile, nameBounds, textDrawY, nameBounds.Right - WORD_OF_DEATH_ICON_PADDING);
             return result;
         }
 
         private Rectangle GetResourceBarBounds(int x, int y, int barIndex, int barCount)
         {
+            int contentY = y + _topAdornmentHeight;
+            int contentHeight = GetContentHeight();
             int barWidth = _healthBarWidth > 0 ? _healthBarWidth : Width;
             int barX = GetCenteredX(x, barWidth);
 
             if (_useSplitLayout)
             {
-                return new Rectangle(barX, y + _nameBandHeight + 1 + barIndex * _resourceBarHeight, Math.Max(1, barWidth), _resourceBarHeight);
+                return new Rectangle(barX, contentY + _nameBandHeight + 1 + barIndex * _resourceBarHeight, Math.Max(1, barWidth), _resourceBarHeight);
             }
 
-            int barHeight = Math.Max(1, Height / Math.Max(1, barCount));
-            int barY = y + barIndex * barHeight;
-            int height = barIndex == barCount - 1 ? Math.Max(1, Height - barHeight * barIndex) : barHeight;
+            int barHeight = Math.Max(1, contentHeight / Math.Max(1, barCount));
+            int barY = contentY + barIndex * barHeight;
+            int height = barIndex == barCount - 1 ? Math.Max(1, contentHeight - barHeight * barIndex) : barHeight;
 
             return new Rectangle(barX, barY, Math.Max(1, barWidth), height);
         }
@@ -1092,9 +1113,14 @@ namespace ClassicUO.Game.UI.Gumps
         private Rectangle GetNamePlateBackgroundBounds(int x, int y)
         {
             int nameWidth = _namePlateWidth > 0 ? _namePlateWidth : Width;
-            int nameHeight = Math.Max(1, _useSplitLayout ? _nameBandHeight : Height);
+            int nameHeight = Math.Max(1, _useSplitLayout ? _nameBandHeight : GetContentHeight());
 
-            return new Rectangle(GetCenteredX(x, nameWidth), y, Math.Max(1, nameWidth), nameHeight);
+            return new Rectangle(GetCenteredX(x, nameWidth), y + _topAdornmentHeight, Math.Max(1, nameWidth), nameHeight);
+        }
+
+        private int GetContentHeight()
+        {
+            return Math.Max(1, Height - _topAdornmentHeight);
         }
 
         private int GetCenteredX(int x, int width)
@@ -1259,7 +1285,7 @@ namespace ClassicUO.Game.UI.Gumps
             return Notoriety.GetHue(mobile.NotorietyFlag);
         }
 
-        private void DrawDistanceText(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds, int textY, int leftEdge, Color textColor)
+        private void DrawDistanceBadge(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds)
         {
             if (!ShouldDrawDistance(mobile))
             {
@@ -1269,16 +1295,20 @@ namespace ClassicUO.Game.UI.Gumps
             TextBox distanceText = EnsureDistanceText(ProfileManager.CurrentProfile);
             distanceText.Text = mobile.Distance.ToString();
             distanceText.Update();
+            Point badgeSize = GetDistanceBadgeSize(distanceText);
 
-            int distanceX = leftEdge;
+            Rectangle badgeBounds = new Rectangle(
+                nameBounds.X + ((nameBounds.Width - badgeSize.X) >> 1),
+                nameBounds.Y - badgeSize.Y + NAMEPLATE_DISTANCE_BADGE_OVERLAP,
+                badgeSize.X,
+                badgeSize.Y
+            );
 
-            if (distanceX + distanceText.Width > nameBounds.Right - WORD_OF_DEATH_ICON_PADDING)
-            {
-                return;
-            }
+            DrawDistanceBadgeFrame(batcher, badgeBounds);
 
-            int distanceY = textY + Math.Max(0, (_text.Height - distanceText.Height) >> 1);
-            distanceText.Draw(batcher, distanceX, distanceY, textColor);
+            int distanceX = badgeBounds.X + Math.Max(0, (badgeBounds.Width - distanceText.Width) >> 1);
+            int distanceY = badgeBounds.Y + Math.Max(0, (badgeBounds.Height - distanceText.Height) >> 1);
+            distanceText.Draw(batcher, distanceX, distanceY, Color.White);
         }
 
         private bool ShouldDrawDistance(Mobile mobile)
@@ -1292,7 +1322,73 @@ namespace ClassicUO.Game.UI.Gumps
             return mobile != null
                    && profile.NamePlateShowDistance
                    && World.Player != null
-                   && mobile.Serial != World.Player.Serial;
+                   && !IsOwnMobile(mobile);
+        }
+
+        private static Point GetDistanceBadgeSize(TextBox distanceText)
+        {
+            int badgeHeight = Math.Max(14, distanceText.Height + NAMEPLATE_DISTANCE_BADGE_VERTICAL_PADDING * 2);
+            int badgeWidth = Math.Max(badgeHeight, distanceText.Width + NAMEPLATE_DISTANCE_BADGE_HORIZONTAL_PADDING * 2);
+
+            return new Point(badgeWidth, badgeHeight);
+        }
+
+        private void DrawDistanceBadgeFrame(UltimaBatcher2D batcher, Rectangle bounds)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return;
+            }
+
+            int radius = Math.Max(1, bounds.Height >> 1);
+            Vector3 hue = ShaderHueTranslator.GetHueVector(0);
+            Texture2D borderTexture = SolidColorTextureCache.GetTexture(Color.Black);
+            Texture2D ringTexture = SolidColorTextureCache.GetTexture(new Color(226, 230, 205));
+            Texture2D innerTexture = SolidColorTextureCache.GetTexture(new Color(18, 22, 20));
+
+            DrawRoundedRectangle(batcher, borderTexture, bounds, hue, radius);
+
+            Rectangle ringBounds = new Rectangle(bounds.X + 1, bounds.Y + 1, Math.Max(0, bounds.Width - 2), Math.Max(0, bounds.Height - 2));
+
+            if (ringBounds.Width <= 0 || ringBounds.Height <= 0)
+            {
+                return;
+            }
+
+            DrawRoundedRectangle(batcher, ringTexture, ringBounds, hue, Math.Max(0, radius - 1));
+
+            Rectangle innerBounds = new Rectangle(bounds.X + 2, bounds.Y + 2, Math.Max(0, bounds.Width - 4), Math.Max(0, bounds.Height - 4));
+
+            if (innerBounds.Width <= 0 || innerBounds.Height <= 0)
+            {
+                return;
+            }
+
+            DrawRoundedRectangle(batcher, innerTexture, innerBounds, hue, Math.Max(0, radius - 2));
+
+            Texture2D tickTexture = SolidColorTextureCache.GetTexture(new Color(238, 241, 220));
+            int tickLength = Math.Min(NAMEPLATE_DISTANCE_TARGET_TICK, Math.Max(1, bounds.Height / 4));
+            int centerX = bounds.X + (bounds.Width >> 1);
+            int centerY = bounds.Y + (bounds.Height >> 1);
+
+            batcher.Draw(tickTexture, new Rectangle(centerX, bounds.Y + 1, 1, tickLength), hue);
+            batcher.Draw(tickTexture, new Rectangle(centerX, bounds.Bottom - tickLength - 1, 1, tickLength), hue);
+            batcher.Draw(tickTexture, new Rectangle(bounds.X + 1, centerY, tickLength, 1), hue);
+            batcher.Draw(tickTexture, new Rectangle(bounds.Right - tickLength - 1, centerY, tickLength, 1), hue);
+        }
+
+        private bool ShouldReserveWordOfDeathIcon(Profile profile, Mobile mobile)
+        {
+            return mobile != null
+                   && profile.NamePlateShowWordOfDeathIcon
+                   && !IsOwnMobile(mobile);
+        }
+
+        private bool IsOwnMobile(Mobile mobile)
+        {
+            return mobile != null
+                   && World.Player != null
+                   && mobile.Serial == World.Player.Serial;
         }
 
         private TextBox EnsureDistanceText(Profile profile)
@@ -1352,7 +1448,7 @@ namespace ClassicUO.Game.UI.Gumps
         private bool ShouldDrawWordOfDeathIcon(Mobile mobile)
         {
             return mobile != null
-                   && ProfileManager.CurrentProfile.NamePlateShowWordOfDeathIcon
+                   && ShouldReserveWordOfDeathIcon(ProfileManager.CurrentProfile, mobile)
                    && mobile.HitsMax > 0
                    && GetResourcePercent(mobile.Hits, mobile.HitsMax) <= WORD_OF_DEATH_HEALTH_THRESHOLD;
         }
