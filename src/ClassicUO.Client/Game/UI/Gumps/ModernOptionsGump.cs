@@ -3001,6 +3001,7 @@ namespace ClassicUO.Game.UI.Gumps
                     profile.NamePlateHideAtFullHealth = false;
                     profile.NamePlateHideAtFullHealthInWarmode = false;
                     profile.NamePlateShowWordOfDeathIcon = false;
+                    profile.NamePlateShowDistance = false;
                     profile.NamePlateFont = "avadonian";
                     profile.NamePlateFontSize = 16;
                     break;
@@ -3026,6 +3027,7 @@ namespace ClassicUO.Game.UI.Gumps
                     profile.NamePlateHideAtFullHealth = false;
                     profile.NamePlateHideAtFullHealthInWarmode = false;
                     profile.NamePlateShowWordOfDeathIcon = false;
+                    profile.NamePlateShowDistance = false;
                     profile.NamePlateFont = "avadonian";
                     profile.NamePlateFontSize = 17;
                     break;
@@ -3051,6 +3053,7 @@ namespace ClassicUO.Game.UI.Gumps
                     profile.NamePlateHideAtFullHealth = false;
                     profile.NamePlateHideAtFullHealthInWarmode = false;
                     profile.NamePlateShowWordOfDeathIcon = false;
+                    profile.NamePlateShowDistance = false;
                     profile.NamePlateFont = "avadonian";
                     profile.NamePlateFontSize = 18;
                     break;
@@ -3076,6 +3079,7 @@ namespace ClassicUO.Game.UI.Gumps
                     profile.NamePlateHideAtFullHealth = false;
                     profile.NamePlateHideAtFullHealthInWarmode = false;
                     profile.NamePlateShowWordOfDeathIcon = false;
+                    profile.NamePlateShowDistance = false;
                     profile.NamePlateFont = "avadonian";
                     profile.NamePlateFontSize = 17;
                     break;
@@ -3101,6 +3105,7 @@ namespace ClassicUO.Game.UI.Gumps
                     profile.NamePlateHideAtFullHealth = false;
                     profile.NamePlateHideAtFullHealthInWarmode = false;
                     profile.NamePlateShowWordOfDeathIcon = false;
+                    profile.NamePlateShowDistance = false;
                     profile.NamePlateFont = "avadonian";
                     profile.NamePlateFontSize = 18;
                     break;
@@ -3640,6 +3645,12 @@ namespace ClassicUO.Game.UI.Gumps
             (
                 new CheckboxWithLabel(TazLang.Get("nameplate_showwordofdeathicon", "Show Word of Death icon at 30% health"), 0, profile.NamePlateShowWordOfDeathIcon,
                     (b) => { profile.NamePlateShowWordOfDeathIcon = b; SetNamePlatePresetCustom(); }), true, page
+            );
+
+            content.AddToRight
+            (
+                new CheckboxWithLabel(TazLang.Get("nameplate_showdistance", "Show distance"), 0, profile.NamePlateShowDistance,
+                    (b) => { profile.NamePlateShowDistance = b; SetNamePlatePresetCustom(); }), true, page
             );
 
             content.AddToRight

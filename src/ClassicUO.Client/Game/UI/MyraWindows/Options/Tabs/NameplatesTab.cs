@@ -427,6 +427,7 @@ public static class NameplatesTab
         const string locNameplatesHealth = "nameplate_health_";
         string fixedWidthLabel = TazLang.Get("nameplate_fixedwidth", TazLang.Get("mog_tazuo_fixedwidth"));
         string showWordOfDeathIconLabel = TazLang.Get("nameplate_showwordofdeathicon", TazLang.Get("mog_tazuo_showwordofdeathicon"));
+        string showDistanceLabel = TazLang.Get("nameplate_showdistance", "Show distance");
         string presetLabel = TazLang.Get("nameplate_preset", TazLang.Get("mog_kw_preset"));
 
         return OptionsUi.Vertical(
@@ -441,6 +442,11 @@ public static class NameplatesTab
                     showWordOfDeathIconLabel,
                     new Accessor<bool>(() => profile.NamePlateShowWordOfDeathIcon),
                     search: new SearchMetadata(showWordOfDeathIconLabel, Keywords: [TazLang.Get("mog_kw_icon"), TazLang.Get("mog_kw_death")])
+                ),
+                Option.Checkbox(
+                    showDistanceLabel,
+                    new Accessor<bool>(() => profile.NamePlateShowDistance),
+                    search: new SearchMetadata(showDistanceLabel, Keywords: [TazLang.Get("mog_kw_distance")])
                 ),
                 Option.LComboBox(
                     presetLabel,

@@ -28,6 +28,7 @@ namespace ClassicUO.Game.UI.Gumps
             _isLastTarget,
             _needsNameUpdate;
         private TextBox _text;
+        private TextBox _distanceText;
         private Texture2D _borderColor = SolidColorTextureCache.GetTexture(Color.Black);
         private Vector2 _textDrawOffset = Vector2.Zero;
         private Rectangle _wordOfDeathIconBounds = Rectangle.Empty;
@@ -37,6 +38,8 @@ namespace ClassicUO.Game.UI.Gumps
         private int _nameBandHeight;
         private int _resourceBarHeight;
         private int _resourceBarCount;
+        private int _leftAdornmentReserveWidth;
+        private int _rightAdornmentReserveWidth;
         private bool _useSplitLayout;
         private static int currentHeight = 22;
         private static readonly int COLLISION_SPACING = 8;
@@ -48,6 +51,8 @@ namespace ClassicUO.Game.UI.Gumps
         private const int WORD_OF_DEATH_SPELL_ID = 614;
         private const double WORD_OF_DEATH_HEALTH_THRESHOLD = 0.30d;
         private const int WORD_OF_DEATH_ICON_PADDING = 3;
+        private const int NAMEPLATE_ADORNMENT_GAP = 2;
+        private const string NAMEPLATE_DISTANCE_RESERVE_TEXT = "999";
         private static readonly Color MissingHealthBackgroundColor = new Color(14, 14, 14);
 
         public static void InvalidateAllLayouts()
@@ -192,16 +197,19 @@ namespace ClassicUO.Game.UI.Gumps
             _text.Font = profile.NamePlateFont;
             _text.FontSize = profile.NamePlateFontSize;
             SetMeasuredText(name);
+            _leftAdornmentReserveWidth = GetLeftAdornmentReserveWidth(profile, entity);
+            _rightAdornmentReserveWidth = GetRightAdornmentReserveWidth(profile, entity);
+            int adornmentReserveWidth = _leftAdornmentReserveWidth + _rightAdornmentReserveWidth;
             int nameWidth;
 
             if (profile.NamePlateUseFixedWidth)
             {
                 nameWidth = Math.Clamp(profile.NamePlateFixedWidth, 60, 300);
-                SetFittedText(name, Math.Max(1, nameWidth - NAMEPLATE_HORIZONTAL_PADDING));
+                SetFittedText(name, Math.Max(1, nameWidth - NAMEPLATE_HORIZONTAL_PADDING - adornmentReserveWidth));
             }
             else
             {
-                nameWidth = Math.Max(MIN_NAMEPLATE_WIDTH, _text.Width) + NAMEPLATE_HORIZONTAL_PADDING;
+                nameWidth = Math.Max(MIN_NAMEPLATE_WIDTH, _text.Width + adornmentReserveWidth) + NAMEPLATE_HORIZONTAL_PADDING;
             }
 
             int healthBarWidth = GetHealthBarWidth(profile, nameWidth, entity);
@@ -235,8 +243,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             Width = _background.Width = width;
             Height = _background.Height = CurrentHeight = height;
-            int textAreaWidth = Math.Max(1, _namePlateWidth - NAMEPLATE_HORIZONTAL_PADDING);
-            _textDrawOffset.X = Math.Max(0, (textAreaWidth - _text.Width) >> 1);
+            int textAreaWidth = Math.Max(1, _namePlateWidth - NAMEPLATE_HORIZONTAL_PADDING - adornmentReserveWidth);
+            _textDrawOffset.X = _leftAdornmentReserveWidth + Math.Max(0, (textAreaWidth - _text.Width) >> 1);
             _textDrawOffset.Y = Math.Max(0, ((_useSplitLayout ? _nameBandHeight : Height) - _text.Height) >> 1);
             _lastLayoutSignature = GetLayoutSignature(profile, entity);
             WantUpdateSize = false;
@@ -257,9 +265,35 @@ namespace ClassicUO.Game.UI.Gumps
                 hash = hash * 31 + profile.NamePlateCornerRadius;
                 hash = hash * 31 + profile.NamePlateFontSize;
                 hash = hash * 31 + (profile.NamePlateFont?.GetHashCode() ?? 0);
+                hash = hash * 31 + profile.NamePlateShowWordOfDeathIcon.GetHashCode();
+                hash = hash * 31 + profile.NamePlateShowDistance.GetHashCode();
                 hash = hash * 31 + GetSplitResourceBarCount(profile, entity);
                 return hash;
             }
+        }
+
+        private int GetLeftAdornmentReserveWidth(Profile profile, Entity entity)
+        {
+            if (entity is not Mobile mobile || !ShouldReserveDistanceText(profile, mobile))
+            {
+                return 0;
+            }
+
+            TextBox distanceText = EnsureDistanceText(profile);
+            distanceText.Text = NAMEPLATE_DISTANCE_RESERVE_TEXT;
+            distanceText.Update();
+
+            return distanceText.Width + WORD_OF_DEATH_ICON_PADDING + NAMEPLATE_ADORNMENT_GAP;
+        }
+
+        private int GetRightAdornmentReserveWidth(Profile profile, Entity entity)
+        {
+            if (entity is not Mobile || !profile.NamePlateShowWordOfDeathIcon)
+            {
+                return 0;
+            }
+
+            return Math.Max(1, _text.Height + 2) + WORD_OF_DEATH_ICON_PADDING;
         }
 
         private int GetSplitResourceBarCount(Profile profile, Entity entity)
@@ -1033,7 +1067,8 @@ namespace ClassicUO.Game.UI.Gumps
             int textDrawY = (int)(textY + 2 + _textDrawOffset.Y);
 
             bool result = _text.Draw(batcher, textX, textDrawY, textColor);
-            DrawWordOfDeathIcon(batcher, textMobile, nameBounds, textDrawY);
+            DrawDistanceText(batcher, textMobile, nameBounds, textDrawY, nameBounds.X + WORD_OF_DEATH_ICON_PADDING, textColor);
+            DrawWordOfDeathIcon(batcher, textMobile, nameBounds, textDrawY, nameBounds.Right - WORD_OF_DEATH_ICON_PADDING);
             return result;
         }
 
@@ -1224,7 +1259,62 @@ namespace ClassicUO.Game.UI.Gumps
             return Notoriety.GetHue(mobile.NotorietyFlag);
         }
 
-        private void DrawWordOfDeathIcon(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds, int textY)
+        private void DrawDistanceText(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds, int textY, int leftEdge, Color textColor)
+        {
+            if (!ShouldDrawDistance(mobile))
+            {
+                return;
+            }
+
+            TextBox distanceText = EnsureDistanceText(ProfileManager.CurrentProfile);
+            distanceText.Text = mobile.Distance.ToString();
+            distanceText.Update();
+
+            int distanceX = leftEdge;
+
+            if (distanceX + distanceText.Width > nameBounds.Right - WORD_OF_DEATH_ICON_PADDING)
+            {
+                return;
+            }
+
+            int distanceY = textY + Math.Max(0, (_text.Height - distanceText.Height) >> 1);
+            distanceText.Draw(batcher, distanceX, distanceY, textColor);
+        }
+
+        private bool ShouldDrawDistance(Mobile mobile)
+        {
+            return ShouldReserveDistanceText(ProfileManager.CurrentProfile, mobile)
+                   && mobile.Distance < ushort.MaxValue;
+        }
+
+        private bool ShouldReserveDistanceText(Profile profile, Mobile mobile)
+        {
+            return mobile != null
+                   && profile.NamePlateShowDistance
+                   && World.Player != null
+                   && mobile.Serial != World.Player.Serial;
+        }
+
+        private TextBox EnsureDistanceText(Profile profile)
+        {
+            if (_distanceText == null || _distanceText.IsDisposed)
+            {
+                _distanceText = TextBox.GetOne(
+                    string.Empty,
+                    profile.NamePlateFont,
+                    profile.NamePlateFontSize,
+                    Color.White,
+                    TextBox.RTLOptions.DefaultCenterStroked()
+                );
+            }
+
+            _distanceText.Font = profile.NamePlateFont;
+            _distanceText.FontSize = profile.NamePlateFontSize;
+
+            return _distanceText;
+        }
+
+        private void DrawWordOfDeathIcon(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds, int textY, int rightEdge)
         {
             _wordOfDeathIconBounds = Rectangle.Empty;
 
@@ -1247,7 +1337,13 @@ namespace ClassicUO.Game.UI.Gumps
                 return;
             }
 
-            int iconX = nameBounds.Right - iconSize - WORD_OF_DEATH_ICON_PADDING;
+            int iconX = rightEdge - iconSize;
+
+            if (iconX < nameBounds.X + WORD_OF_DEATH_ICON_PADDING)
+            {
+                return;
+            }
+
             int iconY = textY + Math.Max(0, (_text.Height - iconSize) >> 1);
             _wordOfDeathIconBounds = new Rectangle(iconX, iconY, iconSize, iconSize);
             batcher.Draw(iconInfo.Texture, _wordOfDeathIconBounds, iconInfo.UV, ShaderHueTranslator.GetHueVector(0));
@@ -1438,6 +1534,7 @@ namespace ClassicUO.Game.UI.Gumps
         public override void Dispose()
         {
             _text?.Dispose();
+            _distanceText?.Dispose();
             base.Dispose();
         }
     }
