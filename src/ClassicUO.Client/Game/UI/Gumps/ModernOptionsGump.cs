@@ -3528,6 +3528,12 @@ namespace ClassicUO.Game.UI.Gumps
 
             content.AddToRight
             (
+                new CheckboxWithLabel(TazLang.Get("nameplate_showdistance", "Show distance"), 0, profile.NamePlateShowDistance,
+                    (b) => { profile.NamePlateShowDistance = b; SetNamePlatePresetCustom(); }), true, page
+            );
+
+            content.AddToRight
+            (
                 new CheckboxWithLabel(TazLang.Get("nameplate_hidefullhealth", "Hide nameplates if full health"), 0, profile.NamePlateHideAtFullHealth,
                     (b) => { profile.NamePlateHideAtFullHealth = b; SetNamePlatePresetCustom(); }), true, page
             );
