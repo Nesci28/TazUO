@@ -61,6 +61,13 @@ namespace ClassicUO.Configuration
         Legacy
     }
 
+    public enum NamePlateDistancePreset
+    {
+        Modern,
+        Target,
+        Collector
+    }
+
     //[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.Unspecified)]
     [JsonSerializable(typeof(Profile), GenerationMode = JsonSourceGenerationMode.Metadata)]
     sealed partial class ProfileJsonContext : JsonSerializerContext
@@ -486,6 +493,7 @@ namespace ClassicUO.Configuration
         public int NamePlateHealthBarFixedWidth { get; set => SetProperty(ref field, Math.Clamp(value, 60, 300)); } = 120;
         public bool NamePlateShowWordOfDeathIcon { get; set => SetProperty(ref field, value); }
         public bool NamePlateShowDistance { get; set => SetProperty(ref field, value); }
+        public NamePlateDistancePreset NamePlateDistancePreset { get; set => SetProperty(ref field, value); } = NamePlateDistancePreset.Modern;
         public int NamePlateHeight { get; set => SetProperty(ref field, Math.Clamp(value, 0, 80)); }
         public bool NamePlateSplitHealthBar { get; set => SetProperty(ref field, value); }
         public bool NamePlateUseNotorietyText { get; set => SetProperty(ref field, value); }
