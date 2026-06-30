@@ -65,10 +65,13 @@ public static class SpellBarTabContent
         Widget BuildVisibleRowsSelector()
         {
             var container = new VerticalStackPanel { Spacing = 2 };
-            container.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_visiblerows"), MyraLabel.TextStyle.P) { MinWidth = 160 });
+            var selectorRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            string visibleRowsDescription = TazLang.Get(
+                "spellbar_visiblerows_desc",
+                "Choose how many spellbar rows are shown at once.");
 
 #pragma warning disable CS0612, CS0618
-            var combo = new MyraComboBox { MinWidth = 70 };
+            var combo = new MyraComboBox { MinWidth = 70, Tooltip = visibleRowsDescription };
 
             for (int i = 1; i <= SpellBarManager.MaxVisibleRows; i++)
                 combo.Items.Add(new ListItem(i.ToString()) { Tag = i });
@@ -85,7 +88,13 @@ public static class SpellBarTabContent
             };
 #pragma warning restore CS0612, CS0618
 
-            container.Widgets.Add(combo);
+            selectorRow.Widgets.Add(new MyraLabel(
+                TazLang.Get("spellbar_visiblerows", "Visible spellbar rows:"),
+                MyraLabel.TextStyle.P)
+            { MinWidth = 130, Tooltip = visibleRowsDescription });
+            selectorRow.Widgets.Add(combo);
+            container.Widgets.Add(selectorRow);
+
             return container;
         }
 
