@@ -64,8 +64,8 @@ public static class SpellBarTabContent
 
         Widget BuildVisibleRowsSelector()
         {
-            var row = new HorizontalStackPanel { Spacing = 6 };
-            row.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_visiblerows"), MyraLabel.TextStyle.P));
+            var container = new VerticalStackPanel { Spacing = 2 };
+            container.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_visiblerows"), MyraLabel.TextStyle.P) { MinWidth = 160 });
 
 #pragma warning disable CS0612, CS0618
             var combo = new MyraComboBox { MinWidth = 70 };
@@ -85,8 +85,8 @@ public static class SpellBarTabContent
             };
 #pragma warning restore CS0612, CS0618
 
-            row.Widgets.Add(combo);
-            return row;
+            container.Widgets.Add(combo);
+            return container;
         }
 
         Widget BuildHotkeyGrid()
