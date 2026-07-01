@@ -59,6 +59,19 @@ namespace ClassicUO.Configuration
         WorldOfWarcraftRedName
     }
 
+    public enum ClientGumpThemePreset
+    {
+        Original = 0,
+        Dark = 1,
+        Light = 2,
+        UOCom = 3,
+        BritanniaParchment = 6,
+        ShadowIron = 7,
+        RunebookBlue = 8,
+        GuildstoneGreen = 9,
+        ClassicStone = 10
+    }
+
     //[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.Unspecified)]
     [JsonSerializable(typeof(Profile), GenerationMode = JsonSourceGenerationMode.Metadata)]
     sealed partial class ProfileJsonContext : JsonSerializerContext
@@ -683,6 +696,8 @@ namespace ClassicUO.Configuration
         public int OptionsFontSize { get; set => SetProperty(ref field, value); } = 18;
 
         public int TextBorderSize { get; set => SetProperty(ref field, value); } = 1;
+        public ClientGumpThemePreset GumpThemePreset { get; set => SetProperty(ref field, value); } = ClientGumpThemePreset.Original;
+
         public uint SavedMountSerial { get; set => SetProperty(ref field, value); } = 0;
         public int MountDistance { get; set => SetProperty(ref field, value); } = 1;
 

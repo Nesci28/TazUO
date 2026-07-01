@@ -179,8 +179,8 @@ public sealed class RulebaseTableView<TRule> : Panel where TRule : IRule
         if (_grid.RowsProportions.Count == 0)
             _grid.RowsProportions.Add(new Proportion(ProportionType.Auto));
 
-        _headerBackground ??= new Panel { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
-        _headerBackground.Background = new SolidBrush(StyleOptions.HeaderBackground);
+        _headerBackground ??= new MyraPanel { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
+        _headerBackground.Background = MyraStyle.Brush(StyleOptions.HeaderBackground);
 
         if (!_grid.Widgets.Contains(_headerBackground))
             _grid.AddWidget(_headerBackground, currentRow, 0, colspan: visibleColumns.Length);
@@ -250,11 +250,11 @@ public sealed class RulebaseTableView<TRule> : Panel where TRule : IRule
     {
         if (rowIndex >= _rowBackgrounds.Count)
             _rowBackgrounds.Add(
-                new Panel { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch }
+                new MyraPanel { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch }
             );
 
         Panel bg = _rowBackgrounds[rowIndex];
-        bg.Background = new SolidBrush(GetRowColor(rowIndex));
+                bg.Background = MyraStyle.Brush(GetRowColor(rowIndex));
         bg.Border = rowIndex + 1 < _rules.Count ? StyleOptions.RowBorders?.Brush : null;
         bg.BorderThickness = new Thickness(0, 0, 0, StyleOptions.RowBorders?.Thickness ?? 0);
 
@@ -348,7 +348,7 @@ public sealed class RulebaseTableView<TRule> : Panel where TRule : IRule
         {
             if (!_cellWrappers.TryGetValue(content, out Panel? wrapper))
             {
-                wrapper = new Panel { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
+                wrapper = new MyraPanel { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
                 wrapper.Widgets.Add(content);
                 _cellWrappers[content] = wrapper;
             }

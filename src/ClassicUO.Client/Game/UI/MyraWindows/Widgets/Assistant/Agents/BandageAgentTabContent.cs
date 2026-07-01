@@ -16,7 +16,7 @@ public static class BandageAgentTabContent
         if (profile == null)
             return new MyraLabel(TazLang.Get("bandageagent_profilenotloaded"), MyraLabel.TextStyle.P);
 
-        var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var root = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
         // ===== Widget construction =====
 
@@ -97,7 +97,7 @@ public static class BandageAgentTabContent
                 delayBox.Text = profile.BandageAgentDelay.ToString();
             }
         };
-        var delayRow = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var delayRow = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
         delayRow.Widgets.Add(delayBox);
         delayRow.Widgets.Add(new MyraLabel(TazLang.Get("bandageagent_delay_label"), MyraLabel.TextStyle.P));
 
@@ -123,7 +123,7 @@ public static class BandageAgentTabContent
         };
 
         // Timing mode checkboxes
-        var timingRow = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var timingRow = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
         timingRow.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.BandageAgentUseDexFormula,
             b => profile.BandageAgentUseDexFormula = b,
@@ -186,7 +186,7 @@ public static class BandageAgentTabContent
             if (targetTypeCombo.ListView.SelectedIndex.HasValue)
                 profile.BandageAgentTargetType = (TargetType)targetTypeCombo.ListView.SelectedIndex.Value;
         };
-        var targetTypeRow = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var targetTypeRow = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
         targetTypeRow.Widgets.Add(new MyraLabel(
             TazLang.Get("bandageagent_targettype_label", "Auto-target type"),
             MyraLabel.TextStyle.P
@@ -214,7 +214,7 @@ public static class BandageAgentTabContent
             if (StringHelper.TryParseInt(graphicBox.Text, out int graphic) && graphic >= 0 && graphic <= ushort.MaxValue)
                 profile.BandageAgentGraphic = (ushort)graphic;
         };
-        var graphicRow = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var graphicRow = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
         graphicRow.Widgets.Add(new MyraLabel(TazLang.Get("bandageagent_graphicid_label"), MyraLabel.TextStyle.P));
         graphicRow.Widgets.Add(graphicBox);
 

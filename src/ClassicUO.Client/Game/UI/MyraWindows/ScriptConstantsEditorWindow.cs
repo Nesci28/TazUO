@@ -20,7 +20,7 @@ public class ScriptConstantsEditorWindow : MyraControl
     private bool _hasUnsavedChanges;
     private DateTime _statusUntil = DateTime.MinValue;
 
-    private readonly VerticalStackPanel _constantsPanel = new() { Spacing = 2 };
+    private readonly VerticalStackPanel _constantsPanel = new MyraVerticalStackPanel { Spacing = 2 };
     private MyraLabel _statusLabel = null!;
     private MyraLabel _countLabel = null!;
 
@@ -43,16 +43,16 @@ public class ScriptConstantsEditorWindow : MyraControl
 
     private void Build()
     {
-        var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var root = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
         root.Widgets.Add(BuildToolbar());
         BuildConstantsGrid();
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 450, MinWidth = 500, Content = _constantsPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 450, MinWidth = 500, Content = _constantsPanel });
         SetRootContent(root);
     }
 
     private Widget BuildToolbar()
     {
-        var toolbar = new HorizontalStackPanel { Spacing = 4 };
+        var toolbar = new MyraHorizontalStackPanel { Spacing = 4 };
 
         var filterBox = new MyraInputBox { HintText = "Filter constants...", Width = 175, Text = _filterText };
         filterBox.TextChangedByUser += (_, _) =>
@@ -159,7 +159,7 @@ public class ScriptConstantsEditorWindow : MyraControl
     {
         string original = constant.OriginalValue;
 #pragma warning disable CS0612, CS0618
-        var combo = new ComboBox();
+        var combo = new MyraComboBox();
         combo.Items.Add(new ListItem("True"));
         combo.Items.Add(new ListItem("False"));
         combo.SelectedIndex = constant.EditValue.Trim().Equals("True", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
@@ -179,7 +179,7 @@ public class ScriptConstantsEditorWindow : MyraControl
     private Widget BuildArrayRow(ConstantEntry constant)
     {
         string original = constant.OriginalValue;
-        var row = new HorizontalStackPanel { Spacing = 4 };
+        var row = new MyraHorizontalStackPanel { Spacing = 4 };
         var readonlyBox = new MyraInputBox { Text = constant.EditValue, Enabled = false };
         if (constant.OriginalValue != constant.EditValue)
             readonlyBox.Tooltip = $"Original: {original}";
@@ -193,7 +193,7 @@ public class ScriptConstantsEditorWindow : MyraControl
         TryParseArray(constant.EditValue, out List<string>? elements);
         var elementsCopy = new List<string>(elements ?? []);
 
-        var elementsPanel = new VerticalStackPanel { Spacing = 2 };
+        var elementsPanel = new MyraVerticalStackPanel { Spacing = 2 };
 
         void BuildElements()
         {
@@ -201,7 +201,7 @@ public class ScriptConstantsEditorWindow : MyraControl
             for (int i = 0; i < elementsCopy.Count; i++)
             {
                 int idx = i;
-                var eRow = new HorizontalStackPanel { Spacing = 4 };
+                var eRow = new MyraHorizontalStackPanel { Spacing = 4 };
                 eRow.Widgets.Add(new MyraLabel($"[{idx}]", MyraLabel.TextStyle.P));
                 var eBox = new MyraInputBox { Text = elementsCopy[idx], MinWidth = 180 };
                 eBox.TextChangedByUser += (_, _) => elementsCopy[idx] = eBox.Text ?? "";
@@ -222,9 +222,9 @@ public class ScriptConstantsEditorWindow : MyraControl
 
         BuildElements();
 
-        var content = new VerticalStackPanel { Spacing = 4 };
+        var content = new MyraVerticalStackPanel { Spacing = 4 };
         content.Widgets.Add(new MyraLabel($"Editing: {constant.Name}", MyraLabel.TextStyle.H3));
-        content.Widgets.Add(new ScrollViewer { MaxHeight = 300, Content = elementsPanel });
+        content.Widgets.Add(new MyraScrollViewer { MaxHeight = 300, Content = elementsPanel });
 
         new MyraDialog($"Array Editor: {constant.Name}", content, ok =>
         {

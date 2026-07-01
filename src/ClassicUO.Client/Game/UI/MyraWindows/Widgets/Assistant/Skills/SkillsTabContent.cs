@@ -38,7 +38,7 @@ public class SkillsTabContent : VerticalStackPanel
         bool sortAscending = true;
         bool showGroups = false;
 
-        var gridPanel = new VerticalStackPanel();
+        var gridPanel = new MyraVerticalStackPanel();
 
         void SortSkills() =>
             Array.Sort(sortedIndices, (a, b) =>
@@ -92,7 +92,7 @@ public class SkillsTabContent : VerticalStackPanel
             else                  deltaStr = "0.0";
             grid.AddWidget(new MyraLabel(deltaStr, MyraLabel.TextStyle.P), row, 5);
 
-            var lockWrapper = new HorizontalStackPanel();
+            var lockWrapper = new MyraHorizontalStackPanel();
             void BuildLockBtn()
             {
                 lockWrapper.Widgets.Clear();
@@ -208,7 +208,7 @@ public class SkillsTabContent : VerticalStackPanel
         }
 
         // ── Toolbar ─────────────────────────────────────────────────────────
-        var toolbar = new HorizontalStackPanel { Spacing = 4 };
+        var toolbar = new MyraHorizontalStackPanel { Spacing = 4 };
 
         toolbar.Widgets.Add(new MyraButton("All Up", () =>
         {
@@ -290,7 +290,7 @@ public class SkillsTabContent : VerticalStackPanel
         toolbar.Widgets.Add(_totalLabel);
 
         Widgets.Add(toolbar);
-        Widgets.Add(new ScrollViewer { MaxHeight = 500, Content = gridPanel });
+        Widgets.Add(new MyraScrollViewer { MaxHeight = 500, Content = gridPanel });
     }
 
     public void UpdateSkills()

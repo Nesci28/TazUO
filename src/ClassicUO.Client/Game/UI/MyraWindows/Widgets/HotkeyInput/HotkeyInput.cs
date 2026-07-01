@@ -6,6 +6,7 @@ using ClassicUO.Game.Managers.Hotkeys;
 using ClassicUO.Game.UI.MyraWindows.Options.Tabs;
 using Microsoft.Xna.Framework;
 using Myra.Graphics2D.UI;
+using Myra.Graphics2D.UI.Styles;
 
 namespace ClassicUO.Game.UI.MyraWindows.Widgets.HotkeyInput;
 
@@ -37,7 +38,7 @@ public class HotkeyInput : Panel
 
     private readonly TextBox _input;
     private readonly Action<SelectionChangedEventArgs>? _onSelectionChanged;
-    private readonly Color _defaultTextColor;
+    private Color _defaultTextColor;
     private readonly bool _capturesMouseEvents;
     private readonly string? _labelText;
 
@@ -111,11 +112,11 @@ public class HotkeyInput : Panel
         StackPanel panel = OptionTabCommons.StyledStackPanel(Orientation.Horizontal);
         if (!string.IsNullOrEmpty(labelText))
         {
-            var label = new Label { Text = labelText, VerticalAlignment = VerticalAlignment.Center };
+            var label = new MyraLabel { Text = labelText, VerticalAlignment = VerticalAlignment.Center };
             panel.Widgets.Add(label);
         }
 
-        _input = new TextBox
+        _input = new MyraTextBox
         {
             Tooltip = TazLang.Get("uicommons_hotkeyinputtooltip_new"),
             Width = 150,
@@ -133,9 +134,18 @@ public class HotkeyInput : Panel
         panel.Widgets.Add(new MyraButton(TazLang.Get("mog_kw_clear"), Clear));
 
         _selection = existingSelection ?? new HotkeyBinding();
-        UpdateText();
+        ApplyCurrentTheme();
 
         Children.Add(panel);
+    }
+
+    public void ApplyCurrentTheme()
+    {
+        var font = _input.Font;
+        _input.ApplyTextBoxStyle(Stylesheet.Current.TextBoxStyle);
+        _input.Font = font;
+        _defaultTextColor = _input.TextColor;
+        UpdateText();
     }
 
     /// <inheritdoc/>

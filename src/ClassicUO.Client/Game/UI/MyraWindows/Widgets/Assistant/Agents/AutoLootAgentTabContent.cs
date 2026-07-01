@@ -21,10 +21,10 @@ public static class AutoLootAgentTabContent
     {
         Profile? profile = ProfileManager.CurrentProfile;
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         // Enable Auto Loot + Set Grab Bag
-        var topRow = new HorizontalStackPanel { Spacing = 8 };
+        var topRow = new MyraHorizontalStackPanel { Spacing = 8 };
         topRow.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.EnableAutoLoot,
             b => profile.EnableAutoLoot = b,
@@ -38,14 +38,14 @@ public static class AutoLootAgentTabContent
         root.Widgets.Add(topRow);
 
         // Options
-        var optRow1 = new HorizontalStackPanel { Spacing = 8 };
+        var optRow1 = new MyraHorizontalStackPanel { Spacing = 8 };
         optRow1.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.EnableAutoLootProgressBar,
             b => profile.EnableAutoLootProgressBar = b,
             "Enable Progress Bar",
             "Shows a progress bar gump."));
 
-        var optRow2 = new HorizontalStackPanel { Spacing = 8 };
+        var optRow2 = new MyraHorizontalStackPanel { Spacing = 8 };
         optRow2.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.AutoLootHumanCorpses,
             b => profile.AutoLootHumanCorpses = b,
@@ -57,13 +57,13 @@ public static class AutoLootAgentTabContent
             "Hue Corpse After Processing",
             "Hue corpses after processing to make it easier to see if autoloot has processed them."));
 
-        var optRow3 = new HorizontalStackPanel { Spacing = 8, VerticalAlignment = Myra.Graphics2D.UI.VerticalAlignment.Center };
+        var optRow3 = new MyraHorizontalStackPanel { Spacing = 8, VerticalAlignment = Myra.Graphics2D.UI.VerticalAlignment.Center };
         optRow3.Widgets.Add(new MyraLabel("Corpse retry delay (ms):", MyraLabel.TextStyle.P)
         {
             Tooltip = "Milliseconds before a failed corpse is retried. Minimum 1000ms.",
             VerticalAlignment = Myra.Graphics2D.UI.VerticalAlignment.Center
         });
-        var retrySpinner = new SpinButton
+        var retrySpinner = new MyraSpinButton
         {
             Integer = true,
             Value = profile.AutoLootRetryDelay,
@@ -136,7 +136,7 @@ public static class AutoLootAgentTabContent
         ));
 
         // Entries panel (declared early so the loot-list selector callbacks can rebuild it).
-        var entriesPanel = new VerticalStackPanel { Spacing = 4 };
+        var entriesPanel = new MyraVerticalStackPanel { Spacing = 4 };
 
         // Loot list selection
         root.Widgets.Add(new MyraSpacer(15, 5));
@@ -316,7 +316,7 @@ public static class AutoLootAgentTabContent
 
                 // Priority cycle: < label >
                 var priorityLabel = new MyraLabel(PriorityLabels[(int)entry.Priority], MyraLabel.TextStyle.P);
-                var priorityRow = new HorizontalStackPanel { Spacing = 2 };
+                var priorityRow = new MyraHorizontalStackPanel { Spacing = 2 };
                 priorityRow.Widgets.Add(new MyraButton("<", () =>
                 {
                     int p = ((int)entry.Priority - 1 + PriorityLabels.Length) % PriorityLabels.Length;
@@ -347,7 +347,7 @@ public static class AutoLootAgentTabContent
                 grid.AddWidget(maxBox, dataRow, 5);
 
                 // Destination box + Target button
-                var destCell = new HorizontalStackPanel { Spacing = 4 };
+                var destCell = new MyraHorizontalStackPanel { Spacing = 4 };
                 var destBox = new MyraInputBox
                 {
                     Text = entry.DestinationContainer == 0 ? "" : $"0x{entry.DestinationContainer:X}",
@@ -380,7 +380,7 @@ public static class AutoLootAgentTabContent
                 // Up / Down reorder buttons (col 6)
                 // Display is reversed: i = entries.Count-1 is top row, i=0 is bottom row.
                 // "Up" in display = swap with i+1 in list; "Down" = swap with i-1.
-                var orderRow = new HorizontalStackPanel { Spacing = 2 };
+                var orderRow = new MyraHorizontalStackPanel { Spacing = 2 };
                 var upBtn = new MyraButton("<", () =>
                 {
                     int idx = entries.IndexOf(entry);
@@ -423,14 +423,14 @@ public static class AutoLootAgentTabContent
         RefreshListCombo();
 
         // Add entry inline panel
-        var addEntryPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var addEntryPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
         var newNameBox = new MyraInputBox { HintText = "Name", Width = 100 };
         var newGraphicBox = new MyraInputBox { HintText = "Graphic ID", Width = 100, Tooltip = "Graphic (-1 = any)" };
         var newHueBox = MyraInputBox.Hue(ushort.MaxValue, 100, "Hue (-1 = any)");
         var newRegexBox = new MyraInputBox { HintText = "Regex (optional)", Width = 200 };
         var newMaxBox = new MyraInputBox { HintText = "Max (0 = no limit)", Width = 100, Tooltip = "Max matching items to keep in the destination container. 0 = no limit." };
 
-        var addFieldsRow = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldsRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldsRow.Widgets.Add(new MyraLabel("Name:", MyraLabel.TextStyle.P));
         addFieldsRow.Widgets.Add(newNameBox);
         addFieldsRow.Widgets.Add(new MyraLabel("Graphic:", MyraLabel.TextStyle.P));
@@ -442,7 +442,7 @@ public static class AutoLootAgentTabContent
         addFieldsRow.Widgets.Add(new MyraLabel("Max:", MyraLabel.TextStyle.P));
         addFieldsRow.Widgets.Add(newMaxBox);
 
-        var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+        var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addConfirmRow.Widgets.Add(new MyraButton("Add", () =>
         {
             if (StringHelper.TryParseInt(newGraphicBox.Text, out int graphic))
@@ -485,7 +485,7 @@ public static class AutoLootAgentTabContent
         addEntryPanel.Widgets.Add(addConfirmRow);
 
         // Import from character inline panel
-        var importCharPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var importCharPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
 
         void BuildImportCharPanel()
         {
@@ -516,7 +516,7 @@ public static class AutoLootAgentTabContent
         }
 
         // Action buttons
-        var actionRow = new HorizontalStackPanel { Spacing = 6 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 6 };
         actionRow.Widgets.Add(new MyraButton("Import", () =>
         {
             string? json = Clipboard.GetClipboardText();
@@ -541,7 +541,7 @@ public static class AutoLootAgentTabContent
             importCharPanel.Visible = !importCharPanel.Visible;
         }) { Tooltip = "Import autoloot configuration from another character." });
 
-        var addRow = new HorizontalStackPanel { Spacing = 6 };
+        var addRow = new MyraHorizontalStackPanel { Spacing = 6 };
         addRow.Widgets.Add(new MyraButton("Add Manual Entry", () => addEntryPanel.Visible = !addEntryPanel.Visible));
         addRow.Widgets.Add(new MyraButton("Add from Target", () =>
         {
@@ -559,7 +559,7 @@ public static class AutoLootAgentTabContent
         root.Widgets.Add(addRow);
         root.Widgets.Add(addEntryPanel);
         root.Widgets.Add(importCharPanel);
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 300, Content = entriesPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 300, Content = entriesPanel });
 
         return root;
     }

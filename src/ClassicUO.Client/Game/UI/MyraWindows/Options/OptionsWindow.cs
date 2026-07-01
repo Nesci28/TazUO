@@ -13,9 +13,7 @@ using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using Myra.Events;
 using Myra.Graphics2D;
-using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
-using Myra.Graphics2D.UI.Styles;
 using Myra.Graphics2D.UI.WrapPanel;
 
 namespace ClassicUO.Game.UI.MyraWindows.Options;
@@ -62,7 +60,7 @@ public class OptionsWindow : MyraControl
 
     #region Widgets
 
-    private readonly WrapPanel _optionsPanel = new()
+    private readonly WrapPanel _optionsPanel = new MyraWrapPanel
     {
         UniformSizing = false,
         Orientation = Orientation.Vertical,
@@ -71,24 +69,9 @@ public class OptionsWindow : MyraControl
         Padding = new Thickness(3, 0, 0, 10)
     };
 
-    private readonly WrapPanel _optionsStack = new() { UniformSizing = false, Orientation = Orientation.Vertical };
+    private readonly WrapPanel _optionsStack = new MyraWrapPanel { UniformSizing = false, Orientation = Orientation.Vertical };
 
-    private readonly MyraInputBox _searchField = new()
-    {
-        TextVerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(
-            MyraStyle.STANDARD_SPACING,
-            0,
-            MyraStyle.STANDARD_SPACING,
-            MyraStyle.STANDARD_SPACING
-        ),
-        Padding = new Thickness(
-            MyraStyle.STANDARD_SPACING,
-            5,
-            MyraStyle.STANDARD_SPACING,
-            5
-        )
-    };
+    private readonly MyraSearchBox _searchField = new();
 
     #endregion
 
@@ -161,6 +144,12 @@ public class OptionsWindow : MyraControl
         }
     }
 
+    protected override void OnThemeChanged()
+    {
+        base.OnThemeChanged();
+        ApplyContentTheme();
+    }
+
     #endregion
 
     #region Private Methods
@@ -196,10 +185,21 @@ public class OptionsWindow : MyraControl
         entries.AddRange(source.GetOptions(new SearchMetadata(Tags: [category])));
     }
 
+    private void ApplyContentTheme()
+    {
+        _mainArea.Background = MyraStyle.UsesLegacyChrome ? null : MyraStyle.SurfaceBackgroundBrush;
+        _mainArea.Border = MyraStyle.UsesLegacyChrome
+            ? MyraStyle.Brush(new Color(0, 0, 0, MyraStyle.STANDARD_BORDER_ALPHA))
+            : MyraStyle.Brush(MyraStyle.BorderColor);
+        _mainArea.BorderThickness = new Thickness(1);
+        _mainArea.Padding = new Thickness(MyraStyle.STANDARD_SPACING);
+    }
+
     private void Build()
     {
         _mainArea.MinWidth = 400;
         _mainArea.MinHeight = 400;
+        ApplyContentTheme();
 
         _mainArea.AddColumn(Proportion.Auto);
         _mainArea.AddColumn(Proportion.Fill);
@@ -210,7 +210,7 @@ public class OptionsWindow : MyraControl
         _searchField.TextChangedByUser += SearchFieldOnTextChangedByUser;
         _mainArea.AddWidget(_searchField, 0, 0, null, 2);
 
-        WrapPanel categoryPanel = new()
+        WrapPanel categoryPanel = new MyraWrapPanel
         {
             Orientation = Orientation.Vertical, HorizontalSpacing = MyraStyle.STANDARD_SPACING, VerticalSpacing = MyraStyle.STANDARD_SPACING
         };
@@ -224,6 +224,12 @@ public class OptionsWindow : MyraControl
             categoryPanel.Widgets.Add(GetCategoryButton(category));
 
         SetRootContent(_mainArea);
+
+        foreach (string category in _optionSources.Keys)
+        {
+            ShowPage(category);
+            break;
+        }
     }
 
     private ButtonBase2 GetCategoryButton(string category)
@@ -233,7 +239,7 @@ public class OptionsWindow : MyraControl
         // Each button listens to the category selection event and updates its pressed state accordingly
         SelectedCategoryChanged += (_, _) => unstyledButton.IsPressed = _lastCategory == category;
 
-        return ApplyTabStyleToButton(unstyledButton);
+        return MyraStyle.ApplyNavigationButtonStyle(unstyledButton);
     }
 
     private void SearchFieldOnTextChangedByUser(object? sender, ValueChangedEventArgs<string> e)
@@ -423,7 +429,7 @@ public class OptionsWindow : MyraControl
     /// </summary>
     /// <param name="budget">The sizing 'budget' for the page, ergo, max height/width</param>
     /// <returns></returns>
-    private static WrapPanel NewResultsPage(Point budget) => new()
+    private static WrapPanel NewResultsPage(Point budget) => new MyraWrapPanel
     {
         UniformSizing = false,
         Aligned = false,
@@ -433,31 +439,6 @@ public class OptionsWindow : MyraControl
         MaxWidth = budget.X,
         MaxHeight = budget.Y
     };
-
-    private static ButtonStyle _lastUsedButtonStylesheet = null!;
-    private static ButtonStyle _tabButtonStyle = null!;
-
-    private static ButtonBase2 ApplyTabStyleToButton(ButtonBase2 tabButton)
-    {
-        if (_tabButtonStyle == null! || _lastUsedButtonStylesheet != Stylesheet.Current.ButtonStyle)
-        {
-            _lastUsedButtonStylesheet = Stylesheet.Current.ButtonStyle;
-            _tabButtonStyle = new ButtonStyle(_lastUsedButtonStylesheet)
-            {
-                Background = new SolidBrush(Color.Transparent),
-                Border = new SolidBrush(new Color(0, 0, 0, MyraStyle.STANDARD_BORDER_ALPHA)),
-                BorderThickness = new Thickness(0, 0, 1, 1),
-                LabelStyle = { Font = MyraStyle.UiFont },
-                OverBackground = new SolidBrush(new Color(0, 0, 0, 55)),
-                PressedBackground = new SolidBrush(new Color(0, 0, 0, 155)),
-                MinWidth = 125
-            };
-        }
-
-        tabButton.ApplyButtonStyle(_tabButtonStyle);
-
-        return tabButton;
-    }
 
     private void ShowPage(string category)
     {

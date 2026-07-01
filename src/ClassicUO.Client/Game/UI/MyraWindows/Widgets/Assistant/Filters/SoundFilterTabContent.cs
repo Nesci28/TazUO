@@ -13,14 +13,14 @@ public static class SoundFilterTabContent
 {
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(new MyraLabel(
             "Sound Filter allows you to mute specific in-game sounds by their ID.",
             MyraLabel.TextStyle.H3));
 
-        var lastSoundPanel = new VerticalStackPanel { Spacing = 2 };
-        var filtersPanel = new VerticalStackPanel { Spacing = 2 };
+        var lastSoundPanel = new MyraVerticalStackPanel { Spacing = 2 };
+        var filtersPanel = new MyraVerticalStackPanel { Spacing = 2 };
 
         void BuildFilterList()
         {
@@ -71,7 +71,7 @@ public static class SoundFilterTabContent
                 grid.AddWidget(soundBox, dataRow, 0);
 
                 int capturedId = soundId;
-                var actionsPanel = new HorizontalStackPanel { Spacing = 4 };
+                var actionsPanel = new MyraHorizontalStackPanel { Spacing = 4 };
                 actionsPanel.Widgets.Add(
                     new MyraButton("Play", () => Client.Game.Audio.PlaySound(current[0], true))
                     {
@@ -115,7 +115,7 @@ public static class SoundFilterTabContent
 
                 int id = sound.Item1;
 
-                var row = new HorizontalStackPanel { Spacing = 4 };
+                var row = new MyraHorizontalStackPanel { Spacing = 4 };
                 row.Widgets.Add(new MyraLabel($"Sound ID: {id} ({sound.Item2})", MyraLabel.TextStyle.P));
                 row.Widgets.Add(new MyraButton("Add Filter", () =>
                 {
@@ -136,7 +136,7 @@ public static class SoundFilterTabContent
 
             if(c == 0)
             {
-                var row = new HorizontalStackPanel { Spacing = 4 };
+                var row = new MyraHorizontalStackPanel { Spacing = 4 };
                 row.Widgets.Add(new MyraLabel("No sound played yet.", MyraLabel.TextStyle.P));
                 row.Widgets.Add(new MyraButton("Refresh", () => BuildLastSoundSection())
                     { Tooltip = "Refresh last played sound display" });
@@ -144,10 +144,10 @@ public static class SoundFilterTabContent
             }
         }
 
-        var addFilterPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var addFilterPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
         var newSoundBox = new MyraInputBox { HintText = "Sound ID (0-65535)", Width = 120 };
 
-        var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+        var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addConfirmRow.Widgets.Add(new MyraButton("Add", () =>
         {
             if (int.TryParse(newSoundBox.Text, out int soundId))
@@ -170,7 +170,7 @@ public static class SoundFilterTabContent
             newSoundBox.Text = "";
         }));
 
-        var addFieldRow = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldRow.Widgets.Add(new MyraLabel("Sound ID:", MyraLabel.TextStyle.P)
             { Tooltip = "Enter the numeric ID of the sound to filter (0-65535)" });
         addFieldRow.Widgets.Add(newSoundBox);
@@ -179,7 +179,7 @@ public static class SoundFilterTabContent
         addFilterPanel.Widgets.Add(addFieldRow);
         addFilterPanel.Widgets.Add(addConfirmRow);
 
-        var actionRow = new HorizontalStackPanel { Spacing = 4 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
         actionRow.Widgets.Add(new MyraButton("Add Filter Entry", () => addFilterPanel.Visible = !addFilterPanel.Visible));
         actionRow.Widgets.Add(new MyraButton("Import", () =>
         {
@@ -237,7 +237,7 @@ public static class SoundFilterTabContent
         root.Widgets.Add(addFilterPanel);
         root.Widgets.Add(new MyraLabel("Filtered Sounds:", MyraLabel.TextStyle.H3));
         BuildFilterList();
-        root.Widgets.Add(new ScrollViewer { Height = 250, Content = filtersPanel });
+        root.Widgets.Add(new MyraScrollViewer { Height = 250, Content = filtersPanel });
 
         return root;
     }

@@ -189,7 +189,7 @@ internal static class SpeechTab
         return new OptionFragment(
             () =>
             {
-                var panel = new WrapPanel
+                var panel = new MyraWrapPanel
                 {
                     Orientation = Orientation.Vertical,
                     Aligned = true,

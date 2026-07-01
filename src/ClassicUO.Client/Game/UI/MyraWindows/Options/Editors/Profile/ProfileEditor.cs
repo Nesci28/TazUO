@@ -321,7 +321,7 @@ public class ProfileEditor<TProfile> : Widget where TProfile : IProfile
     /// <returns>The constructed panel.</returns>
     private StackPanel Build()
     {
-        Widget content = _currentConfigUi ?? new Panel();
+        Widget content = _currentConfigUi ?? new MyraPanel();
         content.Enabled = !_isRenaming;
 
         // Stacked, not wrapped. These four are a vertical sequence, and a vertical WrapPanel
