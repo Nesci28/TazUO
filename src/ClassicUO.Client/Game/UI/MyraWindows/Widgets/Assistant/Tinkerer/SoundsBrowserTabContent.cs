@@ -25,7 +25,7 @@ public static class SoundsBrowserTabContent
 
         var loader = Client.Game.UO.FileManager.Sounds;
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         var allSounds = new List<KeyValuePair<int, string>>();
         var filteredResults = new List<KeyValuePair<int, string>>();
@@ -36,7 +36,7 @@ public static class SoundsBrowserTabContent
         string searchName = "";
 
         var statusLabel = new MyraLabel(TazLang.Get("tinkerer_sound_loading", "Loading sounds..."), MyraLabel.TextStyle.P);
-        var resultsPanel = new VerticalStackPanel { Spacing = 2 };
+        var resultsPanel = new MyraVerticalStackPanel { Spacing = 2 };
         var pageLabel = new MyraLabel("", MyraLabel.TextStyle.P);
         MyraButton prevBtn = null!;
         MyraButton nextBtn = null!;
@@ -87,7 +87,7 @@ public static class SoundsBrowserTabContent
                     gridRow, 1);
 
                 int capturedId = id;
-                var actions = new HorizontalStackPanel { Spacing = 4 };
+                var actions = new MyraHorizontalStackPanel { Spacing = 4 };
                 actions.Widgets.Add(new MyraButton(TazLang.Get("tinkerer_sound_play", "Play"),
                     () => Client.Game.Audio.PlaySound(capturedId, true))
                 {
@@ -163,14 +163,14 @@ public static class SoundsBrowserTabContent
         var nameBox = new MyraInputBox { HintText = TazLang.Get("tinkerer_sound_namehint", "Filter by name"), Width = 260 };
         nameBox.TextChangedByUser += (_, _) => { searchName = nameBox.Text ?? ""; PerformSearch(); };
 
-        var searchRow = new HorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var searchRow = new MyraHorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         searchRow.Widgets.Add(new MyraLabel(TazLang.Get("tinkerer_sound_id", "ID:"), MyraLabel.TextStyle.P));
         searchRow.Widgets.Add(idBox);
         searchRow.Widgets.Add(new MyraLabel(TazLang.Get("tinkerer_sound_name", "Name:"), MyraLabel.TextStyle.P));
         searchRow.Widgets.Add(nameBox);
         root.Widgets.Add(searchRow);
 
-        var actionRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         actionRow.Widgets.Add(new MyraButton(TazLang.Get("tinkerer_sound_clear", "Clear"), () =>
         {
             searchId = ""; idBox.Text = "";
@@ -195,13 +195,13 @@ public static class SoundsBrowserTabContent
             if (currentPage < totalPages - 1) { currentPage++; BuildResultsPage(); }
         }) { Enabled = false };
 
-        var pageRow = new HorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var pageRow = new MyraHorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         pageRow.Widgets.Add(prevBtn);
         pageRow.Widgets.Add(pageLabel);
         pageRow.Widgets.Add(nextBtn);
         root.Widgets.Add(pageRow);
 
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 420, Content = resultsPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 420, Content = resultsPanel });
 
         LoadSounds();
 

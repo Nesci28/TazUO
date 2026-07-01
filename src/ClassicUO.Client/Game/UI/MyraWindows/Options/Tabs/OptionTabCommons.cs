@@ -40,7 +40,7 @@ public static class OptionTabCommons
     /// <returns>A configured <see cref="WrapPanel"/></returns>
     internal static WrapPanel StyledWrapPanel(Orientation orientation, params Widget[] children)
     {
-        var panel = new WrapPanel
+        var panel = new MyraWrapPanel
         {
             Orientation = orientation,
             UniformSizing = false,
@@ -64,9 +64,9 @@ public static class OptionTabCommons
     {
         StackPanel panel;
         if (orientation == Orientation.Horizontal)
-            panel = new HorizontalStackPanel();
+            panel = new MyraHorizontalStackPanel();
         else
-            panel = new VerticalStackPanel();
+            panel = new MyraVerticalStackPanel();
 
         panel.Spacing = MyraStyle.STANDARD_SPACING;
         panel.VerticalAlignment = VerticalAlignment.Center;
@@ -113,13 +113,11 @@ public static class OptionTabCommons
 
     /// <summary>Creates a thin horizontal separator widget styled for use between option sections</summary>
     /// <returns>A styled <see cref="HorizontalSeparator"/></returns>
-    internal static Widget StyledHorizontalSeparator() =>
-        new HorizontalSeparator { Thickness = 2, Color = MyraTheme.Current.PanelBorder, BorderThickness = StyleConstantsDefaults.BorderThickness };
+    internal static Widget StyledHorizontalSeparator() => new MyraHorizontalSeparator();
 
     /// <summary>Creates a thin vertical separator widget styled for use between side-by-side option groups</summary>
     /// <returns>A styled <see cref="VerticalSeparator"/></returns>
-    internal static Widget StyledVerticalSeparator() =>
-        new VerticalSeparator() { Thickness = 2, Color = MyraTheme.Current.PanelBorder, BorderThickness = StyleConstantsDefaults.BorderThickness };
+    internal static Widget StyledVerticalSeparator() => new MyraVerticalSeparator();
 
     /// <summary>
     /// Creates a labeled combo box widget for any equatable value type, mapping items by value
@@ -140,7 +138,8 @@ public static class OptionTabCommons
         string tooltip = null
     ) where TValue : IEquatable<TValue>
     {
-        var comboView = new ComboView
+        #pragma warning disable CS0612, CS0618
+        var combo = new MyraComboBox
         {
             MinWidth = 200,
             VerticalAlignment = VerticalAlignment.Center,
@@ -148,7 +147,7 @@ public static class OptionTabCommons
         };
 
         if (tooltip != null)
-            comboView.Tooltip = tooltip;
+            combo.Tooltip = tooltip;
 
         Dictionary<int, TValue> indexToValue = new();
         Dictionary<TValue, int> valueToIndex = new();
@@ -166,23 +165,24 @@ public static class OptionTabCommons
             }
 
             indexToValue.Add(i, option);
-            comboView.ListView.Widgets.Add(new Label { Text = option.ToString(), Tag = i });
+            combo.Items.Add(new ListItem(option.ToString()) { Tag = i });
             i++;
         }
 
         int selectedIndex = valueToIndex.GetValueOrDefault(value, -1);
 
-        comboView.ListView.SelectedIndex = selectedIndex;
-        comboView.ListView.SelectedIndexChanged += (_, _) =>
+        combo.SelectedIndex = selectedIndex;
+        combo.SelectedIndexChanged += (_, _) =>
         {
-            if (comboView.ListView.SelectedIndex.HasValue)
-                onChange(indexToValue[comboView.ListView.SelectedIndex.Value]);
+            if (combo.SelectedIndex.HasValue)
+                onChange(indexToValue[combo.SelectedIndex.Value]);
         };
+        #pragma warning restore CS0612, CS0618
 
         if (string.IsNullOrWhiteSpace(label))
-            return comboView;
+            return combo;
 
-        return new MyraLabel(label, MyraLabel.TextStyle.P).PlaceBefore(comboView);
+        return new MyraLabel(label, MyraLabel.TextStyle.P).PlaceBefore(combo);
     }
 
     /// <summary>
@@ -222,4 +222,59 @@ public static class OptionTabCommons
     /// <returns>A configured <see cref="MyraButton"/></returns>
     internal static MyraButton StyledButton(string label, Action onClick) => new(label, onClick);
 
+    /// <summary>
+    /// Creates a square <see cref="BasicButton"/> whose label is a Unicode symbol rendered with
+    /// a specific font. Pixel offsets allow fine-tuning symbol alignment within the button bounds,
+    /// which is necessary because different Unicode glyphs have inconsistent baseline positions.
+    /// </summary>
+    /// <param name="text">The Unicode symbol to display</param>
+    /// <param name="font">The font used to render <paramref name="text"/></param>
+    /// <param name="onClick">Action invoked when the button is clicked</param>
+    /// <param name="tooltip">Optional tooltip text</param>
+    /// <param name="width">Button width in pixels</param>
+    /// <param name="height">Button height in pixels</param>
+    /// <param name="topOffset">Optional vertical pixel nudge for the label within the button</param>
+    /// <param name="leftOffset">Optional horizontal pixel nudge for the label within the button</param>
+    /// <returns>A configured <see cref="BasicButton"/></returns>
+    internal static BasicButton StyledTextIconButton(
+        string text,
+        SpriteFontBase font,
+        Action onClick,
+        string tooltip = null,
+        int width = StyleConstantsDefaults.TOOLBAR_BUTTON_SIZE,
+        int height = StyleConstantsDefaults.TOOLBAR_BUTTON_SIZE,
+        int? topOffset = null,
+        int? leftOffset = null
+    )
+    {
+        var label = new MyraLabel
+        {
+            Text = text,
+            Font = font,
+            Wrap = false,
+            SingleLine = true,
+            TextAlign = TextHorizontalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = width,
+            Height = height,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0),
+            Top = topOffset ?? 0,
+            Left = leftOffset ?? 0
+        };
+
+        var button = new BasicButton(onClick)
+        {
+            Width = width,
+            Height = height,
+            Tooltip = tooltip,
+            Content = label,
+            VerticalAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0)
+        };
+
+        return button;
+    }
 }
