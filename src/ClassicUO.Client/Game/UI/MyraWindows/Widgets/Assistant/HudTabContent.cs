@@ -32,7 +32,7 @@ public static class HudTabContent
                 }, HideHudManager.GetFlagName(flag), GetTooltip(flag));
         }
 
-        var outerStack = new VerticalStackPanel { Spacing = 6 };
+        var outerStack = new MyraVerticalStackPanel { Spacing = 6 };
 
         outerStack.Widgets.Add(new MyraLabel(
             "Select gump types to toggle visibility when using the Toggle Hud Visible macro.",
@@ -49,7 +49,7 @@ public static class HudTabContent
         outerStack.Widgets.Add(grid);
 
 
-        var buttonRow = new HorizontalStackPanel { Spacing = 4 };
+        var buttonRow = new MyraHorizontalStackPanel { Spacing = 4 };
         buttonRow.Widgets.Add(new MyraButton("Select All", () => SetAllChecked(checkButtons, profile, true)));
 
         var deselectBtn = new MyraButton("Deselect All", () => SetAllChecked(checkButtons, profile, false));

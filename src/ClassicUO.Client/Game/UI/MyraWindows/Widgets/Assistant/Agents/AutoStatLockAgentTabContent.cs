@@ -16,7 +16,7 @@ public static class AutoStatLockAgentTabContent
         AutoStatLockManager manager = AutoStatLockManager.Instance;
         AutoStatLockState state = manager.State;
 
-        var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var root = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
         root.Widgets.Add(new MyraLabel(TazLang.Get("autostatlock_desc"), MyraLabel.TextStyle.P));
 
@@ -62,7 +62,7 @@ public static class AutoStatLockAgentTabContent
         Action<bool> onEnabledChanged,
         Action<ushort> onDesiredChanged)
     {
-        var row = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = Myra.Graphics2D.UI.VerticalAlignment.Center };
+        var row = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = Myra.Graphics2D.UI.VerticalAlignment.Center };
 
         row.Widgets.Add(new MyraLabel(statName, MyraLabel.TextStyle.P) { Width = 90 });
 

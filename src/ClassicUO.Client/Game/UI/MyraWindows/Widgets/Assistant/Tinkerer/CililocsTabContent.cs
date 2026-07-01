@@ -16,7 +16,7 @@ public static class CililocsTabContent
 
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         string uoDir = Settings.GlobalSettings.UltimaOnlineDirectory;
         var loadedEntries = new Dictionary<int, string>();
@@ -29,7 +29,7 @@ public static class CililocsTabContent
 
         var statusLabel = new MyraLabel("Select a language to load clilocs", MyraLabel.TextStyle.P);
         var countLabel = new MyraLabel("", MyraLabel.TextStyle.P);
-        var resultsPanel = new VerticalStackPanel { Spacing = 2 };
+        var resultsPanel = new MyraVerticalStackPanel { Spacing = 2 };
         var pageLabel = new MyraLabel("", MyraLabel.TextStyle.P);
         MyraButton prevBtn = null!;
         MyraButton nextBtn = null!;
@@ -150,7 +150,7 @@ public static class CililocsTabContent
         }
 
         // Language selector
-        var langRow = new HorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var langRow = new MyraHorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         langRow.Widgets.Add(new MyraLabel("Language:", MyraLabel.TextStyle.P));
 
         if (langCodes.Count == 0)
@@ -160,7 +160,7 @@ public static class CililocsTabContent
         else
         {
 #pragma warning disable CS0618
-            var combo = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
+            var combo = new MyraComboBox { VerticalAlignment = VerticalAlignment.Center };
             foreach (string code in langCodes)
                 combo.Items.Add(new ListItem(code.ToUpperInvariant()) { Tag = code });
 
@@ -188,14 +188,14 @@ public static class CililocsTabContent
         var textBox = new MyraInputBox { HintText = "Filter by text (partial match)", Width = 320 };
         textBox.TextChangedByUser += (_, _) => searchText = textBox.Text ?? "";
 
-        var searchRow = new HorizontalStackPanel { Spacing = 6 };
+        var searchRow = new MyraHorizontalStackPanel { Spacing = 6 };
         searchRow.Widgets.Add(new MyraLabel("ID:", MyraLabel.TextStyle.P));
         searchRow.Widgets.Add(idBox);
         searchRow.Widgets.Add(new MyraLabel("Text:", MyraLabel.TextStyle.P));
         searchRow.Widgets.Add(textBox);
         root.Widgets.Add(searchRow);
 
-        var actionRow = new HorizontalStackPanel { Spacing = 4 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
         actionRow.Widgets.Add(new MyraButton("Search", () => PerformSearch()));
         actionRow.Widgets.Add(new MyraButton("Clear", () =>
         {
@@ -217,12 +217,12 @@ public static class CililocsTabContent
             if (currentPage < totalPages - 1) { currentPage++; BuildResultsPage(); }
         }) { Enabled = false };
 
-        var pageRow = new HorizontalStackPanel { Spacing = 6 };
+        var pageRow = new MyraHorizontalStackPanel { Spacing = 6 };
         pageRow.Widgets.Add(prevBtn);
         pageRow.Widgets.Add(pageLabel);
         pageRow.Widgets.Add(nextBtn);
         root.Widgets.Add(pageRow);
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 400, Content = resultsPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 400, Content = resultsPanel });
 
         // Auto-load default language when tab opens
         if (langCodes.Count > 0)

@@ -19,9 +19,9 @@ public static class SpellIndicatorTabContent
 
         SpellRangeInfo? selectedSpell = null;
         var searchBox = new MyraInputBox { HintText = "Search spells...", MinWidth = 200 };
-        var spellListPanel = new VerticalStackPanel { Spacing = 2 };
-        var spellEditorPanel = new VerticalStackPanel { Spacing = 4, Visible = false };
-        var addNewPanel = new VerticalStackPanel { Spacing = 4, Visible = false };
+        var spellListPanel = new MyraVerticalStackPanel { Spacing = 2 };
+        var spellEditorPanel = new MyraVerticalStackPanel { Spacing = 4, Visible = false };
+        var addNewPanel = new MyraVerticalStackPanel { Spacing = 4, Visible = false };
 
         void ShowList()
         {
@@ -101,7 +101,7 @@ public static class SpellIndicatorTabContent
                 row++;
             }
 
-            var scrollViewer = new ScrollViewer { MaxHeight = 300, Content = grid };
+            var scrollViewer = new MyraScrollViewer { MaxHeight = 300, Content = grid };
             spellListPanel.Widgets.Add(scrollViewer);
         }
 
@@ -149,7 +149,7 @@ public static class SpellIndicatorTabContent
             row++;
 
             grid.AddWidget(new MyraLabel("Cursor Size:", MyraLabel.TextStyle.P), row, 0);
-            var cursorSizeSpinner = new SpinButton
+            var cursorSizeSpinner = new MyraSpinButton
             {
                 Integer = true,
                 Value = spell.CursorSize,
@@ -165,7 +165,7 @@ public static class SpellIndicatorTabContent
             row++;
 
             grid.AddWidget(new MyraLabel("Cast Range:", MyraLabel.TextStyle.P), row, 0);
-            var castRangeSpinner = new SpinButton { Integer = true, Value = spell.CastRange, MinWidth = 100 };
+            var castRangeSpinner = new MyraSpinButton { Integer = true, Value = spell.CastRange, MinWidth = 100 };
             castRangeSpinner.ValueChangedByUser += (_, _) =>
             {
                 spell.CastRange = (int)Math.Clamp(castRangeSpinner.Value ?? 1f, 1f, int.MaxValue);
@@ -188,7 +188,7 @@ public static class SpellIndicatorTabContent
             row++;
 
             grid.AddWidget(new MyraLabel("Max Duration:", MyraLabel.TextStyle.P), row, 0);
-            var maxDurSpinner = new SpinButton
+            var maxDurSpinner = new MyraSpinButton
             {
                 Integer = true,
                 Value = spell.MaxDuration,
@@ -204,7 +204,7 @@ public static class SpellIndicatorTabContent
             row++;
 
             grid.AddWidget(new MyraLabel("Cursor Hue:", MyraLabel.TextStyle.P), row, 0);
-            var cursorHueSpinner = new SpinButton { Integer = true, Value = spell.CursorHue, MinWidth = 100 };
+            var cursorHueSpinner = new MyraSpinButton { Integer = true, Value = spell.CursorHue, MinWidth = 100 };
             cursorHueSpinner.ValueChangedByUser += (_, _) =>
             {
                 spell.CursorHue = (ushort)Math.Clamp(cursorHueSpinner.Value ?? 0f, 0f, ushort.MaxValue);
@@ -214,7 +214,7 @@ public static class SpellIndicatorTabContent
             row++;
 
             grid.AddWidget(new MyraLabel("Range Hue:", MyraLabel.TextStyle.P), row, 0);
-            var rangeHueSpinner = new SpinButton { Integer = true, Value = spell.Hue, MinWidth = 100 };
+            var rangeHueSpinner = new MyraSpinButton { Integer = true, Value = spell.Hue, MinWidth = 100 };
             rangeHueSpinner.ValueChangedByUser += (_, _) =>
             {
                 spell.Hue = (ushort)Math.Clamp(rangeHueSpinner.Value ?? 0f, 0f, ushort.MaxValue);
@@ -257,7 +257,7 @@ public static class SpellIndicatorTabContent
             spellEditorPanel.Widgets.Add(grid);
 
             var deleteConfirmLabel = new MyraLabel($"Delete '{spell.Name}'?", MyraLabel.TextStyle.P);
-            var deleteConfirm = new HorizontalStackPanel { Spacing = 4, Visible = false };
+            var deleteConfirm = new MyraHorizontalStackPanel { Spacing = 4, Visible = false };
             deleteConfirm.Widgets.Add(deleteConfirmLabel);
             deleteConfirm.Widgets.Add(MyraStyle.ApplyButtonDangerStyle(new MyraButton("Yes", () =>
             {
@@ -267,7 +267,7 @@ public static class SpellIndicatorTabContent
             })));
             deleteConfirm.Widgets.Add(new MyraButton("No", () => deleteConfirm.Visible = false));
 
-            var btnRow = new HorizontalStackPanel { Spacing = 4 };
+            var btnRow = new MyraHorizontalStackPanel { Spacing = 4 };
             btnRow.Widgets.Add(MyraStyle.ApplyButtonDangerStyle(new MyraButton("Delete Spell", () =>
             {
                 deleteConfirmLabel.Text = $"Delete '{spell.Name}'?";
@@ -293,7 +293,7 @@ public static class SpellIndicatorTabContent
         addGrid.AddWidget(new MyraLabel("Spell Name:", MyraLabel.TextStyle.P), 1, 0);
         addGrid.AddWidget(newNameBox, 1, 2);
 
-        var addBtnRow = new HorizontalStackPanel { Spacing = 4 };
+        var addBtnRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addBtnRow.Widgets.Add(new MyraButton("Create Spell", () =>
         {
             string idText = newIdBox.Text ?? "";
@@ -401,7 +401,7 @@ public static class SpellIndicatorTabContent
             }
         };
 
-        var searchRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        var searchRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         searchRow.Widgets.Add(new MyraLabel("Spell search:", MyraLabel.TextStyle.P));
         searchRow.Widgets.Add(searchBox);
         searchRow.Widgets.Add(new MyraButton("Clear", ClearSelection));
@@ -419,7 +419,7 @@ public static class SpellIndicatorTabContent
 
         BuildSpellList();
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
         root.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.EnableSpellIndicators,
             b => profile.EnableSpellIndicators = b,

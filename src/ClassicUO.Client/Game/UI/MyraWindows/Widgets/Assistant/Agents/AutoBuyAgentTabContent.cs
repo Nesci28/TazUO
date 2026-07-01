@@ -17,7 +17,7 @@ public static class AutoBuyAgentTabContent
         if (profile == null)
             return new MyraLabel(TazLang.Get("autobuy_profilenotloaded"), MyraLabel.TextStyle.P);
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.BuyAgentEnabled, b => profile.BuyAgentEnabled = b, TazLang.Get("autobuy_enable")));
@@ -43,7 +43,7 @@ public static class AutoBuyAgentTabContent
 
         root.Widgets.Add(new MyraLabel(TazLang.Get("autobuy_entries"), MyraLabel.TextStyle.H3));
 
-        var entriesPanel = new VerticalStackPanel { Spacing = 4 };
+        var entriesPanel = new MyraVerticalStackPanel { Spacing = 4 };
 
         void BuildEntriesList()
         {
@@ -146,20 +146,20 @@ public static class AutoBuyAgentTabContent
         BuildEntriesList();
 
         // Inline add entry panel
-        var addEntryPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var addEntryPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
         var newGraphicBox = new MyraInputBox { HintText = "Graphic ID", Width = 80 };
         var newHueBox = MyraInputBox.Hue(ushort.MaxValue, 80, "Hue (-1=any)");
         var newMaxAmountBox = new MyraInputBox { HintText = "Max Amount (0=unlimited)", Width = 130 };
         var newRestockBox = new MyraInputBox { HintText = "Restock Up To", Width = 100 };
         var newMaxPriceBox = new MyraInputBox { HintText = "Max Price (0=no limit)", Width = 110 };
 
-        var addFieldsRow1 = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldsRow1 = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldsRow1.Widgets.Add(new MyraLabel(TazLang.Get("agent_graphic_label"), MyraLabel.TextStyle.P));
         addFieldsRow1.Widgets.Add(newGraphicBox);
         addFieldsRow1.Widgets.Add(new MyraLabel(TazLang.Get("agent_hue_label"), MyraLabel.TextStyle.P));
         addFieldsRow1.Widgets.Add(newHueBox);
 
-        var addFieldsRow2 = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldsRow2 = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldsRow2.Widgets.Add(new MyraLabel(TazLang.Get("agent_maxamount_label"), MyraLabel.TextStyle.P));
         addFieldsRow2.Widgets.Add(newMaxAmountBox);
         addFieldsRow2.Widgets.Add(new MyraLabel(TazLang.Get("autobuy_restockupto_label"), MyraLabel.TextStyle.P));
@@ -176,7 +176,7 @@ public static class AutoBuyAgentTabContent
             newMaxPriceBox.Text = "";
         }
 
-        var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+        var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addConfirmRow.Widgets.Add(new MyraButton(TazLang.Get("agent_add"), () =>
         {
             if (StringHelper.TryParseInt(newGraphicBox.Text, out int graphic))
@@ -215,7 +215,7 @@ public static class AutoBuyAgentTabContent
         addEntryPanel.Widgets.Add(addConfirmRow);
 
         // Action buttons
-        var actionRow = new HorizontalStackPanel { Spacing = 6 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 6 };
         actionRow.Widgets.Add(new MyraButton(TazLang.Get("agent_addmanualentry"), () => addEntryPanel.Visible = !addEntryPanel.Visible));
         actionRow.Widgets.Add(new MyraButton(TazLang.Get("agent_addfromtarget"), () =>
         {
@@ -250,7 +250,7 @@ public static class AutoBuyAgentTabContent
 
         root.Widgets.Add(actionRow);
         root.Widgets.Add(addEntryPanel);
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 300, Content = entriesPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 300, Content = entriesPanel });
 
         return root;
     }
