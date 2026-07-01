@@ -124,6 +124,29 @@ namespace ClassicUO.Game.Managers.SpellVisualRange
 
         public SpellRangeInfo GetCurrentSpell() => currentSpell;
 
+        public bool IsSpellCastOrTargetActive(int spellId)
+        {
+            if (!loaded || currentSpell == null || currentSpell.ID != spellId || !isCasting)
+            {
+                return false;
+            }
+
+            double castTime = currentSpell.GetEffectiveCastTime();
+            double activeWindow = Math.Max(currentSpell.MaxDuration, castTime);
+
+            if (LastSpellTime + TimeSpan.FromSeconds(activeWindow) <= DateTime.Now)
+            {
+                return false;
+            }
+
+            if (World.TargetManager.IsTargeting)
+            {
+                return true;
+            }
+
+            return castTime > 0 && LastSpellTime + TimeSpan.FromSeconds(castTime) > DateTime.Now;
+        }
+
         #region Load and unload
 
         public void OnSceneLoad()
