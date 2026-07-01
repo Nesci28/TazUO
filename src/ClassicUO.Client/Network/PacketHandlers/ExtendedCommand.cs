@@ -499,11 +499,14 @@ internal static class ExtendedCommand
                 {
                     byte damage = p.ReadUInt8();
 
-                    if (damage > 0)
-                        world.WorldTextManager.AddDamage(en, damage);
-                }
+                        if (damage > 0)
+                        {
+                            world.WorldTextManager.AddDamage(en, damage);
+                            EventSink.InvokeOnEntityDamage(en, damage);
+                        }
+                    }
 
-                break;
+                    break;
 
             case 0x25:
 
