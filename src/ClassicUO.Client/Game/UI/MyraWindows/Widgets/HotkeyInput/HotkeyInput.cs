@@ -118,24 +118,26 @@ public class HotkeyInput : Panel
     }
 
     /// <inheritdoc/>
-    protected override void OnPlacedChanged() => DetachAsNecessary();
+    protected override void OnPlacedChanged() => UpdateCaptureLifecycle();
 
     /// <inheritdoc/>
-    public override void OnVisibleChanged() => DetachAsNecessary();
+    public override void OnVisibleChanged() => UpdateCaptureLifecycle();
 
     /// <summary>
-    /// Stops the capturer and detaches event handlers when the widget leaves the desktop or
-    /// becomes invisible, preventing stale captures after the widget is no longer rendered.
+    /// Keeps input event handlers attached only while the widget is rendered.
     /// </summary>
-    private void DetachAsNecessary()
+    private void UpdateCaptureLifecycle()
     {
-        // Check if we're still being rendered
-        if (Desktop != null || Visible)
+        if (Desktop != null && Visible)
+        {
+            _input.TouchDown -= StartRecording;
+            _input.TouchDown += StartRecording;
             return;
+        }
 
-        // Detach everything
         _capturer.Stop();
         _input.TouchDown -= StartRecording;
+        UpdateText();
     }
 
     /// <summary>
