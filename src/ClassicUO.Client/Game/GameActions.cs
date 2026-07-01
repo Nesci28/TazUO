@@ -581,6 +581,9 @@ internal static class GameActions
                     {
                         if (s)
                         {
+                            world.TargetManager.NewTargetSystemSerial = serial;
+                            world.TargetManager.LastAttack = serial;
+                            world.CombatDamageTracker.RecordAttackIntent(serial);
                             Socket.Send_AttackRequest(serial);
                         }
                     }
@@ -597,6 +600,7 @@ internal static class GameActions
 
         world.TargetManager.NewTargetSystemSerial = serial;
         world.TargetManager.LastAttack = serial;
+        world.CombatDamageTracker.RecordAttackIntent(serial);
         Socket.Send_AttackRequest(serial);
     }
 
@@ -1135,9 +1139,10 @@ internal static class GameActions
     {
         if (index >= 0)
         {
-            LastSpellIndex = index;
-            SpellVisualRangeManager.Instance.ClearCasting();
-            Socket.Send_CastSpellFromBook(index, bookSerial);
+                LastSpellIndex = index;
+                SpellVisualRangeManager.Instance.ClearCasting();
+                Client.Game.UO.World.CombatDamageTracker.RecordSpellIntent(index);
+                Socket.Send_CastSpellFromBook(index, bookSerial);
         }
     }
 
@@ -1213,9 +1218,10 @@ internal static class GameActions
     {
         if (index >= 0)
         {
-            LastSpellIndex = index;
-            SpellVisualRangeManager.Instance.ClearCasting();
-            Socket.Send_CastSpell(index);
+                LastSpellIndex = index;
+                SpellVisualRangeManager.Instance.ClearCasting();
+                Client.Game.UO.World.CombatDamageTracker.RecordSpellIntent(index);
+                Socket.Send_CastSpell(index);
 
             // Record action for script recording
             string name = SpellDefinition.FullIndexGetSpell(index).Name;

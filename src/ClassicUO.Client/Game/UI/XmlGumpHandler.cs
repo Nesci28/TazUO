@@ -772,6 +772,14 @@ namespace ClassicUO.Game.UI
             text = text.Replace("{defchance}", world.Player.DefenseChanceIncrease.ToString());
             text = text.Replace("{defchancemax}", world.Player.MaxDefenseChanceIncrease.ToString());
             text = text.Replace("{sdi}", world.Player.SpellDamageIncrease.ToString());
+            CombatDamageSnapshot combatDps = world.CombatDamageTracker.GetActiveSnapshot();
+            text = text.Replace("{dpsmine}", combatDps.MineDps.ToString("0.0"));
+            text = text.Replace("{dpsothers}", combatDps.OthersDps.ToString("0.0"));
+            text = text.Replace("{dpstotal}", combatDps.TotalDps.ToString("0.0"));
+            text = text.Replace("{dpsminedamage}", combatDps.MineDamage.ToString("0.0"));
+            text = text.Replace("{dpsothersdamage}", combatDps.OthersDamage.ToString("0.0"));
+            text = text.Replace("{dpstotaldamage}", combatDps.TotalDamage.ToString("0.0"));
+            text = text.Replace("{dpsconfidence}", (combatDps.Confidence * 100).ToString("0"));
             text = text.Replace("{fc}", world.Player.FasterCasting.ToString());
             text = text.Replace("{fcr}", world.Player.FasterCastRecovery.ToString());
             text = text.Replace("{lmc}", world.Player.LowerManaCost.ToString());
