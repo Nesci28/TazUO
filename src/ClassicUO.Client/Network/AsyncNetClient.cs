@@ -95,6 +95,7 @@ namespace ClassicUO.Network
             catch (Exception ex)
             {
                 Log.Error($"Error while sending {ex}");
+                PacketSendDebugLogger.LogDisconnect("socket_send_exception", SocketError.SocketError, ex);
                 OnError?.Invoke(this, SocketError.SocketError);
             }
         }
@@ -113,10 +114,11 @@ namespace ClassicUO.Network
                     // forever. ReadAsync also yields naturally, so no busy-wait delay is needed.
                     int bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
 
-                    if (bytesRead == 0)
-                    {
-                        OnDisconnected?.Invoke(this, EventArgs.Empty);
-                        Disconnect();
+                if (bytesRead == 0)
+                {
+                    PacketSendDebugLogger.LogDisconnect("receive_loop_remote_closed_bytes_0");
+                    OnDisconnected?.Invoke(this, EventArgs.Empty);
+                    Disconnect();
 
                         break;
                     }
@@ -136,24 +138,31 @@ namespace ClassicUO.Network
 
                 switch (socketEx.SocketErrorCode)
                 {
-                    case SocketError.OperationAborted: OnError?.Invoke(this, SocketError.Success); break;
-                    default:
-                        Log.Error($"Socket error in receive loop: {socketEx.SocketErrorCode} - {socketEx.Message}");
-                        OnError?.Invoke(this, socketEx.SocketErrorCode); break;
-                }
+                case SocketError.OperationAborted: OnError?.Invoke(this, SocketError.Success); break;
+                default:
+                    Log.Error($"Socket error in receive loop: {socketEx.SocketErrorCode} - {socketEx.Message}");
+                    PacketSendDebugLogger.LogDisconnect(
+                        "receive_loop_socket_error",
+                        socketEx.SocketErrorCode,
+                        socketEx
+                    );
+                    OnError?.Invoke(this, socketEx.SocketErrorCode); break;
+            }
 
-            }
-            catch (OperationCanceledException)
-            {
-                Disconnect();
-                OnError?.Invoke(this, SocketError.Success);
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error in receive loop {ex}");
-                Disconnect();
-                OnError?.Invoke(this, SocketError.SocketError);
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            PacketSendDebugLogger.LogDisconnect("receive_loop_cancelled", SocketError.Success);
+            Disconnect();
+            OnError?.Invoke(this, SocketError.Success);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Error in receive loop {ex}");
+            PacketSendDebugLogger.LogDisconnect("receive_loop_exception", SocketError.SocketError, ex);
+            Disconnect();
+            OnError?.Invoke(this, SocketError.SocketError);
+        }
             finally
             {
                 ArrayPool<byte>.Shared.Return(buffer);
@@ -351,17 +360,19 @@ namespace ClassicUO.Network
                     // Small delay to prevent excessive CPU usage
                     await Task.Delay(1, cancellationToken);
                 }
-                catch (OperationCanceledException)
-                {
-                    await Disconnect();
-                    Disconnected?.Invoke(this, SocketError.Success);
-                    break;
+            catch (OperationCanceledException)
+            {
+                PacketSendDebugLogger.LogDisconnect("network_loop_cancelled", SocketError.Success);
+                await Disconnect();
+                Disconnected?.Invoke(this, SocketError.Success);
+                break;
                 }
-                catch (Exception ex)
-                {
-                    await Disconnect();
-                    Log.Error($"Network loop error: {ex}");
-                    Disconnected?.Invoke(this, SocketError.SocketError);
+            catch (Exception ex)
+            {
+                PacketSendDebugLogger.LogDisconnect("network_loop_exception", SocketError.SocketError, ex);
+                await Disconnect();
+                Log.Error($"Network loop error: {ex}");
+                Disconnected?.Invoke(this, SocketError.SocketError);
                     break;
                 }
             }
@@ -413,6 +424,7 @@ namespace ClassicUO.Network
             if (message.IsEmpty)
                 return;
 
+            PacketSendDebugLogger.LogQueuedPacket(message, ignorePlugin, skipEncryption, _sendStream.Length);
             PacketLogger.Default?.Log(message, true);
 
             if (!skipEncryption)
@@ -461,12 +473,14 @@ namespace ClassicUO.Network
 
                 if (bytesToSend > 0 && sendingBuffer != null)
                 {
+                    PacketSendDebugLogger.LogSocketWrite(bytesToSend, _sendStream.Length);
                     await _socket.SendAsync(sendingBuffer, 0, bytesToSend, cancellationToken);
                     ArrayPool<byte>.Shared.Return(sendingBuffer);
                 }
             }
             catch (Exception ex)
             {
+                PacketSendDebugLogger.LogDisconnect("process_send_exception", SocketError.SocketError, ex);
                 Log.Error($"Error in ProcessSendAsync: {ex}");
                 Disconnected?.Invoke(this, SocketError.SocketError);
             }
@@ -481,6 +495,7 @@ namespace ClassicUO.Network
 
             if (!_huffman.Decompress(buffer, _uncompressedBuffer, ref size))
             {
+                PacketSendDebugLogger.LogDisconnect("huffman_decompress_failed", SocketError.SocketError);
                 _ = Disconnect();
                 Disconnected?.Invoke(this, SocketError.SocketError);
 
