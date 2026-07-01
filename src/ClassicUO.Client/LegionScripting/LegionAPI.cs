@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -1397,9 +1398,562 @@ namespace ClassicUO.LegionScripting
         });
 
         /// <summary>
+        /// Captures a screenshot of the full game render surface and saves it to disk.
+        /// </summary>
+        /// <param name="path">Optional file path. If relative, it is resolved under Data/Client/Screenshots.</param>
+        /// <returns>Screenshot metadata including path, dimensions, and error details if capture fails.</returns>
+        public ApiScreenshotResult TakeScreenshot(string path = null) => OnMain(() =>
+        {
+            if (Client.Game == null)
+            {
+                return new ApiScreenshotResult
+                {
+                    Success = false,
+                    Mode = "full",
+                    Error = "Game controller is not available."
+                };
+            }
+
+            var result = Client.Game.CaptureScreenshot(path: path, notify: false);
+            return ApiScreenshotResult.FromCaptureResult(result, "full");
+        });
+
+        /// <summary>
+        /// Captures a screenshot of a specific region in screen coordinates.
+        /// </summary>
+        /// <param name="x">Region X position in screen coordinates.</param>
+        /// <param name="y">Region Y position in screen coordinates.</param>
+        /// <param name="width">Region width in pixels.</param>
+        /// <param name="height">Region height in pixels.</param>
+        /// <param name="path">Optional file path. If relative, it is resolved under Data/Client/Screenshots.</param>
+        /// <returns>Screenshot metadata including path, dimensions, and error details if capture fails.</returns>
+        public ApiScreenshotResult TakeScreenshotRegion(int x, int y, int width, int height, string path = null) => OnMain(() =>
+        {
+            if (Client.Game == null)
+            {
+                return new ApiScreenshotResult
+                {
+                    Success = false,
+                    Mode = "region",
+                    Error = "Game controller is not available."
+                };
+            }
+
+            if (width <= 0 || height <= 0)
+            {
+                return new ApiScreenshotResult
+                {
+                    Success = false,
+                    Mode = "region",
+                    Error = "Width and height must be greater than zero."
+                };
+            }
+
+            var region = new Rectangle(x, y, width, height);
+            var result = Client.Game.CaptureScreenshot(region, path, notify: false);
+            return ApiScreenshotResult.FromCaptureResult(result, "region");
+        });
+
+        private static Rectangle GetVisibleGumpBounds(Gump gump)
+        {
+            if (gump == null || gump.IsDisposed)
+                return Rectangle.Empty;
+
+            int minX = int.MaxValue;
+            int minY = int.MaxValue;
+            int maxX = int.MinValue;
+            int maxY = int.MinValue;
+            bool hasBounds = false;
+
+            static void IncludeBounds(Control control, ref int minX, ref int minY, ref int maxX, ref int maxY, ref bool hasBounds)
+            {
+                if (control.Width <= 0 || control.Height <= 0)
+                    return;
+
+                int x = control.ScreenCoordinateX;
+                int y = control.ScreenCoordinateY;
+                int right = x + control.Width;
+                int bottom = y + control.Height;
+
+                if (!hasBounds)
+                {
+                    minX = x;
+                    minY = y;
+                    maxX = right;
+                    maxY = bottom;
+                    hasBounds = true;
+                    return;
+                }
+
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, right);
+                maxY = Math.Max(maxY, bottom);
+            }
+
+            static void CollectVisibleBounds(Control control, ref int minX, ref int minY, ref int maxX, ref int maxY, ref bool hasBounds)
+            {
+                if (control == null || control.IsDisposed || !control.IsVisible)
+                    return;
+
+                IncludeBounds(control, ref minX, ref minY, ref maxX, ref maxY, ref hasBounds);
+
+                if (control.Children == null || control.Children.Count == 0)
+                    return;
+
+                for (int i = 0; i < control.Children.Count; i++)
+                {
+                    if (i >= control.Children.Count)
+                        break;
+
+                    if (control.Children[i] is not Control child || child.IsDisposed)
+                        continue;
+
+                    if (child.Page != 0 && child.Page != control.ActivePage)
+                        continue;
+
+                    CollectVisibleBounds(child, ref minX, ref minY, ref maxX, ref maxY, ref hasBounds);
+                }
+            }
+
+            CollectVisibleBounds(gump, ref minX, ref minY, ref maxX, ref maxY, ref hasBounds);
+
+            if (!hasBounds)
+            {
+                int width = Math.Max(1, gump.Width);
+                int height = Math.Max(1, gump.Height);
+
+                return new Rectangle(gump.ScreenCoordinateX, gump.ScreenCoordinateY, width, height);
+            }
+
+            return new Rectangle(minX, minY, Math.Max(1, maxX - minX), Math.Max(1, maxY - minY));
+        }
+
+        /// <summary>
+        /// Captures a screenshot of an open gump by server serial (or local serial fallback).
+        /// Leave gumpId blank to target the latest server gump.
+        /// </summary>
+        /// <param name="gumpId">Server serial to capture. Falls back to local serial lookup when not found as a server gump.</param>
+        /// <param name="path">Optional file path. If relative, it is resolved under Data/Client/Screenshots.</param>
+        /// <param name="padding">Optional padding in pixels around the gump bounds.</param>
+        /// <returns>Screenshot metadata including path, dimensions, and error details if capture fails.</returns>
+        public ApiScreenshotResult TakeScreenshotGump(uint gumpId = uint.MaxValue, string path = null, int padding = 0) => OnMain(() =>
+        {
+            if (Client.Game == null)
+            {
+                return new ApiScreenshotResult
+                {
+                    Success = false,
+                    Mode = "gump",
+                    Error = "Game controller is not available."
+                };
+            }
+
+            Gump gump = null;
+            uint resolvedId = gumpId;
+
+            if (resolvedId == uint.MaxValue && World.Player != null)
+                resolvedId = World.Player.LastGumpID;
+
+            if (resolvedId != uint.MaxValue && resolvedId != 0)
+            {
+                gump = UIManager.GetGumpServer(resolvedId);
+                gump ??= UIManager.GetGump(resolvedId);
+            }
+
+            if (gump == null || gump.IsDisposed)
+            {
+                return new ApiScreenshotResult
+                {
+                    Success = false,
+                    Mode = "gump",
+                    GumpId = resolvedId == uint.MaxValue ? 0 : resolvedId,
+                    Error = "Gump was not found."
+                };
+            }
+
+            int safePadding = Math.Max(0, padding);
+            Rectangle gumpBounds = GetVisibleGumpBounds(gump);
+            Rectangle region = new Rectangle(
+                gumpBounds.X - safePadding,
+                gumpBounds.Y - safePadding,
+                gumpBounds.Width + (safePadding * 2),
+                gumpBounds.Height + (safePadding * 2)
+            );
+
+            var result = Client.Game.CaptureScreenshot(region, path, notify: false);
+            return ApiScreenshotResult.FromCaptureResult(result, "gump", gump.ServerSerial != 0 ? gump.ServerSerial : gump.LocalSerial);
+        });
+
+        /// <summary>
+        /// Gets metadata for all currently open gumps.
+        /// </summary>
+        /// <returns>Array of visible gump descriptors including server/local serial and bounds.</returns>
+        public ApiOpenGumpInfo[] GetOpenGumpInfo() => OnMain(() =>
+        {
+            return UIManager.Gumps
+                .OfType<Gump>()
+                .Where(g => g != null && !g.IsDisposed && g.IsVisible)
+                .Select(g =>
+                {
+                    Rectangle bounds = GetVisibleGumpBounds(g);
+
+                    return new ApiOpenGumpInfo
+                    {
+                        ServerSerial = g.ServerSerial,
+                        LocalSerial = g.LocalSerial,
+                        X = bounds.X,
+                        Y = bounds.Y,
+                        Width = bounds.Width,
+                        Height = bounds.Height,
+                        Name = g.GetType().Name
+                    };
+                }).ToArray();
+        });
+
+        /// <summary>
         /// Executes a client command as if typed in the game console
         /// </summary>
         /// <param name="command">The command to execute (including any arguments)</param>
+        /// <summary>
+        /// Clicks a gump button through the normal server reply path or through LegionScript UI controls.
+        /// </summary>
+        /// <param name="button">Button ID for server gumps, or ButtonID/ButtonParameter for LegionScript UI buttons.</param>
+        /// <param name="gump">Server or local gump serial. Defaults to latest server gump for server clicks.</param>
+        /// <param name="kind">auto, server, or legion/script/api/ui.</param>
+        /// <param name="controlType">any, button, or niceButton for LegionScript UI clicks.</param>
+        /// <param name="controlIndex">Zero-based index when multiple matching LegionScript controls exist.</param>
+        /// <param name="text">Optional button text filter for LegionScript NiceButton controls.</param>
+        /// <param name="switches">Optional server gump switch values.</param>
+        /// <param name="entries">Optional server gump text entries as (index, text) pairs.</param>
+        public ApiGumpButtonClickResult ClickGumpButton(
+            int button,
+            uint gump = uint.MaxValue,
+            string kind = "auto",
+            string controlType = "any",
+            int controlIndex = 0,
+            string text = null,
+            IEnumerable<int> switches = null,
+            IEnumerable<object> entries = null) => OnMain(() =>
+        {
+            string normalizedKind = NormalizeGumpClickKind(kind);
+
+            if (normalizedKind == null)
+                return BuildGumpButtonClickError(button, gump, "Unknown click kind. Use auto, server, or legion.");
+
+            if (controlIndex < 0)
+                return BuildGumpButtonClickError(button, gump, "controlIndex must be zero or greater.");
+
+            if (normalizedKind == "server")
+                return ReplyGumpButton(button, gump, switches, entries);
+
+            if (normalizedKind == "legion")
+                return ClickLegionGumpButton(button, gump, controlType, controlIndex, text);
+
+            Gump serverGump = ResolveGumpForClick(gump, defaultToLastServerGump: true);
+
+            if (serverGump != null && serverGump.ServerSerial != 0)
+                return ReplyGumpButton(button, gump, switches, entries, serverGump);
+
+            ApiGumpButtonClickResult legionResult = ClickLegionGumpButton(button, gump, controlType, controlIndex, text);
+
+            if (legionResult.Success || gump != uint.MaxValue)
+                return legionResult;
+
+            return BuildGumpButtonClickError(button, gump, "No matching server or LegionScript gump button was found.");
+        });
+
+        private ApiGumpButtonClickResult ReplyGumpButton(
+            int button,
+            uint gumpId,
+            IEnumerable<int> switches,
+            IEnumerable<object> entries,
+            Gump resolvedGump = null)
+        {
+            if (World.Player == null)
+                return BuildGumpButtonClickError(button, gumpId, "Player was not found.");
+
+            Gump gump = resolvedGump ?? ResolveGumpForClick(gumpId, defaultToLastServerGump: true);
+
+            if (gump == null || gump.ServerSerial == 0)
+                return BuildGumpButtonClickError(button, gumpId, "Server gump was not found.");
+
+            Tuple<ushort, string>[] entryArray = BuildGumpEntryArray(entries);
+
+            GameActions.ReplyGump(
+                World,
+                gump.LocalSerial,
+                gump.ServerSerial,
+                button,
+                switches == null ? [] : switches.ToUint().ToArray(),
+                entryArray
+            );
+
+            ApiGumpButtonClickResult result = BuildGumpButtonClickResult(button, gumpId, gump, "server");
+            result.Success = true;
+            result.Action = "replyGump";
+
+            gump.Dispose();
+
+            return result;
+        }
+
+        private ApiGumpButtonClickResult ClickLegionGumpButton(
+            int button,
+            uint gumpId,
+            string controlType,
+            int controlIndex,
+            string text)
+        {
+            string normalizedControlType = NormalizeGumpButtonControlType(controlType);
+
+            if (normalizedControlType == null)
+                return BuildGumpButtonClickError(button, gumpId, "Unknown controlType. Use any, button, or niceButton.");
+
+            List<GumpButtonControlMatch> matches = FindLegionGumpButtonMatches(button, gumpId, normalizedControlType, text);
+
+            if (matches.Count == 0)
+                return BuildGumpButtonClickError(button, gumpId, "LegionScript gump button was not found.");
+
+            if (controlIndex >= matches.Count)
+            {
+                ApiGumpButtonClickResult error = BuildGumpButtonClickError(button, gumpId, $"controlIndex {controlIndex} was outside the {matches.Count} matching controls.");
+                error.MatchCount = matches.Count;
+                return error;
+            }
+
+            GumpButtonControlMatch match = matches[controlIndex];
+            Point clickPoint = new(match.Control.ScreenCoordinateX + Math.Max(1, match.Control.Width) / 2, match.Control.ScreenCoordinateY + Math.Max(1, match.Control.Height) / 2);
+            string action = InvokeLegionButtonClick(match.Control, clickPoint);
+
+            ApiGumpButtonClickResult result = BuildGumpButtonClickResult(button, gumpId, match.Gump, "legion");
+            result.Success = true;
+            result.ControlType = match.ControlType;
+            result.ControlIndex = controlIndex;
+            result.MatchCount = matches.Count;
+            result.Text = match.Text;
+            result.Action = action;
+
+            return result;
+        }
+
+        private List<GumpButtonControlMatch> FindLegionGumpButtonMatches(int button, uint gumpId, string controlType, string text)
+        {
+            bool hasTextFilter = !string.IsNullOrWhiteSpace(text);
+            List<GumpButtonControlMatch> matches = new();
+
+            foreach (Gump gump in GetLegionGumpClickTargets(gumpId))
+            {
+                foreach (Control control in EnumerateVisibleControls(gump))
+                {
+                    if (controlType != "niceButton" && control is Button buttonControl && buttonControl.ButtonID == button)
+                    {
+                        string caption = GetButtonCaption(buttonControl);
+
+                        if (!hasTextFilter || string.Equals(caption, text, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add(new GumpButtonControlMatch
+                            {
+                                Gump = gump,
+                                Control = buttonControl,
+                                ControlType = nameof(Button),
+                                Text = caption
+                            });
+                        }
+                    }
+                    else if (controlType != "button" && control is NiceButton niceButton && niceButton.ButtonParameter == button)
+                    {
+                        string label = niceButton.TextLabel?.Text ?? string.Empty;
+
+                        if (!hasTextFilter || string.Equals(label, text, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add(new GumpButtonControlMatch
+                            {
+                                Gump = gump,
+                                Control = niceButton,
+                                ControlType = nameof(NiceButton),
+                                Text = label
+                            });
+                        }
+                    }
+                }
+            }
+
+            return matches;
+        }
+
+        private IEnumerable<Gump> GetLegionGumpClickTargets(uint gumpId)
+        {
+            if (gumpId != uint.MaxValue)
+            {
+                Gump gump = ResolveGumpForClick(gumpId, defaultToLastServerGump: false);
+
+                if (gump != null && !gump.IsDisposed && gump.IsVisible)
+                    yield return gump;
+
+                yield break;
+            }
+
+            foreach (Gump gump in UIManager.Gumps.OfType<Gump>())
+            {
+                if (gump == null || gump.IsDisposed || !gump.IsVisible)
+                    continue;
+
+                if (IsScriptGumpLocalSerial(gump.LocalSerial))
+                    yield return gump;
+            }
+        }
+
+        private Gump ResolveGumpForClick(uint gumpId, bool defaultToLastServerGump)
+        {
+            uint resolvedId = gumpId;
+
+            if (resolvedId == uint.MaxValue && defaultToLastServerGump && World.Player != null)
+                resolvedId = World.Player.LastGumpID;
+
+            if (resolvedId == uint.MaxValue || resolvedId == 0)
+                return null;
+
+            Gump gump = UIManager.GetGumpServer(resolvedId);
+            gump ??= UIManager.GetGump(resolvedId);
+
+            return gump == null || gump.IsDisposed ? null : gump;
+        }
+
+        private static IEnumerable<Control> EnumerateVisibleControls(Control root)
+        {
+            if (root == null || root.IsDisposed || !root.IsVisible)
+                yield break;
+
+            for (int i = 0; i < root.Children.Count; i++)
+            {
+                if (i >= root.Children.Count)
+                    yield break;
+
+                if (root.Children[i] is not Control child || child.IsDisposed || !child.IsVisible)
+                    continue;
+
+                if (child.Page != 0 && child.Page != root.ActivePage)
+                    continue;
+
+                yield return child;
+
+                foreach (Control nested in EnumerateVisibleControls(child))
+                    yield return nested;
+            }
+        }
+
+        private static string InvokeLegionButtonClick(Control control, Point clickPoint)
+        {
+            if (control is Button button)
+            {
+                bool wasMouseOver = button.MouseIsOver;
+
+                button.InvokeMouseDown(clickPoint, ClassicUO.Input.MouseButtonType.Left);
+                button.InvokeMouseUp(clickPoint, ClassicUO.Input.MouseButtonType.Left);
+
+                if (!wasMouseOver && !button.IsDisposed)
+                {
+                    switch (button.ButtonAction)
+                    {
+                        case ButtonAction.SwitchPage:
+                            button.ChangePage(button.ToPage);
+                            return "buttonSwitchPage";
+                        case ButtonAction.Activate:
+                            button.OnButtonClick(button.ButtonID);
+                            return "buttonActivate";
+                    }
+                }
+
+                return "buttonMouseUp";
+            }
+
+            control.InvokeMouseDown(clickPoint, ClassicUO.Input.MouseButtonType.Left);
+            control.InvokeMouseUp(clickPoint, ClassicUO.Input.MouseButtonType.Left);
+
+            return control is NiceButton ? "niceButtonMouseUp" : "controlMouseUp";
+        }
+
+        private static Tuple<ushort, string>[] BuildGumpEntryArray(IEnumerable<object> entries)
+        {
+            if (entries == null)
+                return [];
+
+            var entryList = new List<Tuple<ushort, string>>();
+
+            foreach (object entry in entries)
+            {
+                if (entry is IList entryPair && entryPair.Count >= 2)
+                {
+                    ushort index = Convert.ToUInt16(entryPair[0]);
+                    string text = entryPair[1]?.ToString() ?? string.Empty;
+                    entryList.Add(Tuple.Create(index, text));
+                }
+            }
+
+            return entryList.ToArray();
+        }
+
+        private static ApiGumpButtonClickResult BuildGumpButtonClickResult(int button, uint requestedGumpId, Gump gump, string kind) => new()
+        {
+            Kind = kind,
+            RequestedGumpId = requestedGumpId == uint.MaxValue ? 0 : requestedGumpId,
+            ServerSerial = gump?.ServerSerial ?? 0,
+            LocalSerial = gump?.LocalSerial ?? 0,
+            GumpName = gump?.GetType().Name ?? string.Empty,
+            Button = button
+        };
+
+        private static ApiGumpButtonClickResult BuildGumpButtonClickError(int button, uint requestedGumpId, string error) => new()
+        {
+            Success = false,
+            RequestedGumpId = requestedGumpId == uint.MaxValue ? 0 : requestedGumpId,
+            Button = button,
+            Error = error
+        };
+
+        private static string NormalizeGumpClickKind(string kind)
+        {
+            string normalized = string.IsNullOrWhiteSpace(kind) ? "auto" : kind.Trim().ToLowerInvariant();
+
+            return normalized switch
+            {
+                "auto" => "auto",
+                "server" or "ingame" or "in-game" or "game" => "server",
+                "legion" or "script" or "api" or "ui" or "legionscript" or "legion-script" => "legion",
+                _ => null
+            };
+        }
+
+        private static string NormalizeGumpButtonControlType(string controlType)
+        {
+            string normalized = string.IsNullOrWhiteSpace(controlType) ? "any" : controlType.Trim().ToLowerInvariant();
+
+            return normalized switch
+            {
+                "any" or "all" => "any",
+                "button" or "gumpbutton" or "gump-button" => "button",
+                "nicebutton" or "nice-button" or "simple" or "simplebutton" or "simple-button" => "niceButton",
+                _ => null
+            };
+        }
+
+        private static bool IsScriptGumpLocalSerial(uint serial) => serial is >= 0x7F000000 and <= 0x7FFFFFFE;
+
+        private static string GetButtonCaption(Button button)
+        {
+            System.Reflection.FieldInfo field = typeof(Button).GetField("_caption", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            return field?.GetValue(button) as string ?? string.Empty;
+        }
+
+        private sealed class GumpButtonControlMatch
+        {
+            public Gump Gump { get; init; }
+            public Control Control { get; init; }
+            public string ControlType { get; init; } = string.Empty;
+            public string Text { get; init; } = string.Empty;
+        }
+
         public void ClientCommand(string command) => OnMain(() =>
         {
             if (string.IsNullOrEmpty(command))
@@ -3879,7 +4433,7 @@ namespace ClassicUO.LegionScripting
         /// <param name="x"></param>
         /// <param name="y"></param>
         /// <returns>A GameObject of that location.</returns>
-        public ApiGameObject GetTile(int x, int y) => OnMain(() => { return new ApiGameObject(World.Map.GetTile(x, y)); });
+        public ApiGameObject GetTile(int x, int y) => OnMain(() => WrapGameObject(World.Map.GetTile(x, y)));
 
         /// <summary>
         /// Gets all static objects at a specific position (x, y coordinates).
@@ -4000,7 +4554,7 @@ namespace ClassicUO.LegionScripting
                     IEnumerable<Multi> houseMultis = house.GetMultiAt(x, y);
                     foreach (Multi houseMulti in houseMultis)
                     {
-                        multis.Add(new ApiMulti(houseMulti));
+                        multis.Add(new ApiMulti(houseMulti, house.Serial));
                     }
                 }
             }
@@ -4048,7 +4602,7 @@ namespace ClassicUO.LegionScripting
                             IEnumerable<Multi> houseMultis = house.GetMultiAt(x, y);
                             foreach (Multi houseMulti in houseMultis)
                             {
-                                multis.Add(new ApiMulti(houseMulti));
+                                multis.Add(new ApiMulti(houseMulti, house.Serial));
                             }
                         }
                     }
@@ -4058,6 +4612,268 @@ namespace ClassicUO.LegionScripting
             return multis;
         });
 
+    /// <summary>
+    /// Get detailed land/static/multi/region metadata for one map tile.
+    /// </summary>
+    public ApiTileInfo GetTileInfo(int x, int y) => OnMain(() => BuildTileInfo(x, y));
+
+    /// <summary>
+    /// Get region metadata available to the client for one map tile.
+    /// </summary>
+    public ApiRegionInfo GetRegionInfo(int x, int y) => OnMain(() => BuildTileInfo(x, y).Region);
+
+    /// <summary>
+    /// Get detailed tile metadata for a rectangular area.
+    /// </summary>
+    public List<ApiTileInfo> GetTilesInArea(int x1, int y1, int x2, int y2, int maxTiles = 4096) => OnMain(() =>
+    {
+        var tiles = new List<ApiTileInfo>();
+
+        int minX = Math.Min(x1, x2);
+        int maxX = Math.Max(x1, x2);
+        int minY = Math.Min(y1, y2);
+        int maxY = Math.Max(y1, y2);
+        int limit = Math.Max(1, maxTiles);
+
+        for (int x = minX; x <= maxX && tiles.Count < limit; x++)
+        {
+            for (int y = minY; y <= maxY && tiles.Count < limit; y++)
+            {
+                tiles.Add(BuildTileInfo(x, y));
+            }
+        }
+
+        return tiles;
+    });
+    private ApiGameObject WrapGameObject(GameObject obj)
+    {
+        return obj switch
+        {
+            null => null,
+            Mobile mobile => new ApiMobile(mobile),
+            Item item => new ApiItem(item),
+            Static staticObj => new ApiStatic(staticObj),
+            Multi multi => new ApiMulti(multi, FindHouseSerialForMulti(multi)),
+            Land land => new ApiLand(land),
+            _ => new ApiGameObject(obj)
+        };
+    }
+
+    private uint FindHouseSerialForMulti(Multi multi)
+    {
+        if (multi == null || World?.HouseManager == null)
+            return 0;
+
+        foreach (House house in World.HouseManager.Houses)
+        {
+            foreach (Multi component in house.Components)
+            {
+                if (ReferenceEquals(component, multi))
+                    return house.Serial;
+            }
+        }
+
+        return 0;
+    }
+    private ApiTileInfo BuildTileInfo(int x, int y)
+    {
+        var info = new ApiTileInfo
+        {
+            X = x,
+            Y = y,
+            Map = World?.Map?.Index ?? -1,
+            InMapBounds = World?.Map != null && IsInCurrentMapBounds(x, y)
+        };
+
+        if (World?.Map == null || !info.InMapBounds)
+        {
+            info.Region = BuildRegionInfo(info);
+            return info;
+        }
+
+        if (World.Map.GetTile(x, y, true) is Land land)
+        {
+            info.HasLand = true;
+            info.Land = BuildLandTileInfo(land);
+            info.HasNoHouseFlag |= info.Land.Flags.IsNoHouse;
+            info.IsRoadCandidate |= info.Land.IsRoadCandidate;
+            info.HasImpassable |= info.Land.Flags.IsImpassable;
+            info.HasWet |= info.Land.Flags.IsWet;
+        }
+
+        foreach (Static staticObj in EnumerateStaticsAt(x, y, true))
+        {
+            ApiStaticTileInfo staticInfo = BuildStaticTileInfo(staticObj);
+            info.Statics.Add(staticInfo);
+            info.HasNoHouseFlag |= staticInfo.Flags.IsNoHouse;
+            info.HasImpassable |= staticInfo.Flags.IsImpassable;
+            info.HasWet |= staticInfo.Flags.IsWet;
+            info.HasSurfaceStatic |= staticInfo.Flags.IsSurface;
+            info.HasBridgeStatic |= staticInfo.Flags.IsBridge;
+            info.HasWallOrDoor |= staticInfo.Flags.IsWall || staticInfo.Flags.IsDoor;
+        }
+
+        if (World.HouseManager != null)
+        {
+            foreach (House house in World.HouseManager.Houses)
+            {
+                foreach (Multi multi in house.GetMultiAt(x, y))
+                {
+                    info.Multis.Add(BuildMultiComponentInfo(multi, house.Serial));
+                }
+            }
+        }
+
+        info.Region = BuildRegionInfo(info);
+        return info;
+    }
+
+    private ApiLandTileInfo BuildLandTileInfo(Land land)
+    {
+        return new ApiLandTileInfo
+        {
+            X = land.X,
+            Y = land.Y,
+            Z = land.Z,
+            Graphic = land.OriginalGraphic,
+            GraphicHex = $"0x{land.OriginalGraphic:X4}",
+            Name = land.TileData.Name,
+            IsRoadCandidate = IsRoadCandidate(land.OriginalGraphic, land.TileData.Name, land.TileData.Flags),
+            Flags = BuildFlagInfo(land.TileData.Flags)
+        };
+    }
+
+    private ApiStaticTileInfo BuildStaticTileInfo(Static staticObj)
+    {
+        return new ApiStaticTileInfo
+        {
+            X = staticObj.X,
+            Y = staticObj.Y,
+            Z = staticObj.Z,
+            Graphic = staticObj.OriginalGraphic,
+            GraphicHex = $"0x{staticObj.OriginalGraphic:X4}",
+            Hue = staticObj.Hue,
+            HueHex = $"0x{staticObj.Hue:X4}",
+            Height = staticObj.ItemData.Height,
+            Name = staticObj.Name,
+            IsTree = StaticFilters.IsTree(staticObj.OriginalGraphic, out _),
+            IsVegetation = staticObj.IsVegetation,
+            IsCave = StaticFilters.IsCave(staticObj.OriginalGraphic),
+            Flags = BuildFlagInfo(staticObj.ItemData.Flags)
+        };
+    }
+
+    private ApiMultiComponentInfo BuildMultiComponentInfo(Multi multi, uint houseSerial)
+    {
+        return new ApiMultiComponentInfo
+        {
+            HouseSerial = houseSerial,
+            HouseSerialHex = $"0x{houseSerial:X8}",
+            MultiID = multi.OriginalGraphic,
+            MultiIDHex = $"0x{multi.OriginalGraphic:X4}",
+            X = multi.X,
+            Y = multi.Y,
+            Z = multi.Z,
+            Graphic = multi.OriginalGraphic,
+            GraphicHex = $"0x{multi.OriginalGraphic:X4}",
+            Hue = multi.Hue,
+            HueHex = $"0x{multi.Hue:X4}",
+            Height = multi.ItemData.Height,
+            Name = multi.Name,
+            MultiOffsetX = multi.MultiOffsetX,
+            MultiOffsetY = multi.MultiOffsetY,
+            MultiOffsetZ = multi.MultiOffsetZ,
+            IsCustom = multi.IsCustom,
+            IsMovable = multi.IsMovable,
+            Flags = BuildFlagInfo(multi.ItemData.Flags)
+        };
+    }
+
+    private static ApiTileFlagInfo BuildFlagInfo(TileFlag flags)
+    {
+        return new ApiTileFlagInfo
+        {
+            Value = (ulong)flags,
+            Names = flags.ToString(),
+            IsSurface = (flags & TileFlag.Surface) != 0,
+            IsBridge = (flags & TileFlag.Bridge) != 0,
+            IsWet = (flags & TileFlag.Wet) != 0,
+            IsFoliage = (flags & TileFlag.Foliage) != 0,
+            IsWall = (flags & TileFlag.Wall) != 0,
+            IsDoor = (flags & TileFlag.Door) != 0,
+            IsImpassable = (flags & TileFlag.Impassable) != 0,
+            IsNoHouse = (flags & TileFlag.NoHouse) != 0,
+            IsNoDiagonal = (flags & TileFlag.NoDiagonal) != 0,
+            IsRoof = (flags & TileFlag.Roof) != 0,
+            IsBackground = (flags & TileFlag.Background) != 0
+        };
+    }
+
+    private IEnumerable<Static> EnumerateStaticsAt(int x, int y, bool load)
+    {
+        if (World?.Map == null || !IsInCurrentMapBounds(x, y))
+            yield break;
+
+        Game.Map.Chunk chunk = World.Map.GetChunk(x, y, load);
+
+        if (chunk == null)
+            yield break;
+
+        GameObject obj = chunk.GetHeadObject(x % 8, y % 8);
+
+        while (obj != null)
+        {
+            if (obj is Static staticObj)
+                yield return staticObj;
+
+            obj = obj.TNext;
+        }
+    }
+
+    private ApiRegionInfo BuildRegionInfo(ApiTileInfo tileInfo)
+    {
+        return new ApiRegionInfo
+        {
+            RegionDataAvailable = false,
+            RegionName = string.Empty,
+            IsGuardZone = false,
+            NoHousing = tileInfo.HasNoHouseFlag,
+            IsTown = false,
+            IsDungeon = false,
+            Source = tileInfo.HasNoHouseFlag ? "tiledata-nohouse" : "not-available"
+        };
+    }
+    internal static bool IsRoadCandidate(ushort graphic, string name, TileFlag flags)
+    {
+        string normalizedName = (name ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (string.IsNullOrEmpty(normalizedName))
+            return false;
+
+        return normalizedName.Contains("road", StringComparison.Ordinal) ||
+               normalizedName.Contains("paved", StringComparison.Ordinal) ||
+               normalizedName.Contains("pavement", StringComparison.Ordinal) ||
+               normalizedName.Contains("cobble", StringComparison.Ordinal) ||
+               normalizedName.Contains("flagstone", StringComparison.Ordinal) ||
+               normalizedName.Contains("flag stone", StringComparison.Ordinal);
+    }
+    private bool IsInCurrentMapBounds(int x, int y)
+    {
+        if (World?.Map == null)
+            return false;
+
+        try
+        {
+            int mapIndex = World.Map.Index;
+            int width = Client.Game.UO.FileManager.Maps.MapBlocksSize[mapIndex, 0] * 8;
+            int height = Client.Game.UO.FileManager.Maps.MapBlocksSize[mapIndex, 1] * 8;
+            return x >= 0 && y >= 0 && x < width && y < height;
+        }
+        catch
+        {
+            return x >= 0 && y >= 0;
+        }
+    }
         #region Friends List
 
         /// <summary>
@@ -4147,10 +4963,15 @@ namespace ClassicUO.LegionScripting
         /// Use API.Gumps.CreateGump instead
         /// </summary>
         [Obsolete("Remove after 11-1-26")]
-        public ApiUiBaseGump CreateGump(bool acceptMouseInput = true, bool canMove = true, bool keepOpen = false)
+        public ApiUiBaseGump CreateGump(
+            bool acceptMouseInput = true,
+            bool canMove = true,
+            bool keepOpen = false,
+            uint gumpId = 0
+        )
         {
             GameActions.Print("API.CreateGump will be removed soon, update your script to use API.Gumps.CreateGump instead", Constants.HUE_WARN);
-            return Gumps.CreateGump(acceptMouseInput, canMove, keepOpen);
+            return Gumps.CreateGump(acceptMouseInput, canMove, keepOpen, gumpId);
         }
         /// <summary>
         /// Use API.Gumps.AddGump instead
@@ -4658,11 +5479,70 @@ namespace ClassicUO.LegionScripting
         /// <param name="map">Defaults to current map</param>
         public void MarkTile(int x, int y, ushort hue, int map = -1) => OnMain(() =>
         {
+            if (World?.Map == null)
+                return;
+
             if (map < 0)
                 map = World.Map.Index;
 
             TileMarkerManager.Instance.AddTile(x, y, map, hue);
         });
+
+        /// <summary>
+        /// Mark a tile with a true RGBA color instead of a UO hue ID.
+        /// Accepts "#RRGGBB", "#RRGGBBAA", "RRGGBB", or "RRGGBBAA".
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="htmlColor">HTML color string.</param>
+        /// <param name="map">Defaults to current map</param>
+        public bool MarkTileColor(int x, int y, string htmlColor, int map = -1) => OnMain(() =>
+        {
+            if (World?.Map == null || !TryParseMarkerColor(htmlColor, out Color color))
+                return false;
+
+            if (map < 0)
+                map = World.Map.Index;
+
+            TileMarkerManager.Instance.AddTileColor(x, y, map, color);
+            return true;
+        });
+
+        private static bool TryParseMarkerColor(string htmlColor, out Color color)
+        {
+            color = Color.White;
+
+            if (string.IsNullOrWhiteSpace(htmlColor))
+                return false;
+
+            string hex = htmlColor.Trim();
+
+            if (hex.StartsWith("#", StringComparison.Ordinal))
+                hex = hex.Substring(1);
+            else if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                hex = hex.Substring(2);
+
+            if (hex.Length != 6 && hex.Length != 8)
+                return false;
+
+            if (!byte.TryParse(hex.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte r) ||
+                !byte.TryParse(hex.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte g) ||
+                !byte.TryParse(hex.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte b))
+            {
+                return false;
+            }
+
+            byte a = 255;
+
+            if (hex.Length == 8 &&
+                !byte.TryParse(hex.Substring(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out a))
+            {
+                return false;
+            }
+
+            color = new Color(r, g, b, a);
+            return true;
+        }
 
         /// <summary>
         /// Remove a marked tile. See MarkTile for more info.
