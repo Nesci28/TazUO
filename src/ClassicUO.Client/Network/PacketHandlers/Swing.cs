@@ -19,9 +19,11 @@ internal static class Swing
         if (attackers != world.Player)
             return;
 
-        uint defenders = p.ReadUInt32BE();
+            uint defenders = p.ReadUInt32BE();
 
-        const int TIME_TURN_TO_LASTTARGET = 2000;
+            world.CombatDamageTracker.RecordSwing(defenders);
+
+            const int TIME_TURN_TO_LASTTARGET = 2000;
 
         if (
             world.TargetManager.LastAttack == defenders

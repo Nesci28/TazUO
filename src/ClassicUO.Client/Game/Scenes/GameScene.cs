@@ -238,6 +238,7 @@ namespace ClassicUO.Game.Scenes
             EventSink.InvokeOnConnected(null);
             GameController.UpdateBackgroundHueShader();
             SpellDefinition.LoadCustomSpells(_world);
+            _world.CombatDamageTracker.OnSceneLoad();
             SpellVisualRangeManager.Instance.OnSceneLoad();
             AutoLootManager.Instance.OnSceneLoad();
             AutoSkinningManager.Instance.OnSceneLoad();
@@ -454,6 +455,7 @@ namespace ClassicUO.Game.Scenes
             ProfileManager.CurrentProfile?.Save(_world, ProfileManager.ProfilePath);
             MapWebServerManager.Instance.Stop();
             TileMarkerManager.Instance.Save();
+            _world.CombatDamageTracker.OnSceneUnload();
             SpellVisualRangeManager.Instance.Save();
             SpellVisualRangeManager.Instance.OnSceneUnload();
             AutoLootManager.Instance.OnSceneUnload();
