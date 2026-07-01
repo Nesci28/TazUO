@@ -228,6 +228,10 @@ namespace ClassicUO.Game.UI.Gumps
             );
 
             content.AddToRight
+            (new CheckboxWithLabel(TazLang.Get("mog_general_corpseskipautolooted"), isChecked: profile.SkipAutoLootedCorpses, valueChanged: (b) => { profile.SkipAutoLootedCorpses = b; }),
+                true, page);
+
+            content.AddToRight
             (
                 new ComboBoxWithLabel
                 (
