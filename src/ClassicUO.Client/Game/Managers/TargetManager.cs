@@ -391,11 +391,12 @@ namespace ClassicUO.Game.Managers
                                         "This may flag\nyou criminal!",
                                         s =>
                                         {
-                                            if (s)
-                                            {
-                                                AsyncNetClient.Socket.Send_TargetObject(entity,
-                                                                                   entity.Graphic,
-                                                                                   entity.X,
+                                if (s)
+                                {
+                                    _world.CombatDamageTracker.RecordHarmfulTargetIntent(serial, TargetingType);
+                                    AsyncNetClient.Socket.Send_TargetObject(entity,
+                                                                            entity.Graphic,
+                                                                            entity.X,
                                                                                    entity.Y,
                                                                                    entity.Z,
                                                                                    _targetCursorId,
@@ -448,14 +449,14 @@ namespace ClassicUO.Game.Managers
                             _lastDataBuffer[17] = (byte)(entity.Graphic >> 8);
                             _lastDataBuffer[18] = (byte)entity.Graphic;
 
-
+                            _world.CombatDamageTracker.RecordHarmfulTargetIntent(serial, TargetingType);
                             AsyncNetClient.Socket.Send_TargetObject(entity,
-                                                               entity.Graphic,
-                                                               entity.X,
-                                                               entity.Y,
-                                                               entity.Z,
-                                                               _targetCursorId,
-                                                               (byte)TargetingType);
+                                                                    entity.Graphic,
+                                                                    entity.X,
+                                                                    entity.Y,
+                                                                    entity.Z,
+                                                                    _targetCursorId,
+                                                                    (byte)TargetingType);
 
                             if (SerialHelper.IsMobile(serial) && LastTargetInfo.Serial != serial)
                             {

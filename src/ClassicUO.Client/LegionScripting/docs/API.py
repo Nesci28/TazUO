@@ -1364,6 +1364,13 @@ def Attack(serial: "int") -> None:
     """
     pass
 
+def GetCombatDps(serial: "int" = 0) -> "Any":
+    """
+     Gets probabilistic Mine/Others/Total DPS for a target. Pass 0 for the current last-attack target.
+
+    """
+    pass
+
 def SetWarMode(enabled: "bool") -> None:
     """
      Sets the player's war mode state (peace/war toggle).
@@ -3667,4 +3674,3 @@ class EventSinkApiDeclaration:
         
         """
         pass
-
