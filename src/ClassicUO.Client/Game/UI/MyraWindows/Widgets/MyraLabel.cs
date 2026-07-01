@@ -10,33 +10,90 @@ namespace ClassicUO.Game.UI.MyraWindows.Widgets;
 
 public class MyraLabel : Label
 {
+    private readonly TextStyle _style;
+    private readonly AlignMode _align;
+    private readonly int _fontSizeOffset;
+    private readonly bool _usesCustomFontSize;
+    private Func<Color> _textColorOverride;
+
+    public MyraLabel() : this(string.Empty, TextStyle.P)
+    {
+    }
+
     public MyraLabel(string text, int fontSizeOffset)
     {
+        _fontSizeOffset = fontSizeOffset;
+        _usesCustomFontSize = true;
+
         Wrap = true;
         Text = text;
-
-        Font = MyraStyle.GetUiFont(fontSizeOffset);
+        ApplyCurrentTheme();
     }
 
     public MyraLabel(string text, TextStyle style, AlignMode align = AlignMode.Left)
     {
+        _style = style;
+        _align = align;
+
         Wrap = true;
         Text = text;
         VerticalAlignment = VerticalAlignment.Center;
+        ApplyCurrentTheme();
+    }
 
-        var styleSheet = Stylesheet.Current.LabelStyle.Clone() as LabelStyle;
-        if (styleSheet == null) return;
+    public virtual void ApplyCurrentTheme()
+    {
+        if (Stylesheet.Current.LabelStyle.Clone() is not LabelStyle styleSheet)
+        {
+            return;
+        }
 
-        switch (style)
+        if (_usesCustomFontSize)
+        {
+            styleSheet.Font = MyraStyle.GetUiFont(_fontSizeOffset);
+        }
+        else
+        {
+            ApplyTextStyle(styleSheet);
+        }
+
+        ApplyLabelStyle(styleSheet);
+
+        if (_textColorOverride != null)
+        {
+            TextColor = _textColorOverride();
+        }
+
+        HorizontalAlignment = _align switch
+        {
+            AlignMode.Center => HorizontalAlignment.Center,
+            AlignMode.Right => HorizontalAlignment.Right,
+            _ => HorizontalAlignment.Left
+        };
+    }
+
+    public MyraLabel WithThemeTextColor(Func<Color> colorProvider)
+    {
+        _textColorOverride = colorProvider;
+        ApplyCurrentTheme();
+        return this;
+    }
+
+    private void ApplyTextStyle(LabelStyle styleSheet)
+    {
+        switch (_style)
         {
             case TextStyle.H1:
                 styleSheet.Font = MyraStyle.GetUiFont(6);
+                styleSheet.TextColor = MyraStyle.TextHighlightColor;
                 break;
             case TextStyle.H2:
                 styleSheet.Font = MyraStyle.GetUiFont(4);
+                styleSheet.TextColor = MyraStyle.TextHighlightColor;
                 break;
             case TextStyle.H3:
                 styleSheet.Font = MyraStyle.GetUiFont(2);
+                styleSheet.TextColor = MyraStyle.TextHighlightColor;
                 styleSheet.Padding = new Thickness(4, 2);
                 break;
             case TextStyle.H4:
@@ -53,6 +110,7 @@ public class MyraLabel : Label
                 break;
             case TextStyle.TableHeader:
                 styleSheet.Font = MyraStyle.GetUiFont(-2);
+                styleSheet.TextColor = MyraStyle.TextHighlightColor;
                 styleSheet.Padding = new Thickness(4, 0);
                 styleSheet.Margin = new Thickness(2, 0);
                 break;
@@ -62,14 +120,6 @@ public class MyraLabel : Label
                 styleSheet.Padding = new Thickness(4, 2);
                 break;
         }
-
-        ApplyLabelStyle(styleSheet);
-        HorizontalAlignment = align switch
-        {
-            AlignMode.Center => HorizontalAlignment.Center,
-            AlignMode.Right => HorizontalAlignment.Right,
-            _ => HorizontalAlignment.Left
-        };
     }
 
     /// <summary>

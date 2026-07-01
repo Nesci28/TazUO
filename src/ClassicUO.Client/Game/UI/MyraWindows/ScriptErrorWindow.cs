@@ -3,7 +3,6 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.LegionScripting;
-using Microsoft.Xna.Framework;
 using Myra.Graphics2D.UI;
 
 namespace ClassicUO.Game.UI.MyraWindows;
@@ -23,16 +22,15 @@ public class ScriptErrorWindow : MyraControl
 
     private void Build(ScriptErrorDetails errorDetails)
     {
-        var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var root = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
         root.Widgets.Add(new MyraLabel("Your script encountered an error, here's what we know:", MyraLabel.TextStyle.P));
 
         // Clickable red error message
         var errorLabel = new MyraLabel(errorDetails.ErrorMsg, MyraLabel.TextStyle.P)
         {
-            TextColor = Color.Red,
             Tooltip = "Click to copy to clipboard"
-        };
+        }.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
         errorLabel.TouchDown += (_, _) =>
         {
             SDL3.SDL.SDL_SetClipboardText(errorDetails.ErrorMsg);
@@ -60,7 +58,7 @@ public class ScriptErrorWindow : MyraControl
             }
         }
 
-        var btnRow = new HorizontalStackPanel { Spacing = 4 };
+        var btnRow = new MyraHorizontalStackPanel { Spacing = 4 };
         btnRow.Widgets.Add(new MyraButton("Edit", () => new ScriptEditorWindow(errorDetails.Script)));
         btnRow.Widgets.Add(new MyraButton("Edit Externally", () =>
             ClassicUO.Utility.FileSystemHelper.OpenFileWithDefaultApp(errorDetails.Script.FullPath)));

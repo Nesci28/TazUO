@@ -30,8 +30,8 @@ public class MyraCheckButton : CheckButton
 
     private void Build()
     {
-        CheckContentSpacing = 0;
-        Padding = new Thickness(2);
+        CheckContentSpacing = MyraStyle.STANDARD_SPACING;
+        Padding = new Thickness(2, 1);
         VerticalAlignment = VerticalAlignment.Center;
     }
 

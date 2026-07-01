@@ -50,7 +50,7 @@ public static class LayerHidingTab
         return new OptionFragment(
             () =>
             {
-                var panel = new WrapPanel
+                var panel = new MyraWrapPanel
                 {
                     Orientation = Orientation.Vertical,
                     Aligned = true,

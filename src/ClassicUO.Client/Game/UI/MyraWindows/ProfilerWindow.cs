@@ -7,7 +7,6 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Utility;
-using Microsoft.Xna.Framework;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 
@@ -41,11 +40,11 @@ namespace ClassicUO.Game.UI.MyraWindows
 
         public ProfilerWindow() : base("Profiler")
         {
-            _dataPanel = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+            _dataPanel = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
             _toggleButton = new MyraButton(GetToggleLabel(), OnToggle);
 
-            var buttons = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+            var buttons = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
             buttons.Widgets.Add(_toggleButton);
             buttons.Widgets.Add(new MyraButton("Reset", () => Profiler.Reset()));
             buttons.Widgets.Add(new MyraButton("Clear Action Queue", () => ObjectActionQueue.Instance.Clear()));
@@ -54,7 +53,7 @@ namespace ClassicUO.Game.UI.MyraWindows
             _statsLabel = new MyraLabel(GetStatsLabel(), MyraLabel.TextStyle.P);
             _queueLabel = new MyraLabel(GetQueueLabel(), MyraLabel.TextStyle.P);
 
-            var scrollViewer = new ScrollViewer
+            var scrollViewer = new MyraScrollViewer
             {
                 MinWidth = 500,
                 MinHeight = 350,
@@ -63,7 +62,7 @@ namespace ClassicUO.Game.UI.MyraWindows
                 Content = _dataPanel,
             };
 
-            var root = new VerticalStackPanel
+            var root = new MyraVerticalStackPanel
             {
                 Spacing = MyraStyle.STANDARD_SPACING,
                 Padding = new Thickness(4),
@@ -192,6 +191,13 @@ namespace ClassicUO.Game.UI.MyraWindows
             }
         }
 
+        protected override void OnThemeChanged()
+        {
+            base.OnThemeChanged();
+            _statsLabel.Text = GetStatsLabel();
+            UpdateDisplay();
+        }
+
         public override void Dispose()
         {
             StopCpuMonitor();
@@ -248,23 +254,23 @@ namespace ClassicUO.Game.UI.MyraWindows
                 grid.AddRow();
 
                 var nameLabel = new MyraLabel(name, MyraLabel.TextStyle.P);
-                if (isSlow) nameLabel.TextColor = Color.OrangeRed;
+                if (isSlow) nameLabel.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
                 grid.AddWidget(nameLabel, row, 0);
 
                 var avgLabel = new MyraLabel($"{pd.AverageTime:F2}", MyraLabel.TextStyle.P) { HorizontalAlignment = HorizontalAlignment.Right };
-                if (isSlow) avgLabel.TextColor = Color.OrangeRed;
+                if (isSlow) avgLabel.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
                 grid.AddWidget(avgLabel, row, 1);
 
                 var peakLabel = new MyraLabel($"{pd.PeakTime:F2}", MyraLabel.TextStyle.P) { HorizontalAlignment = HorizontalAlignment.Right };
-                if (isSlow) peakLabel.TextColor = Color.OrangeRed;
+                if (isSlow) peakLabel.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
                 grid.AddWidget(peakLabel, row, 2);
 
                 var lastLabel = new MyraLabel($"{pd.LastTime:F2}", MyraLabel.TextStyle.P) { HorizontalAlignment = HorizontalAlignment.Right };
-                if (isSlow) lastLabel.TextColor = Color.OrangeRed;
+                if (isSlow) lastLabel.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
                 grid.AddWidget(lastLabel, row, 3);
 
                 var pctLabel = new MyraLabel($"{pct:F1}%", MyraLabel.TextStyle.P) { HorizontalAlignment = HorizontalAlignment.Right };
-                if (isSlow) pctLabel.TextColor = Color.OrangeRed;
+                if (isSlow) pctLabel.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
                 grid.AddWidget(pctLabel, row, 4);
 
                 row++;

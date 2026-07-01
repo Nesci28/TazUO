@@ -296,10 +296,10 @@ public class Rulebase<TRule> : Container, INotifyPropertyChanged where TRule : c
     /// <summary>Applies the container's own margin, padding, background, and border styling</summary>
     private void ConfigureContainer()
     {
-        Margin = new Thickness(4);
-        Padding = new Thickness(4, 6, 4, 12);
-        Background = StyleConstantsDefaults.BorderBackgroundBrush;
-        Border = StyleConstantsDefaults.BorderLineBrush;
+        Margin = new Thickness(MyraStyle.STANDARD_SPACING);
+        Padding = new Thickness(6, 6, 6, 10);
+        Background = MyraStyle.SurfaceMutedBackgroundBrush;
+        Border = MyraStyle.Brush(MyraStyle.BorderColor);
         BorderThickness = StyleConstantsDefaults.BorderThickness;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
@@ -325,11 +325,11 @@ public class Rulebase<TRule> : Container, INotifyPropertyChanged where TRule : c
     /// <summary>Creates the panel that hosts the table view and, when editing, the configurator widget</summary>
     private Panel CreateContentPanel()
     {
-        var panel = new Panel
+        var panel = new MyraPanel
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Border = new SolidBrush(MyraStyle.GridBorderColor),
+            Border = MyraStyle.Brush(MyraStyle.GridBorderColor),
             BorderThickness = new Thickness(1)
         };
         panel.Widgets.Add(_tableView);

@@ -136,7 +136,11 @@ public class LabeledHorizontalSlider : Grid
         int decimalPlaces = 0
     )
     {
-        HorizontalStackPanel stack = new() { VerticalAlignment = VerticalAlignment.Center, Spacing = MyraStyle.STANDARD_SPACING };
+        HorizontalStackPanel stack = new MyraHorizontalStackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = MyraStyle.STANDARD_SPACING
+        };
         LabeledHorizontalSlider s = slider = CreateSliderWithCallback(min, max, value, onChanged, decimalPlaces);
         if (labelOnLeft)
         {

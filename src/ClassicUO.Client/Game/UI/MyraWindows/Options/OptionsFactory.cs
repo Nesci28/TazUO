@@ -161,7 +161,8 @@ public static class OptionsFactory
     internal static OptionItem CreateComboBox(string label, int value, string[] options, Action<int> onChange,
         string? tooltip = null)
     {
-        var comboView = new ComboView
+        #pragma warning disable CS0612, CS0618
+        var combo = new MyraComboBox
         {
             MinWidth = 200,
             VerticalAlignment = VerticalAlignment.Center,
@@ -169,23 +170,23 @@ public static class OptionsFactory
         };
 
         if (tooltip != null)
-            comboView.Tooltip = tooltip;
+            combo.Tooltip = tooltip;
 
         for (int i = 0; i < options.Length; i++)
         {
-            string option = options[i];
-            comboView.ListView.Widgets.Add(new Label { Text = option, Tag = i });
+            combo.Items.Add(new ListItem(options[i]) { Tag = i });
         }
 
-        comboView.ListView.SelectedIndex = value;
+        combo.SelectedIndex = value;
 
-        comboView.ListView.SelectedIndexChanged += (_, _) =>
+        combo.SelectedIndexChanged += (_, _) =>
         {
-            if (comboView.ListView.SelectedIndex != null)
-                onChange(comboView.ListView.SelectedIndex.Value);
+            if (combo.SelectedIndex != null)
+                onChange(combo.SelectedIndex.Value);
         };
+        #pragma warning restore CS0612, CS0618
 
-        return new OptionItem(label, () => new MyraLabel(label, MyraLabel.TextStyle.P).PlaceBefore(comboView));
+        return new OptionItem(label, () => new MyraLabel(label, MyraLabel.TextStyle.P).PlaceBefore(combo));
     }
 
     /// <summary>

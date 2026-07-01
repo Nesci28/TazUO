@@ -23,7 +23,7 @@ public static class HueViewTabContent
         if (huesLoader == null || huesLoader.HuesCount == 0)
             return new MyraLabel("Hue data not available", MyraLabel.TextStyle.P);
 
-        var root = new VerticalStackPanel { Spacing = 4 };
+        var root = new MyraVerticalStackPanel { Spacing = 4 };
 
         string filterNum = "";
         string filterName = "";
@@ -33,7 +33,7 @@ public static class HueViewTabContent
 
         var statusLabel = new MyraLabel("", MyraLabel.TextStyle.P);
         var pageLabel = new MyraLabel("", MyraLabel.TextStyle.P);
-        var resultsPanel = new VerticalStackPanel { Spacing = 1 };
+        var resultsPanel = new MyraVerticalStackPanel { Spacing = 1 };
         MyraButton prevBtn = null!;
         MyraButton nextBtn = null!;
 
@@ -76,7 +76,7 @@ public static class HueViewTabContent
         }
 
         // Filter row
-        var filterRow = new HorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var filterRow = new MyraHorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         var numBox = new MyraInputBox { HintText = "Filter by #", Width = 100 };
         numBox.TextChangedByUser += (_, _) => filterNum = numBox.Text ?? "";
         var nameBox = new MyraInputBox { HintText = "Filter by name", Width = 180 };
@@ -100,19 +100,19 @@ public static class HueViewTabContent
         prevBtn = new MyraButton("< Prev", () => { currentPage--; BuildPage(); }) { Enabled = false };
         nextBtn = new MyraButton("Next >", () => { currentPage++; BuildPage(); }) { Enabled = false };
 
-        var pageRow = new HorizontalStackPanel { Spacing = 6 };
+        var pageRow = new MyraHorizontalStackPanel { Spacing = 6 };
         pageRow.Widgets.Add(prevBtn);
         pageRow.Widgets.Add(pageLabel);
         pageRow.Widgets.Add(nextBtn);
         root.Widgets.Add(pageRow);
 
         // Column headers
-        var headerRow = new HorizontalStackPanel { Spacing = 2 };
+        var headerRow = new MyraHorizontalStackPanel { Spacing = 2 };
         headerRow.Widgets.Add(new MyraLabel("ID", MyraLabel.TextStyle.TableHeader) { Width = HUE_ID_WIDTH });
         headerRow.Widgets.Add(new MyraLabel($"Colors (0–{COLORS_PER_HUE - 1})", MyraLabel.TextStyle.TableHeader));
         root.Widgets.Add(headerRow);
 
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 450, Content = resultsPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 450, Content = resultsPanel });
 
         BuildPage();
         return root;
@@ -148,7 +148,7 @@ public static class HueViewTabContent
 
     private static Widget BuildHueRow(HuesLoader huesLoader, int hueId, string name)
     {
-        var row = new HorizontalStackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var row = new MyraHorizontalStackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
 
         row.Widgets.Add(new MyraLabel(hueId.ToString(), MyraLabel.TextStyle.P)
         {
@@ -156,13 +156,13 @@ public static class HueViewTabContent
             Tooltip = string.IsNullOrEmpty(name) ? null : name
         });
 
-        var swatchRow = new HorizontalStackPanel { Spacing = 0 };
+        var swatchRow = new MyraHorizontalStackPanel { Spacing = 0 };
         for (int c = 0; c < COLORS_PER_HUE; c++)
         {
             uint rgba = huesLoader.GetHueColorRgba8888((ushort)c, (ushort)hueId);
             var color = new Color { PackedValue = rgba };
 
-            var swatch = new Panel
+            var swatch = new MyraPanel
             {
                 Width = SWATCH_W,
                 Height = SWATCH_H,

@@ -11,7 +11,6 @@ using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.LegionScripting;
 using ClassicUO.Utility.Platforms;
 using GhFileObject = ClassicUO.LegionScripting.ScriptBrowser.GhFileObject;
-using Microsoft.Xna.Framework;
 using Myra.Graphics2D.UI;
 
 namespace ClassicUO.Game.UI.MyraWindows;
@@ -26,7 +25,7 @@ public class ScriptBrowserWindow : MyraControl
     private string _errorMessage = "";
     private bool _rebuildPending = false;
 
-    private readonly VerticalStackPanel _treePanel = new() { Spacing = 2 };
+    private readonly VerticalStackPanel _treePanel = new MyraVerticalStackPanel { Spacing = 2 };
     private MyraLabel _statusLabel;
 
     // Inline preview panel (replaces ImGui popup modal)
@@ -66,9 +65,9 @@ public class ScriptBrowserWindow : MyraControl
 
         _statusLabel = new MyraLabel("Loading repository contents...", MyraLabel.TextStyle.P);
 
-        var treeContainer = new VerticalStackPanel { Spacing = 4 };
+        var treeContainer = new MyraVerticalStackPanel { Spacing = 4 };
         treeContainer.Widgets.Add(_statusLabel);
-        treeContainer.Widgets.Add(new ScrollViewer
+        treeContainer.Widgets.Add(new MyraScrollViewer
         {
             Width = 600,
             Height = 400,
@@ -78,7 +77,7 @@ public class ScriptBrowserWindow : MyraControl
         grid.AddWidget(treeContainer, 0, 0);
 
         // Preview panel - hidden until user clicks View on a script
-        _previewPanel = new VerticalStackPanel { Spacing = 4, Visible = false };
+        _previewPanel = new MyraVerticalStackPanel { Spacing = 4, Visible = false };
 
         _previewTitleLabel = new MyraLabel("", MyraLabel.TextStyle.H2);
         _previewLoadingLabel = new MyraLabel("Loading...", MyraLabel.TextStyle.P);
@@ -91,7 +90,7 @@ public class ScriptBrowserWindow : MyraControl
             Height = 300,
         };
 
-        var previewHeader = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        var previewHeader = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         previewHeader.Widgets.Add(_previewTitleLabel);
         previewHeader.Widgets.Add(new MyraButton("Close Preview", () => _previewPanel.Visible = false));
 
@@ -102,6 +101,12 @@ public class ScriptBrowserWindow : MyraControl
         grid.AddWidget(_previewPanel, 1, 0);
 
         SetRootContent(grid);
+    }
+
+    protected override void OnThemeChanged()
+    {
+        base.OnThemeChanged();
+        RebuildTree();
     }
 
     public override void PreDraw()
@@ -130,7 +135,7 @@ public class ScriptBrowserWindow : MyraControl
         if (_isInitialLoading)
         {
             _statusLabel.Text = "Loading repository contents...";
-            _statusLabel.TextColor = Color.White;
+            _statusLabel.WithThemeTextColor(() => MyraStyle.TextHighlightColor);
             _statusLabel.Visible = true;
             return;
         }
@@ -138,7 +143,7 @@ public class ScriptBrowserWindow : MyraControl
         if (!string.IsNullOrEmpty(_errorMessage))
         {
             _statusLabel.Text = _errorMessage;
-            _statusLabel.TextColor = Color.OrangeRed;
+            _statusLabel.WithThemeTextColor(() => MyraStyle.DangerBorderColor);
             _statusLabel.Visible = true;
             _treePanel.Widgets.Add(new MyraButton("Retry", () =>
             {
@@ -180,7 +185,7 @@ public class ScriptBrowserWindow : MyraControl
             GhFileObject d = dir;
             bool isExpanded = _directoryCache.TryGetValue(d.Path, out DirectoryNode child) && child.IsExpanded;
 
-            var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var row = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             if (depth > 0)
                 row.Widgets.Add(new MyraLabel(Indent(depth), MyraLabel.TextStyle.P));
 
@@ -204,7 +209,7 @@ public class ScriptBrowserWindow : MyraControl
             .OrderBy(f => f.Name))
         {
             GhFileObject f = file;
-            var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var row = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             if (depth > 0)
                 row.Widgets.Add(new MyraLabel(Indent(depth + 1), MyraLabel.TextStyle.P));
 

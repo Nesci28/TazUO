@@ -11,7 +11,7 @@ namespace ClassicUO.Game.UI.MyraWindows;
 
 public class RunningScriptsWindow : MyraControl
 {
-    private readonly WrapPanel _scriptList = new()
+    private readonly WrapPanel _scriptList = new MyraWrapPanel
     {
         HorizontalSpacing = MyraStyle.STANDARD_SPACING,
         VerticalSpacing = MyraStyle.STANDARD_SPACING,
@@ -57,7 +57,7 @@ public class RunningScriptsWindow : MyraControl
 
     private void Build()
     {
-        var root = new WrapPanel
+        var root = new MyraWrapPanel
         {
             HorizontalSpacing = MyraStyle.STANDARD_SPACING,
             VerticalSpacing = MyraStyle.STANDARD_SPACING,
@@ -86,7 +86,7 @@ public class RunningScriptsWindow : MyraControl
         {
             if (script == null) continue;
 
-            var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var row = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
 
             row.Widgets.Add(new MyraButton("Stop", () => LegionScripting.LegionScripting.StopScript(script)));
 

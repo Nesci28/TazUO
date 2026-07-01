@@ -19,7 +19,7 @@ public static class ItemDatabaseTabContent
         if (profile == null)
             return new MyraLabel("Profile not loaded", MyraLabel.TextStyle.P);
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(MyraCheckButton.CreateWithCallback(
             profile.ItemDatabaseEnabled,
@@ -50,7 +50,7 @@ public static class ItemDatabaseTabContent
         TextBox containerBox = null!;
         LabeledHorizontalSlider? maxResultsSlider = null;
 
-        var resultsPanel = new VerticalStackPanel { Spacing = 2 };
+        var resultsPanel = new MyraVerticalStackPanel { Spacing = 2 };
         var statusLabel = new MyraLabel("Ready to search", MyraLabel.TextStyle.P);
 
         // ── Results grid ────────────────────────────────────────────────────
@@ -277,30 +277,30 @@ public static class ItemDatabaseTabContent
             if (int.TryParse(layerBox.Text, out int l)) searchLayer = l;
         };
 
-        var nameRow = new HorizontalStackPanel { Spacing = 4 };
+        var nameRow = new MyraHorizontalStackPanel { Spacing = 4 };
         nameRow.Widgets.Add(new MyraLabel("Name:", MyraLabel.TextStyle.P));
         nameRow.Widgets.Add(nameBox);
         root.Widgets.Add(nameRow);
 
-        var propsRow = new HorizontalStackPanel { Spacing = 4 };
+        var propsRow = new MyraHorizontalStackPanel { Spacing = 4 };
         propsRow.Widgets.Add(new MyraLabel("Properties:", MyraLabel.TextStyle.P));
         propsRow.Widgets.Add(propsBox);
         root.Widgets.Add(propsRow);
 
-        var graphicHueRow = new HorizontalStackPanel { Spacing = 8 };
+        var graphicHueRow = new MyraHorizontalStackPanel { Spacing = 8 };
         graphicHueRow.Widgets.Add(new MyraLabel("Graphic ID:", MyraLabel.TextStyle.P));
         graphicHueRow.Widgets.Add(graphicBox);
         graphicHueRow.Widgets.Add(new MyraLabel("Hue:", MyraLabel.TextStyle.P));
         graphicHueRow.Widgets.Add(hueBox);
         root.Widgets.Add(graphicHueRow);
 
-        var layerRow = new HorizontalStackPanel { Spacing = 4 };
+        var layerRow = new MyraHorizontalStackPanel { Spacing = 4 };
         layerRow.Widgets.Add(new MyraLabel("Layer:", MyraLabel.TextStyle.P));
         layerRow.Widgets.Add(layerBox);
         root.Widgets.Add(layerRow);
 
         // ── Advanced search ─────────────────────────────────────────────────
-        var advancedPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var advancedPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
 
         containerBox = new MyraInputBox { Text = "0", Width = 120, Tooltip = "Search only in this container serial (0 = any)" };
         containerBox.TextChangedByUser += (_, _) =>
@@ -308,12 +308,12 @@ public static class ItemDatabaseTabContent
             if (StringHelper.TryParseInt(containerBox.Text ?? "", out int c)) searchContainer = c;
         };
 
-        var contRow = new HorizontalStackPanel { Spacing = 4 };
+        var contRow = new MyraHorizontalStackPanel { Spacing = 4 };
         contRow.Widgets.Add(new MyraLabel("Container Serial:", MyraLabel.TextStyle.P));
         contRow.Widgets.Add(containerBox);
         advancedPanel.Widgets.Add(contRow);
 
-        var locationCheckRow = new HorizontalStackPanel { Spacing = 12 };
+        var locationCheckRow = new MyraHorizontalStackPanel { Spacing = 12 };
         locationCheckRow.Widgets.Add(
             MyraCheckButton.CreateWithCallback(false, b => onGroundOnly = b, "On ground only"));
         locationCheckRow.Widgets.Add(
@@ -343,7 +343,7 @@ public static class ItemDatabaseTabContent
         root.Widgets.Add(advancedPanel);
 
         // ── Action row ──────────────────────────────────────────────────────
-        var actionRow = new HorizontalStackPanel { Spacing = 4 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
         actionRow.Widgets.Add(new MyraButton("Search",        () => PerformSearch()));
         actionRow.Widgets.Add(new MyraButton("Target Item Info", () => TargetItemInfo())
             { Tooltip = "Target an item in the world to open its item info" });
@@ -390,7 +390,7 @@ public static class ItemDatabaseTabContent
             }
         }
 
-        var maintenanceRow = new HorizontalStackPanel { Spacing = 4 };
+        var maintenanceRow = new MyraHorizontalStackPanel { Spacing = 4 };
         maintenanceRow.Widgets.Add(new MyraLabel("Clear entries older than:", MyraLabel.TextStyle.P));
         maintenanceRow.Widgets.Add(clearDaysBox);
         maintenanceRow.Widgets.Add(new MyraLabel("days", MyraLabel.TextStyle.P));
@@ -403,7 +403,7 @@ public static class ItemDatabaseTabContent
         root.Widgets.Add(statusLabel);
         root.Widgets.Add(new MyraLabel("Results:", MyraLabel.TextStyle.H3));
         BuildResultsGrid();
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 300, Content = resultsPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 300, Content = resultsPanel });
 
         return root;
     }

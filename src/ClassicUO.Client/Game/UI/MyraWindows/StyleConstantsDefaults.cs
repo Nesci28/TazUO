@@ -8,9 +8,9 @@ namespace ClassicUO.Game.UI.MyraWindows;
 
 public static class StyleConstantsDefaults
 {
-    public static readonly Color ModernUiCorpus = new(38, 43, 68, 255);
-    public static readonly Color ModernUiBorderDark = new(24, 20, 37, 255);
-    public static readonly Color ModernUiBorderLight = new(58, 68, 102, 255);
+    public static Color ModernUiCorpus => MyraStyle.SurfaceColor;
+    public static Color ModernUiBorderDark => MyraStyle.BorderColor;
+    public static Color ModernUiBorderLight => MyraStyle.BorderSoftColor;
 
     public const int WINDOW_MIN_WIDTH = 200;
     public const int WINDOW_MIN_HEIGHT = 200;
@@ -48,16 +48,9 @@ public static class StyleConstantsDefaults
 
     #region Containers
 
-    /// <summary>
-    /// Fill and outline of a framed area. Properties rather than fields: a field would be built once
-    /// from whichever palette happened to be current at type load, and would go on drawing that one
-    /// after a theme change.
-    /// </summary>
-    public static IBrush BorderBackgroundBrush => new SolidBrush(MyraTheme.Current.PanelFill);
-
-    /// <inheritdoc cref="BorderBackgroundBrush" />
-    public static IBrush BorderLineBrush => new SolidBrush(MyraTheme.Current.PanelBorder);
-    public static readonly Thickness BorderThickness = new(2);
+    public static IBrush BorderBackgroundBrush => MyraStyle.SurfaceMutedBackgroundBrush;
+    public static IBrush BorderLineBrush => MyraStyle.Brush(MyraStyle.BorderColor);
+    public static Thickness BorderThickness => new(2);
 
     #endregion
 }
