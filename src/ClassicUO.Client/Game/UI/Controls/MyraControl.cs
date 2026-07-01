@@ -4,14 +4,16 @@ using System.Xml;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls.ResizableComponents;
 using ClassicUO.Game.UI.MyraWindows;
+using ClassicUO.Game.UI.MyraWindows.Widgets;
+using ClassicUO.Game.UI.MyraWindows.Widgets.HotkeyInput;
 using ClassicUO.Input;
 using ClassicUO.Renderer;
 using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
 using Myra.Events;
 using Myra.Graphics2D;
-using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
+using Myra.Graphics2D.UI.Styles;
 using SDL3;
 
 namespace ClassicUO.Game.UI.Controls;
@@ -20,7 +22,7 @@ namespace ClassicUO.Game.UI.Controls;
 /// While we inherit many interface methods from Gump controls, many of them do not apply to Myra controls.
 /// It's a long process to be able to support two different types of windows/gumps in the same UIManager
 /// </summary>
-public class MyraControl : IGui, IDisposable
+public class MyraControl : IGui
 {
     #region Internal Controls
 
@@ -36,11 +38,7 @@ public class MyraControl : IGui, IDisposable
         ) { Title = title };
 
         _rootWindow.Closed += OnRootWindowOnClosed;
-        _rootWindow.TitlePanel.Background = new SolidBrush(new Color(0, 0, 0, 75));
-        _rootWindow.TitlePanel.Border = new SolidBrush(new Color(0, 0, 0, MyraStyle.STANDARD_BORDER_ALPHA));
-        _rootWindow.TitlePanel.BorderThickness = new Thickness(1);
-
-        MyraStyle.ApplyButtonDangerStyle(_rootWindow.CloseButton);
+        ApplyRootWindowTheme();
 
         _desktop.Root = _rootWindow;
 
@@ -53,20 +51,28 @@ public class MyraControl : IGui, IDisposable
 
         _rootWindow.CloseKey = null;
 
+        MyraStyle.ThemePresetChanged += MyraStyleOnThemePresetChanged;
+
         //UIManager.TopMostChanged += UIManagerOnTopMostChanged;
     }
 
     #region Event Handlers
     //private void UIManagerOnTopMostChanged(object sender, EventArgs e) => _desktop.Opacity = UIManager.TopMostControl == this ? 1f : 0.8f;
 
-    /// <remarks>
-    ///     Goes through <see cref="Dispose" /> rather than setting the flag, so a title-bar close runs
-    ///     a subclass's teardown. <see cref="ExecuteDispose" /> is not virtual and would skip it.
-    /// </remarks>
+    private void MyraStyleOnThemePresetChanged(object sender, EventArgs e)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        _deferredActions.Enqueue(OnThemeChanged);
+    }
+
     private void OnRootWindowOnClosed(object s, EventArgs a)
     {
-        // _disposeRequested as well as IsDisposed: a close already requested this frame has had its
-        // teardown run, and Dispose() overrides are not all safe to run twice.
+        // A title-bar close must run the subclass teardown path, while avoiding a second disposal
+        // request when the close event is raised more than once in the same frame.
         if (IsDisposed || _disposeRequested)
             return;
 
@@ -91,8 +97,8 @@ public class MyraControl : IGui, IDisposable
         if (_rootWindow.Top < 0)
             _rootWindow.Top = 0;
 
-        Bounds.Width = mSize.X;
-        Bounds.Height = mSize.Y;
+        Bounds.Width = _rootWindow.Width ?? mSize.X;
+        Bounds.Height = _rootWindow.Height ?? mSize.Y;
         Bounds.X = _rootWindow.Left;
         Bounds.Y = _rootWindow.Top;
     }
@@ -189,7 +195,138 @@ public class MyraControl : IGui, IDisposable
     protected void SetRootContent(Widget widget)
     {
         _rootWindow.Content = widget;
+        ApplyThemeToWidget(widget);
         UpdateBoundsToContents();
+    }
+
+    protected virtual void OnThemeChanged()
+    {
+        ApplyRootWindowTheme();
+        ApplyThemeToWidget(_rootWindow.Content);
+    }
+
+    protected void ApplyRootWindowTheme()
+    {
+        _rootWindow.ApplyWindowStyle(Stylesheet.Current.WindowStyle);
+        ApplyThemeToWidget(_rootWindow.TitlePanel);
+        _rootWindow.TitlePanel.Background = MyraStyle.UsesLegacyChrome
+            ? MyraStyle.Brush(new Color(0, 0, 0, 75))
+            : MyraStyle.WindowTitleBackgroundBrush;
+        _rootWindow.TitlePanel.Border = MyraStyle.UsesLegacyChrome
+            ? MyraStyle.Brush(new Color(0, 0, 0, MyraStyle.STANDARD_BORDER_ALPHA))
+            : MyraStyle.Brush(MyraStyle.BorderColor);
+        _rootWindow.TitlePanel.BorderThickness = new Thickness(1);
+        MyraStyle.ApplyButtonDangerStyle(_rootWindow.CloseButton);
+    }
+
+    protected static void ApplyThemeToWidget(Widget widget)
+    {
+        if (widget == null)
+        {
+            return;
+        }
+
+        ApplyWidgetTheme(widget);
+
+        if (widget is ContentControl contentControl)
+        {
+            ApplyThemeToWidget(contentControl.Content);
+        }
+
+        if (widget is Container container)
+        {
+            foreach (Widget child in container.Widgets)
+            {
+                ApplyThemeToWidget(child);
+            }
+        }
+    }
+
+    private static void ApplyWidgetTheme(Widget widget)
+    {
+        switch (widget)
+        {
+            case LinkLabel linkLabel:
+                linkLabel.ApplyCurrentTheme();
+                break;
+            case MyraLabel label:
+                label.ApplyCurrentTheme();
+                break;
+            case HotkeyInput hotkeyInput:
+                hotkeyInput.ApplyCurrentTheme();
+                break;
+            case MyraNavigationButton navigationButton:
+                MyraStyle.ApplyNavigationButtonStyle(navigationButton);
+                break;
+            case MyraCommandBar commandBar:
+                commandBar.ApplyCurrentTheme();
+                break;
+            case ToggleTextButton toggleButton:
+                MyraStyle.ApplyNavigationButtonStyle(toggleButton);
+                break;
+            case MyraHorizontalSeparator horizontalSeparator:
+                horizontalSeparator.Color = MyraStyle.BorderColor;
+                horizontalSeparator.BorderThickness = StyleConstantsDefaults.BorderThickness;
+                break;
+            case MyraVerticalSeparator verticalSeparator:
+                verticalSeparator.Color = MyraStyle.BorderColor;
+                verticalSeparator.BorderThickness = StyleConstantsDefaults.BorderThickness;
+                break;
+            case VisualContainer visualContainer:
+                visualContainer.Background = MyraStyle.SurfaceMutedBackgroundBrush;
+                visualContainer.Border = MyraStyle.Brush(MyraStyle.BorderColor);
+                visualContainer.BorderThickness = StyleConstantsDefaults.BorderThickness;
+                break;
+            case PageControl pageControl:
+                pageControl.ApplyCurrentTheme(ApplyThemeToWidget);
+                break;
+            case Myra.Graphics2D.UI.TabControl tabControl:
+                tabControl.ApplyTabControlStyle(Stylesheet.Current.TabControlStyle);
+
+                foreach (Myra.Graphics2D.UI.TabItem item in tabControl.Items)
+                {
+                    ApplyThemeToWidget(item.Content);
+                }
+
+                break;
+            case Myra.Graphics2D.UI.ComboView comboView:
+                comboView.ApplyComboViewStyle(Stylesheet.Current.ComboBoxStyle);
+
+                foreach (Widget item in comboView.Widgets)
+                {
+                    ApplyThemeToWidget(item);
+                }
+
+                break;
+            case Myra.Graphics2D.UI.ComboBox comboBox:
+                comboBox.ApplyComboBoxStyle(Stylesheet.Current.ComboBoxStyle);
+                break;
+            case Myra.Graphics2D.UI.ListView listView:
+                listView.ApplyListBoxStyle(Stylesheet.Current.ListBoxStyle);
+
+                foreach (Widget item in listView.Widgets)
+                {
+                    ApplyThemeToWidget(item);
+                }
+
+                break;
+            case MyraScrollViewer myraScrollViewer:
+                myraScrollViewer.ApplyCurrentTheme(Stylesheet.Current.ScrollViewerStyle);
+                break;
+            case Myra.Graphics2D.UI.ScrollViewer scrollViewer:
+                scrollViewer.ApplyScrollViewerStyle(Stylesheet.Current.ScrollViewerStyle);
+                break;
+            case Myra.Graphics2D.UI.TextBox textBox:
+                FontStashSharp.SpriteFontBase font = textBox.Font;
+                textBox.ApplyTextBoxStyle(Stylesheet.Current.TextBoxStyle);
+                textBox.Font = font;
+                break;
+            case Myra.Graphics2D.UI.Button button when MyraStyle.TryApplyMarkedButtonTheme(button):
+                break;
+            default:
+                widget.SetStyle(Stylesheet.Current, widget.StyleName ?? Stylesheet.DefaultStyleName);
+                break;
+        }
     }
 
     public void SetKeyboardFocus()
@@ -269,7 +406,9 @@ public class MyraControl : IGui, IDisposable
         }
 
         while (_deferredActions.Count > 0)
+        {
             _deferredActions.Dequeue()?.Invoke();
+        }
     }
 
     public virtual void PreDraw()
@@ -357,6 +496,7 @@ public class MyraControl : IGui, IDisposable
 
         _disposeRequested = false;
         IsDisposed = true;
+        MyraStyle.ThemePresetChanged -= MyraStyleOnThemePresetChanged;
 
         if (_desktop is null)
             return;

@@ -11,7 +11,7 @@ public static class TitleBarTabContent
     {
         Profile profile = ProfileManager.CurrentProfile;
 
-        var outer = new VerticalStackPanel { Spacing = 6 };
+        var outer = new MyraVerticalStackPanel { Spacing = 6 };
 
         outer.Widgets.Add(new MyraLabel(
             "Configure window title bar to show HP, Mana, and Stamina information.",
@@ -46,23 +46,23 @@ public static class TitleBarTabContent
 
         // All three radio buttons must be direct children of the same parent
         // so Myra's RadioButton auto-exclusivity works correctly.
-        var radioGroup = new VerticalStackPanel { Spacing = 4 };
+        var radioGroup = new MyraVerticalStackPanel { Spacing = 4 };
 
-        var rbText = new RadioButton
+        var rbText = new MyraRadioButton
         {
             Content = new MyraLabel("Text  (HP 85/100, MP 42/50, SP 95/100)", MyraLabel.TextStyle.P),
             IsPressed = profile.TitleBarStatsMode == TitleBarStatsMode.Text
         };
         rbText.PressedChanged += (_, _) => { if (rbText.IsPressed) SetMode(TitleBarStatsMode.Text); };
 
-        var rbPercent = new RadioButton
+        var rbPercent = new MyraRadioButton
         {
             Content = new MyraLabel("Percent  (HP 85%, MP 84%, SP 95%)", MyraLabel.TextStyle.P),
             IsPressed = profile.TitleBarStatsMode == TitleBarStatsMode.Percent
         };
         rbPercent.PressedChanged += (_, _) => { if (rbPercent.IsPressed) SetMode(TitleBarStatsMode.Percent); };
 
-        var rbBar = new RadioButton
+        var rbBar = new MyraRadioButton
         {
             Content = new MyraLabel("Progress Bar  (HP [||||||    ] MP [||||||    ] SP [||||||    ])", MyraLabel.TextStyle.P),
             IsPressed = profile.TitleBarStatsMode == TitleBarStatsMode.ProgressBar
