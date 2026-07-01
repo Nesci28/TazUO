@@ -83,9 +83,13 @@ namespace ClassicUO.Game.Managers
         /// </summary>
         private static readonly HashSet<uint> _huedCorpses = new();
         private static readonly Queue<uint> _huedCorpseOrder = new();
+        private static readonly HashSet<uint> _autoLootedCorpses = new();
+        private static readonly Queue<uint> _autoLootedCorpseOrder = new();
 
         private readonly HashSet<uint> _quickContainsLookup = new ();
         private readonly HashSet<uint> _recentlyLooted = new ();
+        private readonly Dictionary<uint, uint> _pendingLootCorpseByItem = new();
+        private readonly Dictionary<uint, int> _pendingLootItemsByCorpse = new();
         private readonly List<AutoLootConfigEntry> _fallbackEntries = new ();
         private AutoLootData _data = new ();
         private AutoLootList _currentList;
@@ -106,15 +110,15 @@ namespace ClassicUO.Game.Managers
 
         public bool IsBeingLooted(uint serial) => _quickContainsLookup.Contains(serial);
 
-        public void LootItem(uint serial)
+        public bool LootItem(uint serial)
         {
             Item item = _world.Items.Get(serial);
-            if (item != null) LootItem(item, null);
+            return item != null && LootItem(item, null);
         }
 
-        public void LootItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
+        public bool LootItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
         {
-            if (item == null || !_recentlyLooted.Add(item.Serial) || !_quickContainsLookup.Add(item.Serial)) return;
+            if (item == null || !_recentlyLooted.Add(item.Serial) || !_quickContainsLookup.Add(item.Serial)) return false;
 
             if (entry != null)
                 priority = entry.Priority;
@@ -131,6 +135,9 @@ namespace ClassicUO.Game.Managers
             _pendingLootCount++;
             _nextClearRecents = Time.Ticks + (ProfileManager.CurrentProfile?.AutoLootRetryDelay ?? 5000);
             CreateProgressBar();
+            TrackPendingCorpseLoot(item);
+
+            return true;
         }
 
         public void ForceLootContainer(uint serial)
@@ -145,25 +152,24 @@ namespace ClassicUO.Game.Managers
         /// <summary>
         /// Check an item against the loot list, if it needs to be auto looted it will be.
         /// </summary>
-        private void CheckAndLoot(Item i)
+        private bool CheckAndLoot(Item i)
         {
-            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial)) return;
+            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial)) return false;
 
             if(i.IsCorpse)
             {
                 HandleCorpse(i);
 
-                return;
+                return false;
             }
 
             if (i.ShouldAutoLoot)
             {
-                LootItem(i, null);
-                return;
+                return LootItem(i, null);
             }
 
             AutoLootConfigEntry entry = IsOnLootList(i);
-            if (entry != null) LootItem(i, entry);
+            return entry != null && LootItem(i, entry);
         }
 
         /// <summary>
@@ -231,6 +237,101 @@ namespace ClassicUO.Game.Managers
             {
                 corpse.Hue = LootedCorpseHue;
                 MarkCorpseHued(corpse.Serial);
+            }
+
+            if (!HasPendingCorpseLoot(corpse.Serial))
+                MarkCorpseAutoLooted(corpse.Serial);
+        }
+
+        private void TrackPendingCorpseLoot(Item item)
+        {
+            if (item == null || _pendingLootCorpseByItem.ContainsKey(item.Serial)) return;
+
+            Item root = _world.Items.Get(item.RootContainer);
+            if (root == null || !root.IsCorpse) return;
+
+            ClearCorpseAutoLooted(root.Serial);
+            _pendingLootCorpseByItem[item.Serial] = root.Serial;
+            _pendingLootItemsByCorpse.TryGetValue(root.Serial, out int count);
+            _pendingLootItemsByCorpse[root.Serial] = count + 1;
+        }
+
+        private bool HasPendingCorpseLoot(uint corpseSerial)
+        {
+            return corpseSerial != 0 && _pendingLootItemsByCorpse.ContainsKey(corpseSerial);
+        }
+
+        private void CompletePendingCorpseLoot(uint itemSerial)
+        {
+            if (!TryRemovePendingCorpseLoot(itemSerial, out uint corpseSerial, out bool corpseComplete)) return;
+
+            if (corpseComplete)
+                MarkCorpseAutoLooted(corpseSerial);
+        }
+
+        private void FailPendingCorpseLoot(uint itemSerial)
+        {
+            TryRemovePendingCorpseLoot(itemSerial, out _, out _);
+        }
+
+        private bool TryRemovePendingCorpseLoot(uint itemSerial, out uint corpseSerial, out bool corpseComplete)
+        {
+            corpseSerial = 0;
+            corpseComplete = false;
+
+            if (!_pendingLootCorpseByItem.Remove(itemSerial, out corpseSerial)) return false;
+            if (!_pendingLootItemsByCorpse.TryGetValue(corpseSerial, out int count)) return true;
+
+            count--;
+
+            if (count <= 0)
+            {
+                _pendingLootItemsByCorpse.Remove(corpseSerial);
+                corpseComplete = true;
+            }
+            else
+            {
+                _pendingLootItemsByCorpse[corpseSerial] = count;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Returns whether auto loot has finished processing this corpse serial.
+        /// </summary>
+        public static bool IsCorpseAutoLooted(uint serial)
+        {
+            return serial != 0 && _autoLootedCorpses.Contains(serial);
+        }
+
+        /// <summary>
+        /// Records corpse serials processed by auto loot for skip-auto-open behavior.
+        /// </summary>
+        public static void MarkCorpseAutoLooted(uint serial)
+        {
+            if (serial == 0) return;
+
+            if (!_autoLootedCorpses.Add(serial)) return;
+
+            _autoLootedCorpseOrder.Enqueue(serial);
+
+            while (_autoLootedCorpseOrder.Count > MaxLootedCorpseHistory && _autoLootedCorpseOrder.TryDequeue(out uint oldest))
+                _autoLootedCorpses.Remove(oldest);
+        }
+
+        private static void ClearCorpseAutoLooted(uint serial)
+        {
+            if (serial == 0 || !_autoLootedCorpses.Remove(serial)) return;
+
+            int count = _autoLootedCorpseOrder.Count;
+
+            for (int i = 0; i < count; i++)
+            {
+                uint queuedSerial = _autoLootedCorpseOrder.Dequeue();
+
+                if (queuedSerial != serial)
+                    _autoLootedCorpseOrder.Enqueue(queuedSerial);
             }
         }
 
@@ -481,7 +582,10 @@ namespace ClassicUO.Game.Managers
             Item moveItem = _world.Items.Get(serial);
 
             if (moveItem == null)
+            {
+                CompletePendingCorpseLoot(serial);
                 return;
+            }
 
             if (moveItem.Distance > ProfileManager.CurrentProfile.AutoOpenCorpseRange)
             {
@@ -490,6 +594,7 @@ namespace ClassicUO.Game.Managers
                 {
                     if (rc.IsCorpse && !ProfileManager.CurrentProfile.DisableAutolootCorpseRetry)
                         World.Instance?.Player?.AutoOpenedCorpses.Remove(rc); //Allow reopening this corpse, we got too far away to finish looting..
+                    FailPendingCorpseLoot(serial);
                     _recentlyLooted.Remove(serial);
                     return;
                 }
@@ -499,15 +604,16 @@ namespace ClassicUO.Game.Managers
 
             if (destinationSerial == 0)
             {
+                FailPendingCorpseLoot(serial);
+                _recentlyLooted.Remove(serial);
                 GameActions.Print("Could not find a container to loot into. Try setting a grab bag.");
                 return;
             }
 
             ushort amount = GetAmountToMove(moveItem, entry, destinationSerial);
-            if (amount <= 0)
-                return;
-
-            new MoveRequest(moveItem.Serial, destinationSerial, amount).Execute();
+            if (amount > 0)
+                new MoveRequest(moveItem.Serial, destinationSerial, amount).Execute();
+            CompletePendingCorpseLoot(serial);
         }
 
         /// <summary>
@@ -519,6 +625,8 @@ namespace ClassicUO.Game.Managers
         {
             _pendingLootCount--;
             _quickContainsLookup.Remove(serial);
+            // Successful moves already completed tracking; canceled actions must not mark the corpse looted.
+            FailPendingCorpseLoot(serial);
         }
 
         /// <summary>
