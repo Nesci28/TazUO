@@ -670,6 +670,11 @@ public partial class GridContainer : ResizableGump
                 _openRegularGump.ContextMenu = GenContextMenu();
             }, true, StackNonStackableItems));
 
+            control.Add(new ContextMenuItemEntry(TazLang.Get("gridcontainer_exportcsv", "Export items CSV"), () =>
+            {
+                GridContainerCsvExporter.Export(World, Container);
+            }));
+
             control.Add(new ContextMenuItemEntry(TazLang.Get("gridcontainer_openhighlightsettings", "Open Grid View Highlight Settings"), () =>
             {
                 GridHighlightMenu.Open(World);
