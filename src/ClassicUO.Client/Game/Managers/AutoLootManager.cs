@@ -230,7 +230,9 @@ namespace ClassicUO.Game.Managers
                 MarkCorpseHued(corpse.Serial);
             }
 
-            if (!HasPendingCorpseLoot(corpse.Serial))
+            // Open-container packets fire before contents arrive; item/update events can also
+            // call this before the corpse has ever been opened.
+            if (corpse.Opened && !HasPendingCorpseLoot(corpse.Serial))
                 MarkCorpseAutoLooted(corpse.Serial);
         }
 
