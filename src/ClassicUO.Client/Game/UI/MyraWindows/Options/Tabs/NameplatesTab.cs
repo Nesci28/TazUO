@@ -308,7 +308,6 @@ public static class NameplatesTab
     private static OptionFragment GeneralSettingsLeftSide()
     {
         Profile profile = ProfileManager.CurrentProfile;
-
         const string locNameplatesHealth = "nameplate_health_";
         string nameWidthLabel = TazLang.Get("nameplate_width", "Name width");
         string heightLabel = TazLang.Get("nameplate_height", "Height");
@@ -316,10 +315,18 @@ public static class NameplatesTab
         string separateHealthBarWidthLabel = TazLang.Get("nameplate_separatehealthbarwidth", TazLang.Get("mog_tazuo_separatehealthbarwidth"));
         string healthBarWidthLabel = TazLang.Get("nameplate_healthbarwidth", TazLang.Get("mog_tazuo_healthbarwidth"));
         string splitHealthBarLabel = TazLang.Get("nameplate_splithealthbar", TazLang.Get("mog_tazuo_splithealthbar"));
+        string presetLabel = TazLang.Get("nameplate_preset", TazLang.Get("mog_kw_preset"));
 
         return OptionsUi.Vertical(
             OptionsUi.VisualContainer(
                 new VisualContainerProps { LabelText = TazLang.Get("mog_kw_appearance") },
+                Option.ComboBox(
+                    presetLabel,
+                    profile.NamePlatePreset.ToInt(),
+                    NamePlatePresets.GetOptions(),
+                    i => NamePlatePresets.Apply(profile, (NamePlatePreset)i),
+                    search: new SearchMetadata(presetLabel, Keywords: [TazLang.Get("mog_kw_preset")])
+                ),
                 Option.IntegerInput(
                     heightLabel,
                     new Accessor<int>(() => profile.NamePlateHeight),
@@ -424,10 +431,8 @@ public static class NameplatesTab
     {
         Profile profile = ProfileManager.CurrentProfile;
 
-        const string locNameplatesHealth = "nameplate_health_";
         string fixedWidthLabel = TazLang.Get("nameplate_fixedwidth", TazLang.Get("mog_tazuo_fixedwidth"));
         string showWordOfDeathIconLabel = TazLang.Get("nameplate_showwordofdeathicon", TazLang.Get("mog_tazuo_showwordofdeathicon"));
-        string presetLabel = TazLang.Get("nameplate_preset", TazLang.Get("mog_kw_preset"));
 
         return OptionsUi.Vertical(
             OptionsUi.VisualContainer(
@@ -441,12 +446,6 @@ public static class NameplatesTab
                     showWordOfDeathIconLabel,
                     new Accessor<bool>(() => profile.NamePlateShowWordOfDeathIcon),
                     search: new SearchMetadata(showWordOfDeathIconLabel, Keywords: [TazLang.Get("mog_kw_icon"), TazLang.Get("mog_kw_death")])
-                ),
-                Option.LComboBox(
-                    presetLabel,
-                    new Accessor<NamePlatePreset>(() => profile.NamePlatePreset),
-                    locNameplatesHealth,
-                    search: new SearchMetadata(presetLabel, Keywords: [TazLang.Get("mog_kw_preset")])
                 ),
                 Option.Checkbox(
                     TazLang.Get("mog_general_incomingmobiles"),
