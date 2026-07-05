@@ -897,6 +897,11 @@ namespace ClassicUO.Game.Scenes
 
                     case Entity ent:
 
+                        if (ent is Mobile mobile && MobileDefaultContextActionManager.TryStartDefaultAction(mobile))
+                        {
+                            break;
+                        }
+
                         if (HotKeys.IsPressed(HotKeyRegistrar.FollowMobileId) && !ProfileManager.CurrentProfile.DisableAutoFollowAlt && ent is Mobile followMobile)
                         {
                             followMobile.Follow();
