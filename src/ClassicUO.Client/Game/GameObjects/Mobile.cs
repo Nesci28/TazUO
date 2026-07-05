@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
@@ -59,6 +60,7 @@ namespace ClassicUO.Game.GameObjects
         public Mobile(World world) : base(world, 0) { }
 
         private readonly Item[] _equippedLayers = new Item[30];
+        private readonly Dictionary<BuffIconType, BuffIcon> _buffIcons = new Dictionary<BuffIconType, BuffIcon>();
 
         public override void NameUpdated()
         {
@@ -107,6 +109,21 @@ namespace ClassicUO.Game.GameObjects
         }
 
         public Item Backpack => FindItemByLayer(Layer.Backpack);
+
+        public IReadOnlyDictionary<BuffIconType, BuffIcon> BuffIcons => _buffIcons;
+
+        public virtual void AddBuff(BuffIconType type, ushort graphic, uint time, string text, string title = "")
+        {
+            _buffIcons[type] = new BuffIcon(type, graphic, time, text, title);
+        }
+
+        public bool IsBuffIconExists(BuffIconType graphic) => _buffIcons.ContainsKey(graphic);
+
+        public virtual void RemoveBuff(BuffIconType graphic)
+        {
+            _buffIcons.Remove(graphic);
+        }
+
         public bool IsVisible { get; set; } = true;
         public Deque<Step> Steps { get; } = new Deque<Step>(Constants.MAX_STEP_COUNT);
         public bool IsParalyzed => (Flags & Flags.Frozen) != 0;
