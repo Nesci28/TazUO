@@ -14,8 +14,7 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class PopupMenuGump : Gump
     {
-        private const ushort DefaultMarkerEmpty = 0x00D2;
-        private const ushort DefaultMarkerSelected = 0x00D3;
+        private const ushort DefaultMarkerGraphic = 0x0838;
 
         public static uint CloseNext = uint.MaxValue;
 
@@ -57,6 +56,7 @@ namespace ClassicUO.Game.UI.Gumps
             int markerColumnWidth = menuMobile != null ? ScaleHelper.Scaled(22, scale) : 0;
             int width = 0, height = ScaleHelper.Scaled(20, scale);
             bool arrowAdded = false;
+            var actionBoxes = new List<HitBox>();
 
             void SelectDefaultMarker(int cliloc)
             {
@@ -65,7 +65,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 foreach ((GumpPic marker, int markerCliloc) in defaultMarkers)
                 {
-                    marker.Graphic = markerCliloc == selectedDefaultCliloc ? DefaultMarkerSelected : DefaultMarkerEmpty;
+                    marker.IsVisible = markerCliloc == selectedDefaultCliloc;
                 }
             }
 
@@ -90,23 +90,24 @@ namespace ClassicUO.Game.UI.Gumps
                 if (menuMobile != null && defaultItem.HasValue)
                 {
                     PopupMenuItem itemForDefault = defaultItem.Value;
-                    var marker = new GumpPic(
-                        padding,
-                        rowY,
-                        hasDefaultAction && itemForDefault.Cliloc == selectedDefaultCliloc ? DefaultMarkerSelected : DefaultMarkerEmpty,
-                        0
-                    );
+                    var marker = new GumpPic(padding, rowY, DefaultMarkerGraphic, 0)
+                    {
+                        IsVisible = hasDefaultAction && itemForDefault.Cliloc == selectedDefaultCliloc,
+                        IsEnabled = false
+                    };
 
                     marker.ApplyScale(scale, scalePosition: false);
                     marker.Y = rowY + Math.Max(0, (label.Height - marker.Height) >> 1);
 
-                    marker.MouseEnter += (sender, e) =>
+                    var markerHitBox = new HitBox(padding, rowY, markerColumnWidth, label.Height, alpha: 0f);
+
+                    markerHitBox.MouseEnter += (sender, e) =>
                     {
                         _selectedAction = null;
                         _suppressCloseOnMouseUp = true;
                     };
 
-                    marker.MouseUp += (sender, e) =>
+                    markerHitBox.MouseUp += (sender, e) =>
                     {
                         if (e.Button != MouseButtonType.Left)
                         {
@@ -121,6 +122,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                     defaultMarkers.Add((marker, itemForDefault.Cliloc));
                     Add(marker);
+                    Add(markerHitBox);
                 }
 
                 var box = new HitBox(labelX, rowY, label.Width, label.Height)
@@ -140,6 +142,7 @@ namespace ClassicUO.Game.UI.Gumps
                     _selectedAction = (Action)(sender as HitBox).Tag;
                 };
 
+                actionBoxes.Add(box);
                 Add(box);
                 Add(label);
 
@@ -204,7 +207,7 @@ namespace ClassicUO.Game.UI.Gumps
                 pic.Width = width;
                 pic.Height = height;
 
-                foreach (HitBox box in FindControls<HitBox>())
+                foreach (HitBox box in actionBoxes)
                 {
                     box.Width = width - box.X - padding;
                 }
