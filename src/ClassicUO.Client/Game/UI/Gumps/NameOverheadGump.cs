@@ -366,12 +366,6 @@ namespace ClassicUO.Game.UI.Gumps
             base.CloseWithRightClick();
         }
 
-        public override void Dispose()
-        {
-            ClearBuffTimerTexts();
-            base.Dispose();
-        }
-
         private void DoDrag()
         {
             Point delta = Mouse.Position - _lastLeftMousePositionDown;
@@ -1764,6 +1758,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void Dispose()
         {
+            ClearBuffTimerTexts();
             _text?.Dispose();
             base.Dispose();
         }
