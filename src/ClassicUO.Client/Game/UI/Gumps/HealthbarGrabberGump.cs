@@ -17,17 +17,19 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class HealthbarGrabberGump : Gump
     {
-        private const int WIDTH = 660;
-        private const int HEIGHT = 145;
+        private const int WIDTH = 560;
+        private const int HEIGHT = 132;
         private const int BORDER_WIDTH = 2;
         private const int TITLE_HEIGHT = 28;
-        private const int COLUMN_WIDTH = 200;
-        private const int CENTER_WIDTH = 180;
+        private const int COLUMN_WIDTH = 180;
+        private const int CENTER_WIDTH = 150;
         private const int COLUMN_Y = 34;
-        private const int COLUMN_HEIGHT = 100;
-        private const int HARMFUL_X = 14;
-        private const int SELF_X = 240;
-        private const int BENEFICIAL_X = 446;
+        private const int COLUMN_HEIGHT = 92;
+        private const int HARMFUL_X = 12;
+        private const int SELF_X = 205;
+        private const int BENEFICIAL_X = 368;
+        private const int LEFT_SEPARATOR_X = 196;
+        private const int RIGHT_SEPARATOR_X = 356;
 
         private readonly World _world;
         private readonly GrabberColumn _harmfulColumn;
@@ -194,8 +196,8 @@ namespace ClassicUO.Game.UI.Gumps
             DrawRect(batcher, x, y, BORDER_WIDTH, Height, Color.DimGray);
             DrawRect(batcher, x + Width - BORDER_WIDTH, y, BORDER_WIDTH, Height, Color.DimGray);
 
-            DrawRect(batcher, x + 226, y + 36, 1, 92, Color.DimGray);
-            DrawRect(batcher, x + 432, y + 36, 1, 92, Color.DimGray);
+            DrawRect(batcher, x + LEFT_SEPARATOR_X, y + 36, 1, 82, Color.DimGray);
+            DrawRect(batcher, x + RIGHT_SEPARATOR_X, y + 36, 1, 82, Color.DimGray);
             DrawRect(batcher, x + 8, y + TITLE_HEIGHT, Width - 16, 1, Color.Black);
 
             return true;
@@ -212,11 +214,11 @@ namespace ClassicUO.Game.UI.Gumps
 
         private sealed class GrabberColumn : Control
         {
-            private const int BAR_HEIGHT = 14;
-            private const int BAR_GAP = 8;
+            private const int BAR_HEIGHT = 12;
+            private const int BAR_GAP = 5;
             private const int LABEL_Y = 5;
-            private const int NAME_Y = 30;
-            private const int FIRST_BAR_Y = 54;
+            private const int NAME_Y = 29;
+            private const int FIRST_BAR_Y = 48;
 
             private readonly World _world;
             private readonly Color _accentColor;
@@ -408,8 +410,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             private void UpdateLayout()
             {
-                _titleLabel.Width = Width;
-                _nameLabel.Width = Width;
+                _titleLabel.X = (Width - _titleLabel.Width) / 2;
+                _nameLabel.X = (Width - _nameLabel.Width) / 2;
 
                 _healthBar.X = 8;
                 _healthBar.Y = FIRST_BAR_Y;
@@ -426,6 +428,7 @@ namespace ClassicUO.Game.UI.Gumps
                 _staminaBar.Width = Width - 16;
                 _staminaBar.Height = BAR_HEIGHT;
 
+                _healthBar.IsVisible = Serial != 0;
                 _manaBar.IsVisible = _showPlayerResources && Serial != 0;
                 _staminaBar.IsVisible = _showPlayerResources && Serial != 0;
             }
@@ -436,12 +439,14 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     _nameLabel.Text = "-";
                     _nameLabel.Hue = 0x0386;
+                    _nameLabel.X = (Width - _nameLabel.Width) / 2;
                     return;
                 }
 
                 string name = _showPlayerResources ? _mobile.Name : $"{_mobile.Name} ({_mobile.Distance})";
                 _nameLabel.Text = string.IsNullOrWhiteSpace(name) ? "-" : name;
                 _nameLabel.Hue = _showPlayerResources ? (ushort)0x0481 : Notoriety.GetHue(_mobile.NotorietyFlag);
+                _nameLabel.X = (Width - _nameLabel.Width) / 2;
             }
 
             private void UpdateBars()
@@ -497,9 +502,9 @@ namespace ClassicUO.Game.UI.Gumps
                 CanMove = true;
                 AcceptMouseInput = false;
 
-                _percentLabel = new Label(string.Empty, true, 0, 160, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
+                _percentLabel = new Label(string.Empty, true, 0xFFFF, 160, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
                 {
-                    Y = -2
+                    Y = -3
                 };
 
                 Add(_percentLabel);
@@ -510,12 +515,13 @@ namespace ClassicUO.Game.UI.Gumps
                 _current = current;
                 _max = max;
                 _percentLabel.Text = text;
+                _percentLabel.X = (Width - _percentLabel.Width) / 2;
             }
 
             public override void Update()
             {
                 base.Update();
-                _percentLabel.Width = Width;
+                _percentLabel.X = (Width - _percentLabel.Width) / 2;
             }
 
             public override bool Draw(UltimaBatcher2D batcher, int x, int y)
