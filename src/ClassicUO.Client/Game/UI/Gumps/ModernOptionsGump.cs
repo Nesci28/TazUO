@@ -3636,14 +3636,19 @@ namespace ClassicUO.Game.UI.Gumps
                 true, page
             );
 
-            content.AddToRight
-            (
-                new CheckboxWithLabel(TazLang.Get("nameplate_showwordofdeathicon", "Show Word of Death icon at 30% health"), 0, profile.NamePlateShowWordOfDeathIcon,
+                content.AddToRight
+                (
+                    new CheckboxWithLabel(TazLang.Get("nameplate_showwordofdeathicon", "Show Word of Death icon at 30% health"), 0, profile.NamePlateShowWordOfDeathIcon,
                     (b) => { profile.NamePlateShowWordOfDeathIcon = b; SetNamePlatePresetCustom(); }), true, page
-            );
+                );
+                content.AddToRight
+                (
+                    new CheckboxWithLabel(TazLang.Get("nameplate_showbufficons", "Show buff icons"), 0, profile.NamePlateShowBuffIcons,
+                    (b) => { profile.NamePlateShowBuffIcons = b; SetNamePlatePresetCustom(); }), true, page
+                );
 
-            content.AddToRight
-            (
+                content.AddToRight
+                (
                 new CheckboxWithLabel(TazLang.Get("nameplate_hidefullhealth", "Hide nameplates if full health"), 0, profile.NamePlateHideAtFullHealth,
                     (b) => { profile.NamePlateHideAtFullHealth = b; SetNamePlatePresetCustom(); }), true, page
             );

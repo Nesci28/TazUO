@@ -1046,7 +1046,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         private void DrawMobileBuffIcons(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds)
         {
-            if (mobile == null || mobile.BuffIcons.Count == 0)
+            if (ProfileManager.CurrentProfile?.NamePlateShowBuffIcons != true || mobile == null || mobile.BuffIcons.Count == 0)
             {
                 ClearBuffTimerTexts();
                 return;
