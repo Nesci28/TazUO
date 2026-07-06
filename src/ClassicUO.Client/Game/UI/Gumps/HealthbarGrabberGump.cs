@@ -247,6 +247,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 CanMove = true;
                 AcceptMouseInput = true;
+                WantUpdateSize = false;
 
                 _titleLabel = new Label(title, true, titleHue, 200, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
                 {
@@ -460,12 +461,12 @@ namespace ClassicUO.Game.UI.Gumps
 
             private static string CompactName(string name)
             {
-                if (string.IsNullOrWhiteSpace(name) || name.Length <= 12)
+                if (string.IsNullOrWhiteSpace(name) || name.Length <= 9)
                 {
                     return name;
                 }
 
-                return name.Substring(0, 11) + ".";
+                return name.Substring(0, 8) + ".";
             }
 
             private void UpdateBars()
@@ -520,6 +521,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 CanMove = true;
                 AcceptMouseInput = false;
+                WantUpdateSize = false;
 
                 _percentLabel = new Label(string.Empty, true, 0xFFFF, 160, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
                 {
