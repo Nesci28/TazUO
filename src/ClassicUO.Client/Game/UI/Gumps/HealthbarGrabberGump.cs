@@ -17,19 +17,19 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class HealthbarGrabberGump : Gump
     {
-        private const int WIDTH = 560;
-        private const int HEIGHT = 132;
+        private const int WIDTH = 360;
+        private const int HEIGHT = 88;
         private const int BORDER_WIDTH = 2;
-        private const int TITLE_HEIGHT = 28;
-        private const int COLUMN_WIDTH = 180;
-        private const int CENTER_WIDTH = 150;
-        private const int COLUMN_Y = 34;
-        private const int COLUMN_HEIGHT = 92;
-        private const int HARMFUL_X = 12;
-        private const int SELF_X = 205;
-        private const int BENEFICIAL_X = 368;
-        private const int LEFT_SEPARATOR_X = 196;
-        private const int RIGHT_SEPARATOR_X = 356;
+        private const int TITLE_HEIGHT = 18;
+        private const int COLUMN_WIDTH = 112;
+        private const int CENTER_WIDTH = 104;
+        private const int COLUMN_Y = 20;
+        private const int COLUMN_HEIGHT = 62;
+        private const int HARMFUL_X = 6;
+        private const int SELF_X = 128;
+        private const int BENEFICIAL_X = 246;
+        private const int LEFT_SEPARATOR_X = 122;
+        private const int RIGHT_SEPARATOR_X = 240;
 
         private readonly World _world;
         private readonly GrabberColumn _harmfulColumn;
@@ -53,14 +53,14 @@ namespace ClassicUO.Game.UI.Gumps
                 Height = HEIGHT
             });
 
-            Add(new Label(TazLang.Get("healthbargrabber_title", "Healthbar Grabber"), true, 0x0481, WIDTH, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
+            Add(new Label(TazLang.Get("healthbargrabber_paneltitle", "Grabber"), true, 0x0481, WIDTH, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
             {
-                Y = 7
+                Y = 3
             });
 
             _harmfulColumn = new GrabberColumn(
                 world,
-                TazLang.Get("healthbargrabber_harmful", "Last Harmful Target"),
+                TazLang.Get("healthbargrabber_harmful", "Harmful"),
                 Color.IndianRed,
                 0x0021,
                 showPlayerResources: false
@@ -88,7 +88,7 @@ namespace ClassicUO.Game.UI.Gumps
 
             _beneficialColumn = new GrabberColumn(
                 world,
-                TazLang.Get("healthbargrabber_beneficial", "Last Beneficial Target"),
+                TazLang.Get("healthbargrabber_beneficial", "Beneficial"),
                 Color.ForestGreen,
                 0x0044,
                 showPlayerResources: false
@@ -196,9 +196,9 @@ namespace ClassicUO.Game.UI.Gumps
             DrawRect(batcher, x, y, BORDER_WIDTH, Height, Color.DimGray);
             DrawRect(batcher, x + Width - BORDER_WIDTH, y, BORDER_WIDTH, Height, Color.DimGray);
 
-            DrawRect(batcher, x + LEFT_SEPARATOR_X, y + 36, 1, 82, Color.DimGray);
-            DrawRect(batcher, x + RIGHT_SEPARATOR_X, y + 36, 1, 82, Color.DimGray);
-            DrawRect(batcher, x + 8, y + TITLE_HEIGHT, Width - 16, 1, Color.Black);
+            DrawRect(batcher, x + LEFT_SEPARATOR_X, y + 22, 1, 58, Color.DimGray);
+            DrawRect(batcher, x + RIGHT_SEPARATOR_X, y + 22, 1, 58, Color.DimGray);
+            DrawRect(batcher, x + 6, y + TITLE_HEIGHT, Width - 12, 1, Color.Black);
 
             return true;
         }
@@ -214,11 +214,11 @@ namespace ClassicUO.Game.UI.Gumps
 
         private sealed class GrabberColumn : Control
         {
-            private const int BAR_HEIGHT = 12;
-            private const int BAR_GAP = 5;
-            private const int LABEL_Y = 5;
-            private const int NAME_Y = 29;
-            private const int FIRST_BAR_Y = 48;
+            private const int BAR_HEIGHT = 8;
+            private const int BAR_GAP = 3;
+            private const int LABEL_Y = 0;
+            private const int NAME_Y = 18;
+            private const int FIRST_BAR_Y = 34;
 
             private readonly World _world;
             private readonly Color _accentColor;
@@ -403,7 +403,7 @@ namespace ClassicUO.Game.UI.Gumps
                     DrawRect(batcher, x, y, Width, Height, new Color(32, 32, 32));
                 }
 
-                DrawRect(batcher, x, y + 24, Width, 1, _accentColor);
+                DrawRect(batcher, x + 4, y + 15, Width - 8, 1, _accentColor);
 
                 return base.Draw(batcher, x, y);
             }
@@ -413,19 +413,19 @@ namespace ClassicUO.Game.UI.Gumps
                 _titleLabel.X = (Width - _titleLabel.Width) / 2;
                 _nameLabel.X = (Width - _nameLabel.Width) / 2;
 
-                _healthBar.X = 8;
+                _healthBar.X = 6;
                 _healthBar.Y = FIRST_BAR_Y;
-                _healthBar.Width = Width - 16;
+                _healthBar.Width = Width - 12;
                 _healthBar.Height = BAR_HEIGHT;
 
-                _manaBar.X = 8;
+                _manaBar.X = 6;
                 _manaBar.Y = FIRST_BAR_Y + BAR_HEIGHT + BAR_GAP;
-                _manaBar.Width = Width - 16;
+                _manaBar.Width = Width - 12;
                 _manaBar.Height = BAR_HEIGHT;
 
-                _staminaBar.X = 8;
+                _staminaBar.X = 6;
                 _staminaBar.Y = FIRST_BAR_Y + (BAR_HEIGHT + BAR_GAP) * 2;
-                _staminaBar.Width = Width - 16;
+                _staminaBar.Width = Width - 12;
                 _staminaBar.Height = BAR_HEIGHT;
 
                 _healthBar.IsVisible = Serial != 0;
@@ -443,10 +443,20 @@ namespace ClassicUO.Game.UI.Gumps
                     return;
                 }
 
-                string name = _showPlayerResources ? _mobile.Name : $"{_mobile.Name} ({_mobile.Distance})";
+                string name = CompactName(_mobile.Name);
                 _nameLabel.Text = string.IsNullOrWhiteSpace(name) ? "-" : name;
                 _nameLabel.Hue = _showPlayerResources ? (ushort)0x0481 : Notoriety.GetHue(_mobile.NotorietyFlag);
                 _nameLabel.X = (Width - _nameLabel.Width) / 2;
+            }
+
+            private static string CompactName(string name)
+            {
+                if (string.IsNullOrWhiteSpace(name) || name.Length <= 12)
+                {
+                    return name;
+                }
+
+                return name.Substring(0, 11) + ".";
             }
 
             private void UpdateBars()
@@ -504,7 +514,8 @@ namespace ClassicUO.Game.UI.Gumps
 
                 _percentLabel = new Label(string.Empty, true, 0xFFFF, 160, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
                 {
-                    Y = -3
+                    Y = -3,
+                    IsVisible = false
                 };
 
                 Add(_percentLabel);
