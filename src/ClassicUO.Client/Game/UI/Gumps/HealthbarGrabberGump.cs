@@ -17,19 +17,19 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class HealthbarGrabberGump : Gump
     {
-        private const int WIDTH = 360;
-        private const int HEIGHT = 88;
+        private const int WIDTH = 320;
+        private const int HEIGHT = 84;
         private const int BORDER_WIDTH = 2;
-        private const int TITLE_HEIGHT = 18;
-        private const int COLUMN_WIDTH = 112;
-        private const int CENTER_WIDTH = 104;
+        private const int TITLE_HEIGHT = 16;
+        private const int COLUMN_WIDTH = 100;
+        private const int CENTER_WIDTH = 92;
         private const int COLUMN_Y = 20;
-        private const int COLUMN_HEIGHT = 62;
+        private const int COLUMN_HEIGHT = 58;
         private const int HARMFUL_X = 6;
-        private const int SELF_X = 128;
-        private const int BENEFICIAL_X = 246;
-        private const int LEFT_SEPARATOR_X = 122;
-        private const int RIGHT_SEPARATOR_X = 240;
+        private const int SELF_X = 114;
+        private const int BENEFICIAL_X = 214;
+        private const int LEFT_SEPARATOR_X = 110;
+        private const int RIGHT_SEPARATOR_X = 210;
 
         private readonly World _world;
         private readonly GrabberColumn _harmfulColumn;
@@ -47,15 +47,9 @@ namespace ClassicUO.Game.UI.Gumps
             CanCloseWithRightClick = true;
             AcceptMouseInput = true;
 
-            Add(new AlphaBlendControl(0.78f)
-            {
-                Width = WIDTH,
-                Height = HEIGHT
-            });
-
             Add(new Label(TazLang.Get("healthbargrabber_paneltitle", "Grabber"), true, 0x0481, WIDTH, font: 1, style: FontStyle.BlackBorder, align: TEXT_ALIGN_TYPE.TS_CENTER)
             {
-                Y = 3
+                Y = 1
             });
 
             _harmfulColumn = new GrabberColumn(
@@ -108,6 +102,9 @@ namespace ClassicUO.Game.UI.Gumps
             {
                 _selfColumn.SetSerial(world.Player.Serial);
             }
+
+            Width = WIDTH;
+            Height = HEIGHT;
         }
 
         public override GumpType GumpType => GumpType.HealthBarGrabber;
@@ -177,6 +174,8 @@ namespace ClassicUO.Game.UI.Gumps
         public override void Restore(XmlElement xml)
         {
             base.Restore(xml);
+            Width = WIDTH;
+            Height = HEIGHT;
 
             if (_world.Player != null)
             {
@@ -186,6 +185,16 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override bool Draw(UltimaBatcher2D batcher, int x, int y)
         {
+            Width = WIDTH;
+            Height = HEIGHT;
+
+            if (!IsVisible)
+            {
+                return false;
+            }
+
+            DrawRect(batcher, x, y, Width, Height, Color.Black);
+
             if (!base.Draw(batcher, x, y))
             {
                 return false;
@@ -196,8 +205,8 @@ namespace ClassicUO.Game.UI.Gumps
             DrawRect(batcher, x, y, BORDER_WIDTH, Height, Color.DimGray);
             DrawRect(batcher, x + Width - BORDER_WIDTH, y, BORDER_WIDTH, Height, Color.DimGray);
 
-            DrawRect(batcher, x + LEFT_SEPARATOR_X, y + 22, 1, 58, Color.DimGray);
-            DrawRect(batcher, x + RIGHT_SEPARATOR_X, y + 22, 1, 58, Color.DimGray);
+            DrawRect(batcher, x + LEFT_SEPARATOR_X, y + 20, 1, 58, Color.DimGray);
+            DrawRect(batcher, x + RIGHT_SEPARATOR_X, y + 20, 1, 58, Color.DimGray);
             DrawRect(batcher, x + 6, y + TITLE_HEIGHT, Width - 12, 1, Color.Black);
 
             return true;
@@ -216,8 +225,8 @@ namespace ClassicUO.Game.UI.Gumps
         {
             private const int BAR_HEIGHT = 8;
             private const int BAR_GAP = 3;
-            private const int LABEL_Y = 0;
-            private const int NAME_Y = 18;
+            private const int LABEL_Y = -1;
+            private const int NAME_Y = 16;
             private const int FIRST_BAR_Y = 34;
 
             private readonly World _world;
