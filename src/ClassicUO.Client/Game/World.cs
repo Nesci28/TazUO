@@ -765,6 +765,7 @@ namespace ClassicUO.Game
             if (mobile == null || mobile.IsDestroyed)
             {
                 HealthbarCollectorGump.MobileDestroyed(serial);
+                HealthbarGrabberGump.MobileDestroyed(serial);
                 return false;
             }
 
@@ -788,6 +789,7 @@ namespace ClassicUO.Game
             }
 
             HealthbarCollectorGump.MobileDestroyed(serial);
+            HealthbarGrabberGump.MobileDestroyed(serial);
 
             return true;
         }
