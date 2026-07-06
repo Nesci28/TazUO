@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 using System;
+using System.Collections.Generic;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
@@ -13,11 +14,13 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class PopupMenuGump : Gump
     {
-        private const ushort ClientActionHue = 0x03B2;
+        private const ushort DefaultMarkerEmpty = 0x00D2;
+        private const ushort DefaultMarkerSelected = 0x00D3;
 
         public static uint CloseNext = uint.MaxValue;
 
         private Action _selectedAction;
+        private bool _suppressCloseOnMouseUp;
         private readonly PopupMenuData _data;
 
         public PopupMenuData Data => _data;
@@ -44,13 +47,32 @@ namespace ClassicUO.Game.UI.Gumps
 
             Add(pic);
 
+            Mobile menuMobile = World.Get(data.Serial) as Mobile;
+            int selectedDefaultCliloc = 0;
+            bool hasDefaultAction = menuMobile != null && MobileDefaultContextActionManager.TryGetDefault(menuMobile, out selectedDefaultCliloc);
+            var defaultMarkers = new List<(GumpPic Marker, int Cliloc)>();
+
             int offsetY = ScaleHelper.Scaled(10, scale);
+            int padding = ScaleHelper.Scaled(10, scale);
+            int markerColumnWidth = menuMobile != null ? ScaleHelper.Scaled(22, scale) : 0;
             int width = 0, height = ScaleHelper.Scaled(20, scale);
             bool arrowAdded = false;
 
-            int AddRow(string text, ushort hue, ushort replacedHue, Action action)
+            void SelectDefaultMarker(int cliloc)
+            {
+                selectedDefaultCliloc = cliloc;
+                hasDefaultAction = true;
+
+                foreach ((GumpPic marker, int markerCliloc) in defaultMarkers)
+                {
+                    marker.Graphic = markerCliloc == selectedDefaultCliloc ? DefaultMarkerSelected : DefaultMarkerEmpty;
+                }
+            }
+
+            int AddRow(string text, ushort hue, ushort replacedHue, Action action, PopupMenuItem? defaultItem = null)
             {
                 int rowY = offsetY;
+                int labelX = padding + markerColumnWidth;
 
                 if (replacedHue != 0)
                 {
@@ -60,23 +82,61 @@ namespace ClassicUO.Game.UI.Gumps
 
                 var label = new Label(text, true, hue, font: 1);
                 label.ApplyScale(scale, scalePosition: false);
-                label.X = ScaleHelper.Scaled(10, scale);
-                label.Y = offsetY;
+                label.X = labelX;
+                label.Y = rowY;
 
                 Client.Game.UO.FileManager.Fonts.SetUseHTML(false);
 
-                var box = new HitBox(ScaleHelper.Scaled(10, scale), offsetY, label.Width, label.Height)
+                if (menuMobile != null && defaultItem.HasValue)
+                {
+                    PopupMenuItem itemForDefault = defaultItem.Value;
+                    var marker = new GumpPic(
+                        padding,
+                        rowY,
+                        hasDefaultAction && itemForDefault.Cliloc == selectedDefaultCliloc ? DefaultMarkerSelected : DefaultMarkerEmpty,
+                        0
+                    );
+
+                    marker.ApplyScale(scale, scalePosition: false);
+                    marker.Y = rowY + Math.Max(0, (label.Height - marker.Height) >> 1);
+
+                    marker.MouseEnter += (sender, e) =>
+                    {
+                        _selectedAction = null;
+                        _suppressCloseOnMouseUp = true;
+                    };
+
+                    marker.MouseUp += (sender, e) =>
+                    {
+                        if (e.Button != MouseButtonType.Left)
+                        {
+                            return;
+                        }
+
+                        _selectedAction = null;
+                        _suppressCloseOnMouseUp = true;
+                        MobileDefaultContextActionManager.SetDefault(menuMobile, itemForDefault);
+                        SelectDefaultMarker(itemForDefault.Cliloc);
+                    };
+
+                    defaultMarkers.Add((marker, itemForDefault.Cliloc));
+                    Add(marker);
+                }
+
+                var box = new HitBox(labelX, rowY, label.Width, label.Height)
                 {
                     Tag = action
                 };
 
                 box.MouseEnter += (sender, e) =>
                 {
+                    _suppressCloseOnMouseUp = false;
                     _selectedAction = (Action)(sender as HitBox).Tag;
                 };
 
                 box.MouseUp += (sender, e) =>
                 {
+                    _suppressCloseOnMouseUp = false;
                     _selectedAction = (Action)(sender as HitBox).Tag;
                 };
 
@@ -86,9 +146,11 @@ namespace ClassicUO.Game.UI.Gumps
                 offsetY += label.Height;
                 height += label.Height;
 
-                if (width < label.Width)
+                int rowWidth = markerColumnWidth + label.Width;
+
+                if (width < rowWidth)
                 {
-                    width = label.Width;
+                    width = rowWidth;
                 }
 
                 return rowY;
@@ -112,7 +174,8 @@ namespace ClassicUO.Game.UI.Gumps
                         }
 
                         GameActions.ResponsePopupMenu(_data.Serial, index);
-                    }
+                    },
+                    item
                 );
 
                 if ((item.Flags & 0x02) != 0 && !arrowAdded)
@@ -121,38 +184,12 @@ namespace ClassicUO.Game.UI.Gumps
 
                     var arrow = new Button(0, 0x15E6, 0x15E2, 0x15E2)
                     {
-                        X = ScaleHelper.Scaled(20, scale),
+                        X = labelArrowX(),
                         Y = rowY
                     };
 
                     arrow.ApplyScale(scale, scalePosition: false);
                     Add(arrow);
-                }
-            }
-
-            if (World.Get(data.Serial) is Mobile mobile)
-            {
-                for (int i = 0; i < data.Items.Length; i++)
-                {
-                    PopupMenuItem item = data.Items[i];
-                    string actionName = MobileDefaultContextActionManager.GetActionName(item.Cliloc);
-
-                    AddRow(
-                        $"Set default: {actionName}",
-                        ClientActionHue,
-                        0,
-                        () => MobileDefaultContextActionManager.SetDefault(mobile, item)
-                    );
-                }
-
-                if (MobileDefaultContextActionManager.TryGetDefault(mobile, out _))
-                {
-                    AddRow(
-                        "Clear default action",
-                        ClientActionHue,
-                        0,
-                        () => MobileDefaultContextActionManager.ClearDefault(mobile)
-                    );
                 }
             }
 
@@ -169,15 +206,23 @@ namespace ClassicUO.Game.UI.Gumps
 
                 foreach (HitBox box in FindControls<HitBox>())
                 {
-                    box.Width = width - ScaleHelper.Scaled(20, scale);
+                    box.Width = width - box.X - padding;
                 }
             }
+
+            int labelArrowX() => padding + markerColumnWidth + ScaleHelper.Scaled(10, scale);
         }
 
         public override void OnMouseUp(int x, int y, MouseButtonType button)
         {
             if (button == MouseButtonType.Left)
             {
+                if (_suppressCloseOnMouseUp)
+                {
+                    _suppressCloseOnMouseUp = false;
+                    return;
+                }
+
                 _selectedAction?.Invoke();
                 Dispose();
             }
