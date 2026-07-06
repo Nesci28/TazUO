@@ -1513,6 +1513,10 @@ namespace ClassicUO.Configuration
                                 case GumpType.HealthBarCollector:
                                     gump = new HealthbarCollectorGump(world);
                                     break;
+
+                                case GumpType.HealthBarGrabber:
+                                    gump = new HealthbarGrabberGump(world);
+                                    break;
                             }
 
                             if (gump == null)
