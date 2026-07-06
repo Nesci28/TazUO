@@ -21,6 +21,8 @@ namespace ClassicUO.Game.UI.MyraWindows.Options.Tabs;
 /// <summary>Options tab source for nameplate display settings and profile-based nameplate configuration</summary>
 public static class NameplatesTab
 {
+    private const string LocNameplatesHealth = "nameplate_health_";
+
     /// <summary>Returns the tab group containing general nameplate settings and profile sub-tabs</summary>
     internal static IOptionSource GetContent() => GetNameplatesMenuTabs();
 
@@ -503,6 +505,12 @@ public static class NameplatesTab
                     new Accessor<NamePlateDistancePreset>(() => profile.NamePlateDistancePreset),
                     "nameplate_distance_",
                     search: new SearchMetadata(distancePresetLabel, Keywords: [TazLang.Get("mog_kw_distance"), TazLang.Get("mog_kw_preset")])
+                ),
+                Option.LComboBox(
+                    presetLabel,
+                    new Accessor<NamePlatePreset>(() => profile.NamePlatePreset),
+                    locNameplatesHealth,
+                    search: new SearchMetadata(presetLabel, Keywords: [TazLang.Get("mog_kw_preset")])
                 ),
                 Option.Checkbox(
                     TazLang.Get("mog_general_incomingmobiles"),
