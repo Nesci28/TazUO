@@ -373,7 +373,7 @@ namespace ClassicUO.Game.Scenes
                     break;
             }
 
-            if (!string.IsNullOrEmpty(text))
+            if (!string.IsNullOrEmpty(text) && !ShouldSkipJournalEntry(e, text, name))
             {
                 MessageType journalMessageType = JournalMessageClassifier.Classify(
                     e,
@@ -383,6 +383,29 @@ namespace ClassicUO.Game.Scenes
 
                 _world.Journal.Add(text, hue, name, e.TextType, e.IsUnicode, journalMessageType);
             }
+        }
+
+        private static bool ShouldSkipJournalEntry(MessageEventArgs e, string text, string name)
+        {
+            if (e.TextType != TextType.OBJECT || e.Type != MessageType.Label || e.Parent is not Mobile mobile)
+            {
+                return false;
+            }
+
+            if (!SerialHelper.IsValid(mobile.Serial) || string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            return MatchesJournalLabel(text, mobile.Name)
+                   || MatchesJournalLabel(text, e.Name)
+                   || MatchesJournalLabel(text, name);
+        }
+
+        private static bool MatchesJournalLabel(string text, string label)
+        {
+            return !string.IsNullOrWhiteSpace(label)
+                   && string.Equals(text, label, StringComparison.InvariantCultureIgnoreCase);
         }
 
         public override void Unload()
