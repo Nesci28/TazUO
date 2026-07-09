@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,8 @@ using System.Threading.Tasks;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
+using ClassicUO.Game.UI.Gumps;
+using ClassicUO.LegionScripting;
 using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -23,6 +26,43 @@ namespace ClassicUO.Game.Managers
             public HttpListenerResponse Response { get; set; }
             public int LastJournalCount { get; set; }
         }
+
+        private sealed class MarkerManagerRequest
+        {
+            public string Action { get; set; }
+            public int FileIndex { get; set; } = -1;
+            public int MarkerIndex { get; set; } = -1;
+            public string Name { get; set; }
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int Map { get; set; } = -1;
+            public string Color { get; set; }
+            public string Icon { get; set; }
+        }
+
+        private static readonly JsonSerializerOptions JsonReadOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        private static readonly string[] MarkerColors =
+        {
+            "none",
+            "red",
+            "green",
+            "blue",
+            "purple",
+            "black",
+            "yellow",
+            "white"
+        };
+
+        private static string UserMarkersFilePath => Path.Combine(
+            CUOEnviroment.ExecutablePath,
+            "Data",
+            "Client",
+            $"{WorldMapGump.USER_MARKERS_FILE}.usr"
+        );
 
         private HttpListener _httpListener;
         private Thread _listenerThread;
@@ -136,12 +176,23 @@ namespace ClassicUO.Game.Managers
                     case "/api/maptexture":
                         ServeMapTexture(context.Response);
                         break;
-                    case "/api/markericon":
-                        ServeMarkerIcon(context.Request, context.Response);
-                        break;
-                    case "/api/events":
-                        ServeEventStream(context.Response);
-                        break;
+                        case "/api/markericon":
+                            ServeMarkerIcon(context.Request, context.Response);
+                            break;
+                        case "/api/markermanager":
+                            if (context.Request.HttpMethod == "GET")
+                                ServeMarkerManagerData(context.Response);
+                            else if (context.Request.HttpMethod == "POST")
+                                HandleMarkerManagerRequest(context.Request, context.Response);
+                            else
+                            {
+                                context.Response.StatusCode = 405;
+                                context.Response.Close();
+                            }
+                            break;
+                        case "/api/events":
+                            ServeEventStream(context.Response);
+                            break;
                     case "/api/command":
                         HandleCommand(context.Request, context.Response);
                         break;
@@ -337,6 +388,343 @@ namespace ClassicUO.Game.Managers
                 }
                 catch { }
             }
+        }
+
+        private void ServeMarkerManagerData(HttpListenerResponse response)
+        {
+            try
+            {
+                if (World.Instance == null || !World.Instance.InGame)
+                {
+                    WriteJson(response, new { error = "Not in game" }, 503);
+                    return;
+                }
+
+                object data = MainThreadQueue.BubblingInvokeOnMainThread(BuildMarkerManagerData);
+                WriteJson(response, data);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error serving marker manager data: {ex.Message}");
+                WriteJson(response, new { error = "Failed to load marker manager data" }, 500);
+            }
+        }
+
+        private void HandleMarkerManagerRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (World.Instance == null || !World.Instance.InGame)
+                {
+                    WriteJson(response, new { error = "Not in game" }, 503);
+                    return;
+                }
+
+                string body;
+                using (var reader = new StreamReader(request.InputStream, request.ContentEncoding ?? Encoding.UTF8))
+                {
+                    body = reader.ReadToEnd();
+                }
+
+                MarkerManagerRequest markerRequest = JsonSerializer.Deserialize<MarkerManagerRequest>(body, JsonReadOptions);
+                if (markerRequest == null)
+                {
+                    WriteJson(response, new { error = "Missing marker request" }, 400);
+                    return;
+                }
+
+                object data = MainThreadQueue.BubblingInvokeOnMainThread(() => ApplyMarkerManagerRequest(markerRequest));
+                WriteJson(response, data);
+            }
+            catch (ArgumentException ex)
+            {
+                WriteJson(response, new { error = ex.Message }, 400);
+            }
+            catch (InvalidOperationException ex)
+            {
+                WriteJson(response, new { error = ex.Message }, 409);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error handling marker manager request: {ex.Message}");
+                WriteJson(response, new { error = "Failed to update marker" }, 500);
+            }
+        }
+
+        private object ApplyMarkerManagerRequest(MarkerManagerRequest request)
+        {
+            string action = request.Action?.Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(action))
+                throw new ArgumentException("Missing marker action");
+
+            WorldMapGump.WMapMarkerFile markerFile;
+
+            switch (action)
+            {
+                case "add":
+                    markerFile = EnsureUserMarkerFile();
+                    markerFile.Markers.Add(CreateMarkerFromRequest(request));
+                    SaveUserMarkers(markerFile);
+                    return BuildMarkerManagerData();
+
+                case "update":
+                    markerFile = GetEditableMarkerFile(request.FileIndex);
+                    if (request.MarkerIndex < 0 || request.MarkerIndex >= markerFile.Markers.Count)
+                        throw new ArgumentException("Invalid marker index");
+
+                    markerFile.Markers[request.MarkerIndex] = CreateMarkerFromRequest(request, markerFile.Markers[request.MarkerIndex]);
+                    SaveUserMarkers(markerFile);
+                    return BuildMarkerManagerData();
+
+                case "delete":
+                    markerFile = GetEditableMarkerFile(request.FileIndex);
+                    if (request.MarkerIndex < 0 || request.MarkerIndex >= markerFile.Markers.Count)
+                        throw new ArgumentException("Invalid marker index");
+
+                    markerFile.Markers.RemoveAt(request.MarkerIndex);
+                    SaveUserMarkers(markerFile);
+                    return BuildMarkerManagerData();
+
+                default:
+                    throw new ArgumentException("Unknown marker action");
+            }
+        }
+
+        private object BuildMarkerManagerData()
+        {
+            WorldMapGump.WMapMarkerFile userFile = EnsureUserMarkerFile();
+            var files = new List<object>();
+            int userFileIndex = -1;
+
+            for (int fileIndex = 0; fileIndex < WorldMapGump._markerFiles.Count; fileIndex++)
+            {
+                WorldMapGump.WMapMarkerFile markerFile = WorldMapGump._markerFiles[fileIndex];
+                bool editable = IsUserMarkerFile(markerFile);
+
+                if (markerFile == userFile)
+                    userFileIndex = fileIndex;
+
+                var markers = new List<object>();
+                if (markerFile.Markers != null)
+                {
+                    for (int markerIndex = 0; markerIndex < markerFile.Markers.Count; markerIndex++)
+                    {
+                        markers.Add(BuildMarkerManagerEntry(markerFile.Markers[markerIndex], fileIndex, markerIndex, editable));
+                    }
+                }
+
+                files.Add(new
+                {
+                    index = fileIndex,
+                    name = markerFile.Name,
+                    hidden = markerFile.Hidden,
+                    editable,
+                    markers
+                });
+            }
+
+            var iconNames = WorldMapGump._markerIcons.Keys
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            iconNames.Insert(0, "");
+
+            return new
+            {
+                currentMap = World.Instance?.MapIndex ?? 0,
+                player = new
+                {
+                    x = World.Instance?.Player?.X ?? 0,
+                    y = World.Instance?.Player?.Y ?? 0
+                },
+                userFileIndex,
+                colors = MarkerColors,
+                icons = iconNames,
+                files
+            };
+        }
+
+        private static object BuildMarkerManagerEntry(WorldMapGump.WMapMarker marker, int fileIndex, int markerIndex, bool editable)
+        {
+            Color color = marker.Color == Color.Transparent ? Color.White : marker.Color;
+
+            return new
+            {
+                fileIndex,
+                markerIndex,
+                editable,
+                x = marker.X,
+                y = marker.Y,
+                map = marker.MapId,
+                name = marker.Name,
+                colorName = marker.ColorName,
+                color = new
+                {
+                    r = color.R,
+                    g = color.G,
+                    b = color.B,
+                    a = color.A
+                },
+                iconName = marker.MarkerIconName,
+                zoomIndex = marker.ZoomIndex
+            };
+        }
+
+        private static WorldMapGump.WMapMarkerFile EnsureUserMarkerFile()
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(UserMarkersFilePath));
+
+            if (!File.Exists(UserMarkersFilePath))
+            {
+                using (File.Create(UserMarkersFilePath))
+                {
+                }
+            }
+
+            WorldMapGump.WMapMarkerFile userFile = WorldMapGump._markerFiles.FirstOrDefault(IsUserMarkerFile);
+            if (userFile != null)
+            {
+                userFile.IsEditable = true;
+                userFile.Markers ??= new List<WorldMapGump.WMapMarker>();
+                return userFile;
+            }
+
+            userFile = new WorldMapGump.WMapMarkerFile
+            {
+                Hidden = false,
+                Name = WorldMapGump.USER_MARKERS_FILE,
+                FullPath = UserMarkersFilePath,
+                IsEditable = true,
+                Markers = WorldMapGump.LoadUserMarkers()
+            };
+
+            WorldMapGump._markerFiles.Insert(0, userFile);
+            return userFile;
+        }
+
+        private static WorldMapGump.WMapMarkerFile GetEditableMarkerFile(int fileIndex)
+        {
+            if (fileIndex < 0 || fileIndex >= WorldMapGump._markerFiles.Count)
+                throw new ArgumentException("Invalid marker file");
+
+            WorldMapGump.WMapMarkerFile markerFile = WorldMapGump._markerFiles[fileIndex];
+            if (!IsUserMarkerFile(markerFile))
+                throw new InvalidOperationException("Only user markers can be edited from web map");
+
+            markerFile.Markers ??= new List<WorldMapGump.WMapMarker>();
+            return markerFile;
+        }
+
+        private static bool IsUserMarkerFile(WorldMapGump.WMapMarkerFile markerFile)
+        {
+            return markerFile != null
+                   && (string.Equals(markerFile.Name, WorldMapGump.USER_MARKERS_FILE, StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(markerFile.FullPath, UserMarkersFilePath, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static WorldMapGump.WMapMarker CreateMarkerFromRequest(
+            MarkerManagerRequest request,
+            WorldMapGump.WMapMarker existingMarker = null
+        )
+        {
+            int map = request.Map >= 0 ? request.Map : existingMarker?.MapId ?? World.Instance?.MapIndex ?? 0;
+            int x = request.X;
+            int y = request.Y;
+
+            ValidateMarkerLocation(x, y, map);
+
+            string name = CleanMarkerText(request.Name, 25);
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Marker name is required");
+
+            string colorName = NormalizeMarkerColor(request.Color, existingMarker?.ColorName);
+            string iconName = NormalizeMarkerIcon(request.Icon, existingMarker?.MarkerIconName);
+
+            var marker = new WorldMapGump.WMapMarker
+            {
+                X = x,
+                Y = y,
+                MapId = map,
+                Name = name,
+                Color = WorldMapGump.GetColor(colorName),
+                ColorName = colorName,
+                MarkerIconName = iconName,
+                ZoomIndex = existingMarker?.ZoomIndex ?? 4
+            };
+
+            if (!string.IsNullOrWhiteSpace(iconName) && WorldMapGump._markerIcons.TryGetValue(iconName, out Texture2D markerIconTexture))
+            {
+                marker.MarkerIcon = markerIconTexture;
+            }
+
+            return marker;
+        }
+
+        private static void ValidateMarkerLocation(int x, int y, int map)
+        {
+            if (Client.Game?.UO?.FileManager?.Maps?.MapsDefaultSize == null)
+                throw new InvalidOperationException("Map data is not available");
+
+            int mapCount = Client.Game.UO.FileManager.Maps.MapsDefaultSize.GetLength(0);
+            if (map < 0 || map >= mapCount)
+                throw new ArgumentException("Invalid map index");
+
+            int maxX = Client.Game.UO.FileManager.Maps.MapsDefaultSize[map, 0];
+            int maxY = Client.Game.UO.FileManager.Maps.MapsDefaultSize[map, 1];
+
+            if (x < 0 || x > maxX || y < 0 || y > maxY)
+                throw new ArgumentException("Marker location is outside map");
+        }
+
+        private static string NormalizeMarkerColor(string requestedColor, string fallbackColor)
+        {
+            string color = string.IsNullOrWhiteSpace(requestedColor) ? fallbackColor : requestedColor;
+            color = CleanMarkerText(color, 10).ToLowerInvariant();
+
+            return MarkerColors.Contains(color, StringComparer.OrdinalIgnoreCase) ? color : "yellow";
+        }
+
+        private static string NormalizeMarkerIcon(string requestedIcon, string fallbackIcon)
+        {
+            string icon = requestedIcon == null ? fallbackIcon : requestedIcon;
+            icon = CleanMarkerText(icon, 40).ToLowerInvariant();
+
+            return !string.IsNullOrWhiteSpace(icon) && WorldMapGump._markerIcons.ContainsKey(icon) ? icon : string.Empty;
+        }
+
+        private static string CleanMarkerText(string value, int maxLength)
+        {
+            value = (value ?? string.Empty).Trim().Replace(',', ' ');
+            return value.Length > maxLength ? value.Substring(0, maxLength) : value;
+        }
+
+        private static void SaveUserMarkers(WorldMapGump.WMapMarkerFile markerFile)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(UserMarkersFilePath));
+
+            using (var writer = new StreamWriter(UserMarkersFilePath, false))
+            {
+                foreach (WorldMapGump.WMapMarker marker in markerFile.Markers)
+                {
+                    string name = CleanMarkerText(marker.Name, 25);
+                    string iconName = NormalizeMarkerIcon(marker.MarkerIconName, string.Empty);
+                    string colorName = NormalizeMarkerColor(marker.ColorName, "yellow");
+                    writer.WriteLine($"{marker.X},{marker.Y},{marker.MapId},{name},{iconName},{colorName},{marker.ZoomIndex}");
+                }
+            }
+
+            markerFile.Markers = WorldMapGump.LoadUserMarkers();
+        }
+
+        private static void WriteJson(HttpListenerResponse response, object data, int statusCode = 200)
+        {
+            byte[] buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(data));
+            response.StatusCode = statusCode;
+            response.ContentType = "application/json; charset=utf-8";
+            response.ContentLength64 = buffer.Length;
+            response.OutputStream.Write(buffer, 0, buffer.Length);
+            response.Close();
         }
 
         private static string GetIconContentType(string path)
@@ -545,32 +933,44 @@ namespace ClassicUO.Game.Managers
         {
             var markers = new List<object>();
 
-            if (UI.Gumps.WorldMapGump._markerFiles != null)
+            if (WorldMapGump._markerFiles != null)
             {
-                foreach (UI.Gumps.WorldMapGump.WMapMarkerFile markerFile in UI.Gumps.WorldMapGump._markerFiles)
+                for (int fileIndex = 0; fileIndex < WorldMapGump._markerFiles.Count; fileIndex++)
                 {
+                    WorldMapGump.WMapMarkerFile markerFile = WorldMapGump._markerFiles[fileIndex];
+
                     if (markerFile.Hidden || markerFile.Markers == null)
                         continue;
 
-                    foreach (UI.Gumps.WorldMapGump.WMapMarker marker in markerFile.Markers)
+                    for (int markerIndex = 0; markerIndex < markerFile.Markers.Count; markerIndex++)
                     {
-                        if (marker.MapId == World.Instance.MapIndex)
+                        WorldMapGump.WMapMarker marker = markerFile.Markers[markerIndex];
+
+                        if (marker.MapId != World.Instance.MapIndex)
+                            continue;
+
+                        markers.Add(new
                         {
-                            markers.Add(new
-                            {
-                                x = marker.X,
-                                y = marker.Y,
-                                name = marker.Name,
-                                color = marker.Color == Color.Transparent ? new { r = (byte)255, g = (byte)255, b = (byte)255, a = (byte)255 } : new
+                            fileIndex,
+                            markerIndex,
+                            editable = IsUserMarkerFile(markerFile),
+                            x = marker.X,
+                            y = marker.Y,
+                            map = marker.MapId,
+                            name = marker.Name,
+                            colorName = marker.ColorName,
+                            color = marker.Color == Color.Transparent
+                                ? new { r = (byte)255, g = (byte)255, b = (byte)255, a = (byte)255 }
+                                : new
                                 {
                                     r = marker.Color.R,
                                     g = marker.Color.G,
                                     b = marker.Color.B,
                                     a = marker.Color.A
                                 },
-                                iconName = marker.MarkerIconName
-                            });
-                        }
+                            iconName = marker.MarkerIconName,
+                            zoomIndex = marker.ZoomIndex
+                        });
                     }
                 }
             }
@@ -988,14 +1388,17 @@ namespace ClassicUO.Game.Managers
             color: #fff;
             overflow: hidden;
         }
-        #controls {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.8);
-            padding: 15px;
-            border-radius: 8px;
-            z-index: 1000;
+#controls {
+position: fixed;
+top: 10px;
+left: 10px;
+width: 320px;
+max-height: calc(100vh - 20px);
+overflow-y: auto;
+background: rgba(0,0,0,0.8);
+padding: 15px;
+border-radius: 8px;
+z-index: 1000;
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
         }
         #controls.minimized {
@@ -1076,9 +1479,119 @@ namespace ClassicUO.Game.Managers
         #controls .goto-row button {
             margin: 0;
         }
-        #controls button {
-            margin: 5px 5px 5px 0;
-            padding: 8px 15px;
+#markerManager {
+margin-top: 10px;
+padding-top: 10px;
+border-top: 1px solid #333;
+font-size: 12px;
+}
+.marker-manager-title {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 6px;
+color: #4CAF50;
+font-weight: bold;
+}
+#markerManager select,
+#markerManager input {
+width: 100%;
+padding: 6px 8px;
+margin: 3px 0;
+background: rgba(0,0,0,0.5);
+border: 1px solid #555;
+border-radius: 4px;
+color: #fff;
+font-size: 12px;
+outline: none;
+}
+#markerManager select:focus,
+#markerManager input:focus {
+border-color: #4CAF50;
+}
+.marker-action-row {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 6px;
+margin: 6px 0;
+}
+#markerList {
+max-height: 155px;
+overflow-y: auto;
+border: 1px solid #333;
+background: rgba(0,0,0,0.25);
+margin-top: 6px;
+}
+.marker-row {
+display: grid;
+grid-template-columns: 1fr auto auto;
+gap: 8px;
+align-items: center;
+padding: 6px 8px;
+border-bottom: 1px solid #2a2a2a;
+cursor: pointer;
+}
+.marker-row:last-child {
+border-bottom: none;
+}
+.marker-row:hover,
+.marker-row.selected {
+background: rgba(76,175,80,0.2);
+}
+.marker-row-name {
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+}
+.marker-row-pos {
+color: #c8c8c8;
+font-size: 11px;
+white-space: nowrap;
+}
+.marker-row-delete {
+background: #8f2d2d;
+color: #fff;
+border: none;
+border-radius: 4px;
+padding: 4px 6px;
+font-size: 11px;
+cursor: pointer;
+}
+.marker-row-delete:hover {
+background: #b33a3a;
+}
+.marker-row-delete:disabled {
+background: #3a3a3a;
+color: #888;
+cursor: not-allowed;
+}
+.marker-editor-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 6px;
+margin-top: 6px;
+}
+.marker-editor-wide {
+grid-column: 1 / -1;
+}
+.marker-status {
+min-height: 16px;
+margin-top: 5px;
+color: #c8c8c8;
+}
+#controls #markerManager button {
+width: 100%;
+margin: 0;
+padding: 6px 8px;
+font-size: 12px;
+}
+#controls #markerManager #markerReloadBtn {
+width: auto;
+padding: 4px 8px;
+}
+#controls button {
+margin: 5px 5px 5px 0;
+padding: 8px 15px;
             background: #4CAF50;
             color: white;
             border: none;
@@ -1261,10 +1774,36 @@ namespace ClassicUO.Game.Managers
             <label><input type=""checkbox"" id=""rotateMap"" checked> Rotate Map 45°</label>
             <label><input type=""checkbox"" id=""showParty"" checked> Show Party</label>
             <label><input type=""checkbox"" id=""showGuild"" checked> Show Guild</label>
-            <label><input type=""checkbox"" id=""showMarkers"" checked> Show Markers</label>
-            <label style=""margin-left: 20px;""><input type=""checkbox"" id=""showMarkerIcons"" checked> Icons</label>
-            <input type=""text"" id=""markerSearch"" class=""marker-search"" placeholder=""Search markers..."" autocomplete=""off"" />
-            <label><input type=""checkbox"" id=""showMobiles"" checked> Show Mobiles</label>
+<label><input type=""checkbox"" id=""showMarkers"" checked> Show Markers</label>
+<label style=""margin-left: 20px;""><input type=""checkbox"" id=""showMarkerIcons"" checked> Icons</label>
+<input type=""text"" id=""markerSearch"" class=""marker-search"" placeholder=""Search markers..."" autocomplete=""off"" />
+<div id=""markerManager"">
+<div class=""marker-manager-title""><span>Marker Manager</span><button id=""markerReloadBtn"" type=""button"">Reload</button></div>
+<select id=""markerFileSelect""></select>
+<div class=""marker-action-row"">
+<button id=""markerAddPlayerBtn"" type=""button"">Add Player</button>
+<button id=""markerAddMouseBtn"" type=""button"">Add Mouse</button>
+</div>
+<div id=""markerList""></div>
+<div class=""marker-editor-grid"">
+<input id=""markerNameInput"" class=""marker-editor-wide"" type=""text"" maxlength=""25"" placeholder=""Name"" autocomplete=""off"" />
+<input id=""markerXInput"" type=""number"" min=""0"" placeholder=""X"" />
+<input id=""markerYInput"" type=""number"" min=""0"" placeholder=""Y"" />
+<input id=""markerMapInput"" type=""number"" min=""0"" placeholder=""Map"" />
+<select id=""markerColorSelect""></select>
+<select id=""markerIconSelect"" class=""marker-editor-wide""></select>
+</div>
+<div class=""marker-action-row"">
+<button id=""markerSaveBtn"" type=""button"">Save</button>
+<button id=""markerDeleteBtn"" type=""button"">Delete</button>
+</div>
+<div class=""marker-action-row"">
+<button id=""markerGotoBtn"" type=""button"">Goto</button>
+<button id=""markerNewBtn"" type=""button"">New</button>
+</div>
+<div id=""markerStatus"" class=""marker-status""></div>
+</div>
+<label><input type=""checkbox"" id=""showMobiles"" checked> Show Mobiles</label>
             <label style=""margin-left: 20px;""><input type=""checkbox"" id=""showEnemies"" checked> Enemies</label>
             <label style=""margin-left: 20px;""><input type=""checkbox"" id=""showOthers"" checked> Other</label>
             <label style=""margin-left: 20px;""><input type=""checkbox"" id=""showAllies"" checked> Allies</label>
@@ -1301,12 +1840,23 @@ namespace ClassicUO.Game.Managers
         const journalInput = document.getElementById('journalInput');
         const journalBox = document.getElementById('journal');
         const journalMinimizeBtn = document.getElementById('journalMinimizeBtn');
-        const journalResizeHandle = document.getElementById('journalResizeHandle');
-        const controlsBox = document.getElementById('controls');
-        const controlsMinimizeBtn = document.getElementById('controlsMinimizeBtn');
+const journalResizeHandle = document.getElementById('journalResizeHandle');
+const controlsBox = document.getElementById('controls');
+const controlsMinimizeBtn = document.getElementById('controlsMinimizeBtn');
+const markerFileSelect = document.getElementById('markerFileSelect');
+const markerList = document.getElementById('markerList');
+const markerNameInput = document.getElementById('markerNameInput');
+const markerXInput = document.getElementById('markerXInput');
+const markerYInput = document.getElementById('markerYInput');
+const markerMapInput = document.getElementById('markerMapInput');
+const markerColorSelect = document.getElementById('markerColorSelect');
+const markerIconSelect = document.getElementById('markerIconSelect');
+const markerSaveBtn = document.getElementById('markerSaveBtn');
+const markerDeleteBtn = document.getElementById('markerDeleteBtn');
+const markerStatus = document.getElementById('markerStatus');
 
-        let mapImage = null;
-        let mapData = null;
+let mapImage = null;
+let mapData = null;
         let zoom = 1.0;
         let targetZoom = 1.0;
         let offsetX = 0;
@@ -1320,11 +1870,15 @@ namespace ClassicUO.Game.Managers
         let animationFrameId = null;
         let mouseZoomPoint = null; // Track the world position to keep under cursor during zoom
         let autoScrollJournal = true;
-        let journalMinimized = false;
-        let controlsMinimized = false;
-        let isResizingJournal = false;
-        let markerSearchText = '';
-        let resizeStartX = 0;
+let journalMinimized = false;
+let controlsMinimized = false;
+let isResizingJournal = false;
+let markerSearchText = '';
+let markerManagerData = null;
+let selectedMarkerRef = null;
+let selectedMarkerFileIndex = -1;
+let lastMouseWorld = null;
+let resizeStartX = 0;
         let resizeStartY = 0;
         let resizeStartWidth = 0;
         let resizeStartHeight = 0;
@@ -1718,10 +2272,11 @@ namespace ClassicUO.Game.Managers
 
         // Handle marker search filtering
         const markerSearchInput = document.getElementById('markerSearch');
-        markerSearchInput.addEventListener('input', () => {
-            markerSearchText = markerSearchInput.value.trim().toLowerCase();
-            draw();
-        });
+markerSearchInput.addEventListener('input', () => {
+markerSearchText = markerSearchInput.value.trim().toLowerCase();
+renderMarkerManager(true);
+draw();
+});
 
         // Allow pressing Enter in the goto field to trigger the goto
         document.getElementById('gotoInput').addEventListener('keypress', (e) => {
@@ -1730,8 +2285,307 @@ namespace ClassicUO.Game.Managers
             }
         });
 
-        // Handle journal input
-        journalInput.addEventListener('keypress', (e) => {
+function setMarkerStatus(message) {
+markerStatus.textContent = message || '';
+}
+
+function getMarkerFileByIndex(fileIndex) {
+if (!markerManagerData || !markerManagerData.files) return null;
+return markerManagerData.files.find(file => file.index === fileIndex) || null;
+}
+
+function getSelectedMarker() {
+if (!selectedMarkerRef) return null;
+const file = getMarkerFileByIndex(selectedMarkerRef.fileIndex);
+if (!file || !file.markers) return null;
+return file.markers.find(marker => marker.markerIndex === selectedMarkerRef.markerIndex) || null;
+}
+
+function fillMarkerSelect(select, values, selectedValue, emptyLabel) {
+select.innerHTML = '';
+(values || []).forEach(value => {
+const option = document.createElement('option');
+option.value = value;
+option.textContent = value || emptyLabel;
+select.appendChild(option);
+});
+select.value = selectedValue || '';
+}
+
+async function loadMarkerManager(keepSelection = true) {
+try {
+const response = await fetch('/api/markermanager');
+const data = await response.json();
+if (!response.ok) throw new Error(data.error || 'Failed to load markers');
+markerManagerData = data;
+if (selectedMarkerFileIndex < 0) {
+selectedMarkerFileIndex = data.userFileIndex >= 0 ? data.userFileIndex : ((data.files || [])[0]?.index ?? -1);
+}
+renderMarkerManager(keepSelection);
+} catch (err) {
+console.error('Failed to load marker manager:', err);
+setMarkerStatus('Markers unavailable');
+}
+}
+
+function renderMarkerManager(keepSelection = true) {
+if (!markerManagerData) return;
+
+markerFileSelect.innerHTML = '';
+(markerManagerData.files || []).forEach(file => {
+const option = document.createElement('option');
+option.value = file.index;
+option.textContent = file.editable ? `${file.name} *` : file.name;
+markerFileSelect.appendChild(option);
+});
+
+if (!getMarkerFileByIndex(selectedMarkerFileIndex)) {
+selectedMarkerFileIndex = markerManagerData.userFileIndex >= 0 ? markerManagerData.userFileIndex : ((markerManagerData.files || [])[0]?.index ?? -1);
+}
+
+markerFileSelect.value = String(selectedMarkerFileIndex);
+
+const selectedMarker = keepSelection ? getSelectedMarker() : null;
+fillMarkerSelect(markerColorSelect, markerManagerData.colors || [], selectedMarker?.colorName || 'yellow', 'none');
+fillMarkerSelect(markerIconSelect, markerManagerData.icons || [''], selectedMarker?.iconName || '', '(no icon)');
+
+const file = getMarkerFileByIndex(selectedMarkerFileIndex);
+markerList.innerHTML = '';
+
+if (!file) {
+setMarkerStatus('No marker files');
+fillMarkerForm(null);
+return;
+}
+
+const markers = (file.markers || []).filter(marker => {
+if (!markerSearchText) return true;
+return marker.name && marker.name.toLowerCase().includes(markerSearchText);
+});
+
+markers.forEach(marker => {
+const row = document.createElement('div');
+row.className = 'marker-row';
+if (selectedMarkerRef && selectedMarkerRef.fileIndex === marker.fileIndex && selectedMarkerRef.markerIndex === marker.markerIndex) {
+row.classList.add('selected');
+}
+
+const name = document.createElement('div');
+name.className = 'marker-row-name';
+name.textContent = marker.name || '(unnamed)';
+
+const pos = document.createElement('div');
+pos.className = 'marker-row-pos';
+pos.textContent = `${marker.x}, ${marker.y} m${marker.map}`;
+
+const deleteButton = document.createElement('button');
+deleteButton.type = 'button';
+deleteButton.className = 'marker-row-delete';
+deleteButton.textContent = 'Delete';
+deleteButton.disabled = !marker.editable;
+deleteButton.title = marker.editable ? 'Delete marker' : 'Read-only marker file';
+deleteButton.addEventListener('click', (e) => {
+e.preventDefault();
+e.stopPropagation();
+selectMarker(marker);
+deleteMarker(marker);
+});
+
+row.appendChild(name);
+row.appendChild(pos);
+row.appendChild(deleteButton);
+row.addEventListener('click', () => selectMarker(marker));
+markerList.appendChild(row);
+});
+
+if (markers.length === 0) {
+const emptyRow = document.createElement('div');
+emptyRow.className = 'marker-row';
+emptyRow.textContent = 'No markers';
+markerList.appendChild(emptyRow);
+}
+
+if (!selectedMarker) {
+fillMarkerForm(null);
+} else {
+fillMarkerForm(selectedMarker);
+}
+}
+
+function fillMarkerForm(marker) {
+const currentMap = markerManagerData?.currentMap ?? mapData?.mapIndex ?? 0;
+const position = marker || lastMouseWorld || { x: mapData?.player?.x ?? 0, y: mapData?.player?.y ?? 0, map: currentMap };
+
+markerNameInput.value = marker?.name || '';
+markerXInput.value = position.x ?? 0;
+markerYInput.value = position.y ?? 0;
+markerMapInput.value = position.map ?? currentMap;
+markerColorSelect.value = marker?.colorName || markerColorSelect.value || 'yellow';
+markerIconSelect.value = marker?.iconName || '';
+
+const selected = marker ? getMarkerFileByIndex(marker.fileIndex) : getMarkerFileByIndex(markerManagerData?.userFileIndex ?? -1);
+const canEdit = !marker || (selected && selected.editable);
+markerDeleteBtn.disabled = !marker || !canEdit;
+markerSaveBtn.disabled = !canEdit;
+}
+
+function selectMarker(marker) {
+selectedMarkerRef = { fileIndex: marker.fileIndex, markerIndex: marker.markerIndex };
+selectedMarkerFileIndex = marker.fileIndex;
+renderMarkerManager(true);
+}
+
+function prepareNewMarker(position) {
+selectedMarkerRef = null;
+selectedMarkerFileIndex = markerManagerData?.userFileIndex ?? selectedMarkerFileIndex;
+renderMarkerManager(false);
+const currentMap = markerManagerData?.currentMap ?? mapData?.mapIndex ?? 0;
+const target = position || lastMouseWorld || { x: mapData?.player?.x ?? 0, y: mapData?.player?.y ?? 0, map: currentMap };
+markerNameInput.value = '';
+markerXInput.value = target.x ?? 0;
+markerYInput.value = target.y ?? 0;
+markerMapInput.value = target.map ?? currentMap;
+markerColorSelect.value = 'yellow';
+markerIconSelect.value = '';
+markerNameInput.focus();
+setMarkerStatus('New marker');
+}
+
+function markerPayload(action) {
+const x = Number.parseInt(markerXInput.value, 10);
+const y = Number.parseInt(markerYInput.value, 10);
+const map = Number.parseInt(markerMapInput.value, 10);
+if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(map)) {
+throw new Error('Marker coordinates are required');
+}
+
+return {
+Action: action,
+FileIndex: selectedMarkerRef?.fileIndex ?? markerManagerData?.userFileIndex ?? -1,
+MarkerIndex: selectedMarkerRef?.markerIndex ?? -1,
+Name: markerNameInput.value.trim(),
+X: x,
+Y: y,
+Map: map,
+Color: markerColorSelect.value,
+Icon: markerIconSelect.value
+};
+}
+
+async function saveMarker() {
+try {
+const selectedMarker = getSelectedMarker();
+if (selectedMarker && !selectedMarker.editable) {
+setMarkerStatus('Read-only marker file');
+return;
+}
+
+const action = selectedMarker ? 'update' : 'add';
+const payload = markerPayload(action);
+const response = await fetch('/api/markermanager', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(payload)
+});
+const data = await response.json();
+if (!response.ok) throw new Error(data.error || 'Failed to save marker');
+markerManagerData = data;
+
+if (action === 'add') {
+const userFile = getMarkerFileByIndex(markerManagerData.userFileIndex);
+selectedMarkerFileIndex = markerManagerData.userFileIndex;
+selectedMarkerRef = userFile && userFile.markers.length > 0
+? { fileIndex: userFile.index, markerIndex: userFile.markers[userFile.markers.length - 1].markerIndex }
+: null;
+}
+
+renderMarkerManager(true);
+await loadMapData();
+setMarkerStatus('Saved');
+} catch (err) {
+console.error('Failed to save marker:', err);
+setMarkerStatus(err.message || 'Save failed');
+}
+}
+
+async function deleteMarker(markerToDelete = null) {
+try {
+const selectedMarker = markerToDelete?.markerIndex !== undefined ? markerToDelete : getSelectedMarker();
+if (!selectedMarker) {
+setMarkerStatus('Select a marker to delete');
+return;
+}
+if (!selectedMarker.editable) {
+setMarkerStatus('Read-only marker file');
+return;
+}
+
+const response = await fetch('/api/markermanager', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({
+Action: 'delete',
+FileIndex: selectedMarker.fileIndex,
+MarkerIndex: selectedMarker.markerIndex
+})
+});
+const data = await response.json();
+if (!response.ok) throw new Error(data.error || 'Failed to delete marker');
+markerManagerData = data;
+selectedMarkerRef = null;
+renderMarkerManager(false);
+await loadMapData();
+setMarkerStatus('Deleted');
+} catch (err) {
+console.error('Failed to delete marker:', err);
+setMarkerStatus(err.message || 'Delete failed');
+}
+}
+
+function gotoSelectedMarker() {
+const selectedMarker = getSelectedMarker();
+if (!selectedMarker) return;
+document.getElementById('followPlayer').checked = false;
+centerOnWorld(selectedMarker.x, selectedMarker.y);
+}
+
+function findMarkerNear(world) {
+if (!world || !mapData || !mapData.markers) return null;
+const threshold = Math.max(5, 12 / zoom);
+let bestMarker = null;
+let bestDistance = threshold * threshold;
+
+mapData.markers.forEach(marker => {
+if (marker.map !== world.map) return;
+const dx = marker.x - world.x;
+const dy = marker.y - world.y;
+const distance = dx * dx + dy * dy;
+if (distance <= bestDistance) {
+bestDistance = distance;
+bestMarker = marker;
+}
+});
+
+return bestMarker;
+}
+
+markerFileSelect.addEventListener('change', () => {
+selectedMarkerFileIndex = Number.parseInt(markerFileSelect.value, 10);
+selectedMarkerRef = null;
+renderMarkerManager(false);
+});
+document.getElementById('markerReloadBtn').addEventListener('click', () => loadMarkerManager(true));
+document.getElementById('markerAddPlayerBtn').addEventListener('click', () => {
+prepareNewMarker({ x: mapData?.player?.x ?? 0, y: mapData?.player?.y ?? 0, map: mapData?.mapIndex ?? 0 });
+});
+document.getElementById('markerAddMouseBtn').addEventListener('click', () => prepareNewMarker(lastMouseWorld));
+document.getElementById('markerSaveBtn').addEventListener('click', saveMarker);
+document.getElementById('markerDeleteBtn').addEventListener('click', () => deleteMarker());
+document.getElementById('markerGotoBtn').addEventListener('click', gotoSelectedMarker);
+document.getElementById('markerNewBtn').addEventListener('click', () => prepareNewMarker());
+
+// Handle journal input
+journalInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 const command = journalInput.value.trim();
                 if (command) {
@@ -1773,6 +2627,7 @@ namespace ClassicUO.Game.Managers
                         draw(); // Redraw to show blank screen
 
                         loadMapTexture(0, true); // Reload the map texture for the new map and center on player
+                        loadMarkerManager(true);
                         return; // loadMapTexture will trigger a redraw when complete
                     }
 
@@ -2253,16 +3108,16 @@ namespace ClassicUO.Game.Managers
             document.getElementById('zoomLevel').textContent = zoom.toFixed(2) + 'x';
         }
 
-        function centerOnPlayer() {
-            if (!mapData || !mapData.player || !mapImage) return;
+function centerOnWorld(worldX, worldY) {
+if (!mapImage) return;
 
             // Calculate target offset to center player position on screen
             // The map coordinate system has (0,0) at top-left
             // We need to offset so player appears at canvas center
 
             // Calculate the player's position relative to map center, scaled by zoom
-            let scaledX = (mapData.player.x - mapImage.width / 2) * zoom;
-            let scaledY = (mapData.player.y - mapImage.height / 2) * zoom;
+let scaledX = (worldX - mapImage.width / 2) * zoom;
+let scaledY = (worldY - mapImage.height / 2) * zoom;
 
             // If rotated, we need to rotate these coordinates
             const isRotated = document.getElementById('rotateMap').checked;
@@ -2297,7 +3152,12 @@ namespace ClassicUO.Game.Managers
             targetOffsetY = -scaledY;
         }
 
-        function zoomIn() {
+function centerOnPlayer() {
+if (!mapData || !mapData.player || !mapImage) return;
+centerOnWorld(mapData.player.x, mapData.player.y);
+}
+
+function zoomIn() {
             if (zoomIndex < zoomLevels.length - 1) {
                 zoomIndex++;
                 targetZoom = zoomLevels[zoomIndex];
@@ -2337,7 +3197,34 @@ namespace ClassicUO.Game.Managers
             // Let the animate() loop smoothly interpolate to targetZoom
         }
 
-        canvas.addEventListener('mousedown', (e) => {
+function canvasClientToWorld(clientX, clientY) {
+if (!mapImage || !mapData) return null;
+
+const rect = canvas.getBoundingClientRect();
+const mouseCanvasX = clientX - rect.left;
+const mouseCanvasY = clientY - rect.top;
+
+const centerX = canvas.width / 2;
+const centerY = canvas.height / 2;
+
+let screenX = (mouseCanvasX - centerX - offsetX) / zoom;
+let screenY = (mouseCanvasY - centerY - offsetY) / zoom;
+
+const isRotated = document.getElementById('rotateMap').checked;
+if (isRotated) {
+const rotated = rotatePoint(screenX, screenY, -Math.PI / 4);
+screenX = rotated.x;
+screenY = rotated.y;
+}
+
+return {
+x: Math.floor(screenX + mapImage.width / 2),
+y: Math.floor(screenY + mapImage.height / 2),
+map: mapData.mapIndex
+};
+}
+
+canvas.addEventListener('mousedown', (e) => {
             // Only allow dragging with left mouse button, and not if resizing journal
             if (e.button === 0 && !isResizingJournal) {
                 isDragging = true;
@@ -2366,40 +3253,33 @@ namespace ClassicUO.Game.Managers
                 draw();
             }
 
-            // Update mouse world coordinates
-            if (mapImage && mapData) {
-                const rect = canvas.getBoundingClientRect();
-                const mouseCanvasX = e.clientX - rect.left;
-                const mouseCanvasY = e.clientY - rect.top;
-
-                const centerX = canvas.width / 2;
-                const centerY = canvas.height / 2;
-
-                let screenX = (mouseCanvasX - centerX - offsetX) / zoom;
-                let screenY = (mouseCanvasY - centerY - offsetY) / zoom;
-
-                // If rotated, we need to inverse rotate the screen coordinates
-                const isRotated = document.getElementById('rotateMap').checked;
-                if (isRotated) {
-                    const rotated = rotatePoint(screenX, screenY, -Math.PI / 4);
-                    screenX = rotated.x;
-                    screenY = rotated.y;
-                }
-
-                const worldX = screenX + mapImage.width / 2;
-                const worldY = screenY + mapImage.height / 2;
-
-                document.getElementById('mousePos').textContent =
-                    `${Math.floor(worldX)}, ${Math.floor(worldY)}`;
-            }
+// Update mouse world coordinates
+const world = canvasClientToWorld(e.clientX, e.clientY);
+if (world) {
+lastMouseWorld = world;
+document.getElementById('mousePos').textContent = `${world.x}, ${world.y}`;
+}
         });
 
-        canvas.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
+canvas.addEventListener('mouseup', () => {
+isDragging = false;
+});
 
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
+canvas.addEventListener('dblclick', (e) => {
+const world = canvasClientToWorld(e.clientX, e.clientY);
+const marker = findMarkerNear(world);
+if (marker) {
+selectedMarkerFileIndex = marker.fileIndex;
+selectedMarkerRef = { fileIndex: marker.fileIndex, markerIndex: marker.markerIndex };
+renderMarkerManager(true);
+setMarkerStatus('Selected');
+} else if (world) {
+prepareNewMarker(world);
+}
+});
+
+canvas.addEventListener('wheel', (e) => {
+e.preventDefault();
 
             const zoomDelta = e.deltaY < 0 ? 1 : -1;
 
@@ -2422,11 +3302,19 @@ namespace ClassicUO.Game.Managers
             }
         });
 
-        // Keyboard shortcuts
-        window.addEventListener('keydown', (e) => {
-            switch(e.key) {
-                case '+':
-                case '=':
+ // Keyboard shortcuts
+ window.addEventListener('keydown', (e) => {
+ const activeTag = document.activeElement?.tagName?.toLowerCase();
+ const activeIsEditable = activeTag === 'input' || activeTag === 'select' || activeTag === 'textarea' || document.activeElement?.isContentEditable;
+ if ((e.key === 'Delete' || e.key === 'Backspace') && !activeIsEditable && getSelectedMarker()) {
+ e.preventDefault();
+ deleteMarker();
+ return;
+ }
+
+ switch(e.key) {
+ case '+':
+ case '=':
                     zoomIn();
                     break;
                 case '-':
@@ -2461,13 +3349,14 @@ namespace ClassicUO.Game.Managers
         // Initialize
         loadJournalSize();
         loadMinimizeStates();
-        loadMapTexture();
-        loadMapData();
-        connectEventStream();
+loadMapTexture();
+loadMapData();
+loadMarkerManager();
+connectEventStream();
 
-        // Reload map texture every 30 seconds in case it changes
-        setInterval(loadMapTexture, 30000);
-    </script>
+// Reload map texture every 30 seconds in case it changes
+setInterval(loadMapTexture, 30000);
+</script>
 </body>
 </html>";
 
