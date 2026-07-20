@@ -3,10 +3,11 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
-using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Microsoft.Xna.Framework;
 using Myra.Graphics2D.Brushes;
@@ -68,16 +69,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             {
                 // Passing the current count appends a fresh entry, then we redraw the list.
                 GridHighlightData.GetGridHighlightData(GridHighlightsConfig.Current.Highlights.Count);
+                GridHighlightData.ConfigurationChanged();
                 RebuildList();
             }));
 
             toolbar.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_export"), () => ExportGridHighlightSettings(_world)));
 
-            toolbar.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_import"), () =>
-            {
-                ImportGridHighlightSettings(_world);
-                GridHighlightData.RecheckMatchStatus();
-            }));
+            toolbar.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_import"), () => ImportGridHighlightSettings(_world)));
 
             toolbar.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_configs"), () => GridHighlightConfig.Show(_world)));
 
@@ -111,11 +109,12 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             row.Widgets.Add(MyraCheckButton.CreateWithCallback(data.Enabled, isChecked =>
             {
                 data.Enabled = isChecked;
-                GridHighlightData.RecheckMatchStatus();
+                GridHighlightData.ConfigurationChanged();
             }, tooltip: TazLang.Get("gridhighlight_enabled_tooltip")));
 
             var nameBox = new MyraInputBox { Text = data.Name ?? "", Width = 150 };
             nameBox.TextChangedByUser += (_, _) => data.Name = nameBox.Text ?? "";
+            nameBox.LostFocus = () => GridHighlightData.ConfigurationChanged();
             row.Widgets.Add(nameBox);
 
             var colorButton = new MyraButton(TazLang.Get("gridhighlight_color")) { Tooltip = TazLang.Get("gridhighlight_color_tooltip") };
@@ -123,9 +122,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             colorButton.OnClick = () => RGBColorPickerGump.Open(data.HighlightColor, selectedColor =>
             {
                 data.HighlightColor = selectedColor;
-                data.Hue = (ushort)(selectedColor.R + (selectedColor.G << 8) + (selectedColor.B << 16));
                 ApplyColorButtonStyle(colorButton, selectedColor);
-                GridHighlightData.RecheckMatchStatus();
+                GridHighlightData.ConfigurationChanged();
             });
             row.Widgets.Add(colorButton);
 
@@ -134,22 +132,25 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             row.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_up"), () =>
             {
                 data.Move(true);
-                GridHighlightData.AllConfigs = null;
+                ClosePropertyEditors();
+                GridHighlightData.ConfigurationChanged();
                 RebuildList();
             }) { Tooltip = TazLang.Get("gridhighlight_up_tooltip") });
 
             row.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_down"), () =>
             {
                 data.Move(false);
-                GridHighlightData.AllConfigs = null;
+                ClosePropertyEditors();
+                GridHighlightData.ConfigurationChanged();
                 RebuildList();
             }) { Tooltip = TazLang.Get("gridhighlight_down_tooltip") });
 
             row.Widgets.Add(MyraStyle.ApplyButtonDangerStyle(new MyraButton("X", () =>
             {
                 data.Delete();
+                ClosePropertyEditors();
                 RebuildList();
-                GridHighlightData.RecheckMatchStatus();
+                GridHighlightData.ConfigurationChanged();
             }) { Tooltip = TazLang.Get("gridhighlight_delete_tooltip") }));
 
             return row;
@@ -164,42 +165,80 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             button.DisabledBackground = brush;
         }
 
-        private static void SaveProfile() => GridHighlightRules.SaveGridHighlightConfiguration();
+        private static void ClosePropertyEditors()
+        {
+            foreach (IGui gump in UIManager.Gumps.ToArray())
+                if (gump is GridHighlightProperties properties && !properties.IsDisposed)
+                    properties.Dispose();
+        }
 
         private static void ExportGridHighlightSettings(World world)
         {
-            try
-            {
-                List<GridHighlightSetupEntry> data = GridHighlightsConfig.Current.Highlights;
+            List<GridHighlightSetupEntry> data = GridHighlightsConfig.Current.Highlights;
 
-                string json = JsonSerializer.Serialize(data, GridHighlightsJsonContext.DefaultToUse.ListGridHighlightSetupEntry);
-                Clipboard.SetClipboardText(json);
-                GameActions.Print(world, TazLang.Get("gridhighlight_export_clipboard_success"));
-            }
-            catch (Exception ex)
+            RunFileDialog(world, true, TazLang.Get("gridhighlight_export_dialog"), file =>
             {
-                GameActions.Print(world, TazLang.Get("gridhighlight_export_error"), Constants.HUE_ERROR);
-                Log.Error(ex.ToString());
-            }
+                try
+                {
+                    if (Directory.Exists(file))
+                    {
+                        // If the path is a directory, append default filename
+                        file = Path.Combine(file, "highlights.json");
+                    }
+                    else if (!Path.HasExtension(file))
+                    {
+                        // If it's not a directory and has no extension, assume they meant a file name
+                        file += ".json";
+                    }
+
+                    string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(file, json);
+                    GameActions.Print(world, TazLang.Get("gridhighlight_export_success", [file]));
+                }
+                catch (Exception ex)
+                {
+                    GameActions.Print(world, TazLang.Get("gridhighlight_export_error"), Constants.HUE_ERROR);
+                    Log.Error(ex.ToString());
+                }
+            });
         }
 
-        private static void ImportGridHighlightSettings(World world)
+        private static void ImportGridHighlightSettings(World world) => RunFileDialog(world, false, TazLang.Get("gridhighlight_import_dialog"), file =>
         {
             try
             {
-                string json = Clipboard.GetClipboardText();
-                if (string.IsNullOrWhiteSpace(json))
-                {
-                    GameActions.Print(world, TazLang.Get("gridhighlight_import_clipboard_empty"), Constants.HUE_ERROR);
+                if (!File.Exists(file))
                     return;
+
+                string json = File.ReadAllText(file);
+                using JsonDocument document = JsonDocument.Parse(json);
+                List<GridHighlightSetupEntry> imported;
+
+                if (document.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    imported = DeserializeEntries(document.RootElement);
+                }
+                else if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                         TryGetPropertyIgnoreCase(document.RootElement, "highlights", out JsonElement entries))
+                {
+                    imported = DeserializeEntries(entries);
+                }
+                else
+                {
+                    imported = null;
                 }
 
-                List<GridHighlightSetupEntry> imported = JsonSerializer.Deserialize(json, GridHighlightsJsonContext.DefaultToUse.ListGridHighlightSetupEntry);
                 if (imported != null)
                 {
+                    MigrateImportedLegacyColors(imported, document.RootElement);
+                    imported = imported.Where(entry => entry != null).ToList();
+                    foreach (GridHighlightSetupEntry entry in imported)
+                        entry.Normalize();
+
                     GridHighlightsConfig.Current.Highlights.AddRange(imported);
-                    GridHighlightsConfig.Current.Save();
-                    SaveProfile();
+                    GridHighlightsConfig.Current.Normalize();
+                    ClosePropertyEditors();
+                    GridHighlightData.ConfigurationChanged();
 
                     foreach (IGui gump in UIManager.Gumps)
                     {
@@ -210,7 +249,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                         }
                     }
 
-                    GameActions.Print(world, TazLang.Get("gridhighlight_import_clipboard_success"));
+                    GameActions.Print(world, TazLang.Get("gridhighlight_import_success", [file]));
                 }
             }
             catch (Exception ex)
@@ -218,6 +257,57 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 GameActions.Print(world, TazLang.Get("gridhighlight_import_error"), Constants.HUE_ERROR);
                 Log.Error(ex.ToString());
             }
+        });
+
+        private static List<GridHighlightSetupEntry> DeserializeEntries(JsonElement entries)
+        {
+            string json = entries.GetRawText();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            if (json.Contains("\"highlight_color\"", StringComparison.OrdinalIgnoreCase))
+                options.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+            return JsonSerializer.Deserialize<List<GridHighlightSetupEntry>>(json, options);
         }
+
+        private static void MigrateImportedLegacyColors(List<GridHighlightSetupEntry> imported, JsonElement root)
+        {
+            JsonElement entries = root;
+            if (root.ValueKind == JsonValueKind.Object &&
+                !TryGetPropertyIgnoreCase(root, "highlights", out entries))
+                return;
+
+            if (entries.ValueKind != JsonValueKind.Array)
+                return;
+
+            int index = 0;
+            foreach (JsonElement jsonEntry in entries.EnumerateArray())
+            {
+                if (index >= imported.Count)
+                    break;
+
+                if (jsonEntry.ValueKind == JsonValueKind.Object &&
+                    !TryGetPropertyIgnoreCase(jsonEntry, "highlight_color", out _) &&
+                    !TryGetPropertyIgnoreCase(jsonEntry, "highlightColor", out _))
+                    GridHighLightProfile.TryMigrateLegacyHue(imported[index]);
+
+                index++;
+            }
+        }
+
+        private static bool TryGetPropertyIgnoreCase(JsonElement element, string name, out JsonElement value)
+        {
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                if (property.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static void RunFileDialog(World world, bool save, string title, Action<string> onResult) => FileSelector.ShowFileBrowser(world, save ? FileSelectorType.Directory : FileSelectorType.File, null, save ? null : ["*.json"], onResult, title);
     }
 }

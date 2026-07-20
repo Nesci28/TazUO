@@ -1,6 +1,7 @@
 using ClassicUO.Configuration;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Game.UI.Gumps.GridHighLight;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using System;
@@ -86,6 +87,8 @@ namespace ClassicUO.Game.Managers
 
         private readonly HashSet<uint> _quickContainsLookup = new ();
         private readonly HashSet<uint> _recentlyLooted = new ();
+        private readonly record struct LootRequest(uint Item, AutoLootConfigEntry Entry, bool IsGridHighlight);
+        private readonly Dictionary<ObjectActionQueueItem, LootRequest> _lootItems = new();
         private readonly List<AutoLootConfigEntry> _fallbackEntries = new ();
         private AutoLootData _data = new ();
         private AutoLootList _currentList;
@@ -94,6 +97,7 @@ namespace ClassicUO.Game.Managers
         private ProgressBarGump _progressBarGump;
         private int _currentLootTotalCount = 0;
         private int _pendingLootCount = 0;
+        private bool _lastEnabledState;
         private bool IsEnabled => ProfileManager.CurrentProfile.EnableAutoLoot;
 
         private readonly World _world;
@@ -113,8 +117,32 @@ namespace ClassicUO.Game.Managers
         }
 
         public void LootItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
+            => QueueLootItem(item, entry, priority, false);
+
+        /// <summary>
+        /// Queues a grid-highlight loot request only while global auto-loot is enabled and tags it
+        /// so rule edits can revoke pending actions safely.
+        /// </summary>
+        public bool LootGridHighlightItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
         {
-            if (item == null || !_recentlyLooted.Add(item.Serial) || !_quickContainsLookup.Add(item.Serial)) return;
+            if (!IsEnabled)
+                return false;
+
+            return QueueLootItem(item, entry, priority, true);
+        }
+
+        private bool QueueLootItem(Item item, AutoLootConfigEntry entry, AutoLootPriority priority, bool isGridHighlight)
+        {
+            if (item == null)
+                return false;
+
+            // A normal auto-loot rule is authoritative if the same item was first queued by a
+            // grid-highlight rule. Promote it so later grid-rule edits cannot cancel normal loot.
+            if (_quickContainsLookup.Contains(item.Serial))
+                return !isGridHighlight && PromoteQueuedRequestToStandard(item.Serial, entry, priority);
+
+            if (!_recentlyLooted.Add(item.Serial) || !_quickContainsLookup.Add(item.Serial))
+                return false;
 
             if (entry != null)
                 priority = entry.Priority;
@@ -122,15 +150,53 @@ namespace ClassicUO.Game.Managers
             uint serial = item.Serial;
 
             ObjectActionQueue.Instance.Enqueue(
-                new ObjectActionQueueItem(
-                    () => MoveLootItem(serial, entry),
-                    _ => OnLootActionComplete(serial)),
+                CreateLootAction(serial, entry, isGridHighlight),
                 ToActionPriority(priority));
 
             _currentLootTotalCount++;
             _pendingLootCount++;
             _nextClearRecents = Time.Ticks + (ProfileManager.CurrentProfile?.AutoLootRetryDelay ?? 5000);
             CreateProgressBar();
+            return true;
+        }
+
+        private ObjectActionQueueItem CreateLootAction(uint serial, AutoLootConfigEntry entry, bool isGridHighlight)
+        {
+            var action = new ObjectActionQueueItem(
+                () => MoveLootItem(serial, entry),
+                completed =>
+                {
+                    _lootItems.Remove(completed);
+                    OnLootActionComplete(serial);
+                });
+            _lootItems.Add(action, new LootRequest(serial, entry, isGridHighlight));
+            return action;
+        }
+
+        private bool PromoteQueuedRequestToStandard(uint serial, AutoLootConfigEntry entry, AutoLootPriority priority)
+        {
+            if (entry != null)
+                priority = entry.Priority;
+
+            bool promoted = false;
+            var queued = new List<(ObjectActionQueueItem Action, ActionPriority Priority, long Sequence)>();
+            while (ObjectActionQueue.Instance.TryDequeue(out var action, out var queuedPriority, out long sequence))
+            {
+                if (!promoted && _lootItems.TryGetValue(action, out LootRequest request) && request.Item == serial && request.IsGridHighlight)
+                {
+                    _lootItems.Remove(action);
+                    action = CreateLootAction(serial, entry, false);
+                    queuedPriority = ToActionPriority(priority);
+                    promoted = true;
+                }
+
+                queued.Add((action, queuedPriority, sequence));
+            }
+
+            foreach (var pending in queued)
+                ObjectActionQueue.Instance.Enqueue(pending.Action, pending.Priority, pending.Sequence);
+
+            return promoted;
         }
 
         public void ForceLootContainer(uint serial)
@@ -153,12 +219,6 @@ namespace ClassicUO.Game.Managers
             {
                 HandleCorpse(i);
 
-                return;
-            }
-
-            if (i.ShouldAutoLoot)
-            {
-                LootItem(i, null);
                 return;
             }
 
@@ -450,7 +510,22 @@ namespace ClassicUO.Game.Managers
 
         public void Update()
         {
-            if (!_loaded || !IsEnabled || !_world.InGame) return;
+            if (!_loaded || !_world.InGame) return;
+
+            bool isEnabled = IsEnabled;
+            if (isEnabled != _lastEnabledState)
+            {
+                _lastEnabledState = isEnabled;
+                if (isEnabled)
+                    GridHighlightData.RecheckMatchStatus();
+            }
+
+            if (!isEnabled)
+            {
+                if (_lootItems.Count > 0)
+                    ClearActiveLootQueue();
+                return;
+            }
 
             if (_pendingLootCount == 0)
             {
@@ -689,6 +764,12 @@ namespace ClassicUO.Game.Managers
 
         public void ClearActiveLootQueue()
         {
+            foreach (var action in new List<ObjectActionQueueItem>(_lootItems.Keys))
+            {
+                _recentlyLooted.Remove(_lootItems[action].Item);
+                action.AfterInvoked?.Invoke(action);
+            }
+
             ObjectActionQueue.Instance.ClearByPriority(ActionPriority.LootItemHigh);
             ObjectActionQueue.Instance.ClearByPriority(ActionPriority.LootItemMedium);
             ObjectActionQueue.Instance.ClearByPriority(ActionPriority.LootItem);
@@ -697,6 +778,35 @@ namespace ClassicUO.Game.Managers
             _quickContainsLookup.Clear();
             _progressBarGump?.Dispose();
             _progressBarGump = null;
+        }
+
+        public void CancelGridHighlightLoot()
+        {
+            if (_lootItems.Count == 0)
+                return;
+
+            var retained = new List<(ObjectActionQueueItem Action, ActionPriority Priority, long Sequence)>();
+            while (ObjectActionQueue.Instance.TryDequeue(out var action, out var priority, out long sequence))
+            {
+                if (!_lootItems.TryGetValue(action, out LootRequest request) || !request.IsGridHighlight)
+                {
+                    retained.Add((action, priority, sequence));
+                    continue;
+                }
+
+                _recentlyLooted.Remove(request.Item);
+                action.AfterInvoked?.Invoke(action);
+            }
+
+            foreach (var pending in retained)
+                ObjectActionQueue.Instance.Enqueue(pending.Action, pending.Priority, pending.Sequence);
+
+            _currentLootTotalCount = _pendingLootCount;
+            if (_pendingLootCount == 0)
+            {
+                _progressBarGump?.Dispose();
+                _progressBarGump = null;
+            }
         }
 
         public void ImportFromOtherCharacter(string characterName, List<AutoLootConfigEntry> entries)

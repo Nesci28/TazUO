@@ -571,22 +571,37 @@ public class GridItem : Control
     /// <summary>
     /// Draws a highlighted border around the grid item
     /// </summary>
-    private void DrawHighlightBorder(UltimaBatcher2D batcher, Rectangle cellBounds, Texture2D borderTexture, Vector3 borderHueVec)
+    internal static void DrawHighlightBorder(
+        UltimaBatcher2D batcher,
+        Rectangle cellBounds,
+        Texture2D borderTexture,
+        Vector3 borderHueVec,
+        int borderSize,
+        int inset = 6
+    )
     {
-        int bsize = _profile.GridHighlightSize;
-        int bx = cellBounds.X + 6;
-        int by = cellBounds.Y + 6;
-        int innerWidth = cellBounds.Width - 12;
-        int innerHeight = cellBounds.Height - 12;
+        inset = Math.Max(0, inset);
+        int bx = cellBounds.X + inset;
+        int by = cellBounds.Y + inset;
+        int innerWidth = cellBounds.Width - (inset * 2);
+        int innerHeight = cellBounds.Height - (inset * 2);
+
+        int maxBorderSize = Math.Min(innerWidth, innerHeight) / 2;
+        if (maxBorderSize < 1)
+            return;
+        int bsize = Math.Clamp(borderSize, 1, maxBorderSize);
 
         // Top border
         batcher.Draw(borderTexture, new Rectangle(bx, by, innerWidth, bsize), borderHueVec);
 
         // Left border
-        batcher.Draw(borderTexture, new Rectangle(bx, by + bsize, bsize, innerHeight - (bsize * 2)), borderHueVec);
+        int sideHeight = innerHeight - (bsize * 2);
+        if (sideHeight > 0)
+            batcher.Draw(borderTexture, new Rectangle(bx, by + bsize, bsize, sideHeight), borderHueVec);
 
         // Right border
-        batcher.Draw(borderTexture, new Rectangle(bx + innerWidth - bsize, by + bsize, bsize, innerHeight - (bsize * 2)), borderHueVec);
+        if (sideHeight > 0)
+            batcher.Draw(borderTexture, new Rectangle(bx + innerWidth - bsize, by + bsize, bsize, sideHeight), borderHueVec);
 
         // Bottom border
         batcher.Draw(borderTexture, new Rectangle(bx, by + innerHeight - bsize, innerWidth, bsize), borderHueVec);
@@ -880,7 +895,7 @@ public class GridItem : Control
         Rectangle outlineSource = InflateRectangleWithinBounds(
             source,
             LOW_CONTRAST_OUTLINE_PADDING,
-            0,
+            LOW_CONTRAST_OUTLINE_PADDING,
             LOW_CONTRAST_OUTLINE_PADDING,
             LOW_CONTRAST_OUTLINE_PADDING,
             _bounds
@@ -1049,14 +1064,6 @@ public class GridItem : Control
         int itemCellHeight = _isListLayout ? GridContainer.LIST_ICON_SIZE : Height;
         Rectangle itemCellBounds = new(x, y, itemCellWidth, itemCellHeight);
 
-        if (_item.MatchesHighlightData && !_gridContainer.HighlightsDisabledForContainer)
-        {
-            Texture2D borderTexture = SolidColorTextureCache.GetTexture(_item.HighlightColor);
-            var borderHueVec = new Vector3(1, 0, 1);
-
-            DrawHighlightBorder(batcher, itemCellBounds, borderTexture, borderHueVec);
-        }
-
         if (MouseIsOver)
         {
             hueVector.Z = 0.3f;
@@ -1121,6 +1128,12 @@ public class GridItem : Control
         }
 
         batcher.Draw(_texture, destination, source, hueVector);
+
+        if (_item.MatchesHighlightData && !_gridContainer.HighlightsDisabledForContainer)
+        {
+            Texture2D borderTexture = SolidColorTextureCache.GetTexture(_item.HighlightColor);
+            DrawHighlightBorder(batcher, itemCellBounds, borderTexture, new Vector3(1, 0, 1), _profile.GridHighlightSize);
+        }
 
         _count?.Draw(batcher, x + _count.X, y + _count.Y);
 
