@@ -1,10 +1,6 @@
 using ClassicUO.Configuration;
-using ClassicUO.Game.Managers;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
 {
@@ -13,6 +9,19 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 #pragma warning disable CS0618 // Populating the obsolete GridHighlightSetup is a one-time migration step toward grid_highlights.json.
         public static void MigrateGridHighlightToSetup(Profile profile)
         {
+            if (profile == null)
+                return;
+
+            profile.GridHighlightSetup ??= new();
+            profile.GridHighlight_Name ??= new();
+            profile.GridHighlight_Hue ??= new();
+            profile.GridHighlight_PropNames ??= new();
+            profile.GridHighlight_PropMinVal ??= new();
+            profile.GridHighlight_AcceptExtraProperties ??= new();
+            profile.GridHighlight_IsOptionalProperties ??= new();
+            profile.GridHighlight_ExcludeNegatives ??= new();
+            profile.GridHighlight_RequiredRarities ??= new();
+
             profile.GridHighlightSetup.Clear();
             int count = profile.GridHighlight_Name.Count;
 
@@ -29,6 +38,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                     RequiredRarities = profile.GridHighlight_RequiredRarities.ElementAtOrDefault(i) ?? new(),
                     Properties = new List<GridHighlightProperty>()
                 };
+
+                TryMigrateLegacyHue(entry);
 
                 List<string> names = profile.GridHighlight_PropNames.ElementAtOrDefault(i) ?? new();
                 List<int> mins = profile.GridHighlight_PropMinVal.ElementAtOrDefault(i) ?? new();
@@ -56,6 +67,23 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             profile.GridHighlight_IsOptionalProperties.Clear();
             profile.GridHighlight_ExcludeNegatives.Clear();
             profile.GridHighlight_RequiredRarities.Clear();
+        }
+
+        internal static void TryMigrateLegacyHue(GridHighlightSetupEntry entry)
+        {
+            if (entry == null || entry.Hue == 0)
+                return;
+
+            try
+            {
+                uint packed = Client.Game.UO.FileManager.Hues.GetHueColorRgba8888(31, entry.Hue);
+                entry.SetHighlightColor(new Microsoft.Xna.Framework.Color { PackedValue = packed });
+                entry.Hue = 0;
+            }
+            catch
+            {
+                // Assets may not be available during headless migration; retain both the hue and safe default.
+            }
         }
 #pragma warning restore CS0618
     }
