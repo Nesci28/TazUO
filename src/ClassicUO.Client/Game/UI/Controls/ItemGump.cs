@@ -149,6 +149,20 @@ namespace ClassicUO.Game.UI.Controls
 
                     batcher.Draw(spriteInfo.Texture, rect, spriteInfo.UV, hueVector);
                 }
+
+                if (item is { MatchesHighlightData: true } &&
+                    SerialHelper.IsItem(item.Container) &&
+                    ProfileManager.CurrentProfile != null)
+                {
+                    GridItem.DrawHighlightBorder(
+                        batcher,
+                        new Rectangle(x, y, Width, Height),
+                        SolidColorTextureCache.GetTexture(item.HighlightColor),
+                        new Vector3(1, 0, 1),
+                        ProfileManager.CurrentProfile.GridHighlightSize,
+                        0
+                    );
+                }
             }
 
             return true;
