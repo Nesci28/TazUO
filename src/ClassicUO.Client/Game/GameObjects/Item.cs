@@ -36,8 +36,9 @@ namespace ClassicUO.Game.GameObjects
         /// <summary>Colors of all matching grid highlight rules in configured order.</summary>
         public Color[] HighlightColors = Array.Empty<Color>();
         public string HighlightName = string.Empty;
-        public bool ShouldAutoLoot;
         public bool HighlightChecked;
+        public uint HighlightCheckedContainer;
+        public ushort HighlightCheckedGraphic;
         public string CustomName { get; set; }
 
         /// <summary>

@@ -165,11 +165,17 @@ namespace ClassicUO.Utility
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Color FromHtmlHex(this string hex, Color fallback)
         {
-            if (hex.StartsWith("#")) hex = hex.Substring(1);
-            if (hex.Length != 6) return fallback;
+            if (string.IsNullOrWhiteSpace(hex)) return fallback;
+            if (hex.StartsWith("#", StringComparison.Ordinal)) hex = hex.Substring(1);
+            if (hex.Length != 6 && hex.Length != 8) return fallback;
 
-            int value = Convert.ToInt32(hex, 16);
-            return new Color((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
+            if (!uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                    System.Globalization.CultureInfo.InvariantCulture, out uint value))
+                return fallback;
+
+            return hex.Length == 8
+                ? new Color((byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value)
+                : new Color((byte)(value >> 16), (byte)(value >> 8), (byte)value, byte.MaxValue);
         }
 
         /// <summary>

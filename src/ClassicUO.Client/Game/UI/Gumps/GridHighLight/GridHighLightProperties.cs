@@ -22,6 +22,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
     public class GridHighlightProperties : MyraControl
     {
         private static readonly Func<char, bool> IntInputFilter = c => char.IsDigit(c) || c == '-';
+        private static readonly Func<char, bool> NonNegativeIntInputFilter = char.IsDigit;
 
         private readonly World _world;
         private readonly int _keyLoc;
@@ -79,13 +80,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         {
             _content.Widgets.Add(MyraCheckButton.CreateWithCallback(
                 _data.AcceptExtraProperties,
-                v => _data.AcceptExtraProperties = v,
+                v => { _data.AcceptExtraProperties = v; GridHighlightData.ConfigurationChanged(); },
                 TazLang.Get("gridhighlight_allowextra"),
                 TazLang.Get("gridhighlight_acceptextra_tooltip")));
 
             _content.Widgets.Add(MyraCheckButton.CreateWithCallback(
                 _data.LootOnMatch,
-                v => _data.LootOnMatch = v,
+                v => { _data.LootOnMatch = v; GridHighlightData.ConfigurationChanged(); },
                 TazLang.Get("gridhighlight_lootonmatch"),
                 TazLang.Get("gridhighlight_lootonmatch_tooltip")));
 
@@ -97,12 +98,24 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 Width = 110,
                 Tooltip = TazLang.Get("gridhighlight_destcontainer_tooltip")
             };
-            destInput.TextChangedByUser += (_, _) =>
+            destInput.LostFocus = () =>
             {
-                if (string.IsNullOrWhiteSpace(destInput.Text))
+                string entered = destInput.Text?.Trim() ?? string.Empty;
+                if (entered.Length == 0)
+                {
                     _data.DestinationContainer = 0;
-                else if (uint.TryParse(destInput.Text.Replace("0x", "").Replace("0X", ""), System.Globalization.NumberStyles.HexNumber, null, out uint destSerial))
+                    GridHighlightData.ConfigurationChanged();
+                }
+                else if (uint.TryParse(entered.Replace("0x", "", StringComparison.OrdinalIgnoreCase),
+                             System.Globalization.NumberStyles.HexNumber, null, out uint destSerial))
+                {
                     _data.DestinationContainer = destSerial;
+                    GridHighlightData.ConfigurationChanged();
+                }
+
+                string expected = _data.DestinationContainer == 0 ? "" : $"0x{_data.DestinationContainer:X}";
+                if (!string.Equals(destInput.Text, expected, StringComparison.OrdinalIgnoreCase))
+                    destInput.Text = expected;
             };
             destRow.Widgets.Add(destInput);
             destRow.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_loottocontainer"), MyraLabel.TextStyle.P));
@@ -110,10 +123,11 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             {
                 _world.TargetManager.SetTargeting(targeted =>
                 {
-                    if (targeted is Entity entity && SerialHelper.IsItem(entity))
+                    if (targeted is Item item && item.ItemData.IsContainer)
                     {
-                        _data.DestinationContainer = entity.Serial;
-                        destInput.Text = $"0x{entity.Serial:X}";
+                        _data.DestinationContainer = item.Serial;
+                        destInput.Text = $"0x{item.Serial:X}";
+                        GridHighlightData.ConfigurationChanged();
                     }
                 });
             }) { Tooltip = TazLang.Get("gridhighlight_target_tooltip") });
@@ -121,13 +135,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
             // Match count / property count ranges
             var countRow = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalSpacing = 8, VerticalSpacing = 4 };
-            countRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_minmatchcount"), _data.MinimumMatchingProperty, v => { _data.MinimumMatchingProperty = v; GridHighlightData.RecheckMatchStatus(); }));
-            countRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_maxmatchcount"), _data.MaximumMatchingProperty, v => { _data.MaximumMatchingProperty = v; GridHighlightData.RecheckMatchStatus(); }));
+            countRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_minmatchcount"), _data.MinimumMatchingProperty, v => { _data.MinimumMatchingProperty = v; GridHighlightData.ConfigurationChanged(); }));
+            countRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_maxmatchcount"), _data.MaximumMatchingProperty, v => { _data.MaximumMatchingProperty = v; GridHighlightData.ConfigurationChanged(); }));
             _content.Widgets.Add(countRow);
 
             var propCountRow = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalSpacing = 8, VerticalSpacing = 4 };
-            propCountRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_minpropcount"), _data.MinimumProperty, v => { _data.MinimumProperty = v; GridHighlightData.RecheckMatchStatus(); }));
-            propCountRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_maxpropcount"), _data.MaximumProperty, v => { _data.MaximumProperty = v; GridHighlightData.RecheckMatchStatus(); }));
+            propCountRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_minpropcount"), _data.MinimumProperty, v => { _data.MinimumProperty = v; GridHighlightData.ConfigurationChanged(); }));
+            propCountRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_maxpropcount"), _data.MaximumProperty, v => { _data.MaximumProperty = v; GridHighlightData.ConfigurationChanged(); }));
             _content.Widgets.Add(propCountRow);
         }
 
@@ -146,7 +160,6 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             {
                 _data.ItemNames.Add("");
                 Rebuild();
-                GridHighlightData.RecheckMatchStatus();
             }));
         }
 
@@ -157,7 +170,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         private void BuildProperties()
         {
             string[] values = GridHighlightRules.FlattenAndDistinctParameters(
-                GridHighlightRules.Properties, GridHighlightRules.SuperSlayerProperties, GridHighlightRules.SlayerProperties);
+                GridHighlightRules.Properties, GridHighlightRules.Resistances,
+                GridHighlightRules.SuperSlayerProperties, GridHighlightRules.SlayerProperties);
 
             // A grid keeps the header labels aligned above their columns (a plain stack sizes each
             // label to its own text width, so the titles drift out of line with the fields).
@@ -177,9 +191,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             _content.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_addproperty"), () =>
             {
                 _data.Properties.Add(new GridHighlightProperty { Name = "", MinValue = -1, IsOptional = false });
-                _data.InvalidateCache();
                 Rebuild();
-                GridHighlightData.RecheckMatchStatus();
             }));
         }
 
@@ -189,6 +201,15 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
             var nameInput = new MyraInputBox { Text = property.Name ?? "", Width = 170 };
             nameInput.TextChangedByUser += (_, _) => property.Name = nameInput.Text ?? "";
+            nameInput.LostFocus = () =>
+            {
+                if (string.IsNullOrWhiteSpace(property.Name))
+                {
+                    _data.Properties.Remove(property);
+                    Rebuild();
+                }
+                GridHighlightData.ConfigurationChanged();
+            };
 
             // Property picker: a suggestion dropdown that fills the editable name box next to it.
             // Setting Text programmatically doesn't raise TextChangedByUser, so commit the value to
@@ -196,8 +217,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             var propCell = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             propCell.Widgets.Add(SuggestionCombo(values, v =>
             {
-                nameInput.Text = v;
                 property.Name = v;
+                nameInput.Text = v;
+                GridHighlightData.ConfigurationChanged();
             }));
             propCell.Widgets.Add(nameInput);
             grid.AddWidget(propCell, row, 0);
@@ -208,16 +230,29 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 if (int.TryParse(minInput.Text, out int v))
                     property.MinValue = v;
             };
+            minInput.LostFocus = () =>
+            {
+                if (!int.TryParse(minInput.Text, out int value))
+                {
+                    value = -1;
+                }
+                property.MinValue = Math.Max(-1, value);
+                minInput.Text = property.MinValue.ToString();
+                GridHighlightData.ConfigurationChanged();
+            };
             grid.AddWidget(minInput, row, 1);
 
-            grid.AddWidget(MyraCheckButton.CreateWithCallback(property.IsOptional, v => property.IsOptional = v), row, 2);
+            grid.AddWidget(MyraCheckButton.CreateWithCallback(property.IsOptional, v =>
+            {
+                property.IsOptional = v;
+                GridHighlightData.ConfigurationChanged();
+            }), row, 2);
 
             grid.AddWidget(MyraStyle.ApplyButtonDangerStyle(new MyraButton("X", () =>
             {
                 _data.Properties.RemoveAt(index);
-                _data.InvalidateCache();
                 Rebuild();
-                GridHighlightData.RecheckMatchStatus();
+                GridHighlightData.ConfigurationChanged();
             }) { Tooltip = TazLang.Get("gridhighlight_deleteproperty_tooltip") }), row, 3);
         }
 
@@ -252,17 +287,10 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             var headerRow = new HorizontalStackPanel { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
             headerRow.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_selectslots"), MyraLabel.TextStyle.P));
 
-            var slotChecks = new List<MyraCheckButton>(slots.Length);
-
             headerRow.Widgets.Add(MyraCheckButton.CreateWithCallback(_data.EquipmentSlots.Other, otherChecked =>
             {
-                // Checking "Other" clears every individual slot; the slot checkboxes push their own
-                // value into the data via their callbacks when we flip IsChecked below.
-                foreach (MyraCheckButton cb in slotChecks)
-                    cb.IsChecked = !otherChecked;
-
                 _data.EquipmentSlots.Other = otherChecked;
-                GridHighlightData.RecheckMatchStatus();
+                GridHighlightData.ConfigurationChanged();
             }, TazLang.Get("gridhighlight_otherslot")));
 
             _content.Widgets.Add(headerRow);
@@ -275,10 +303,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 MyraCheckButton cb = MyraCheckButton.CreateWithCallback(get(_data.EquipmentSlots), v =>
                 {
                     capturedSet(_data.EquipmentSlots, v);
-                    GridHighlightData.RecheckMatchStatus();
+                    GridHighlightData.ConfigurationChanged();
                 }, label);
 
-                slotChecks.Add(cb);
                 wrap.Widgets.Add(cb);
             }
 
@@ -296,14 +323,14 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             var weightRow = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalSpacing = 8, VerticalSpacing = 4 };
             weightRow.Widgets.Add(MyraCheckButton.CreateWithCallback(
                 _data.Overweight,
-                v => { _data.Overweight = v; GridHighlightData.RecheckMatchStatus(); },
+                v => { _data.Overweight = v; GridHighlightData.ConfigurationChanged(); },
                 TazLang.Get("gridhighlight_weightfilter"),
                 TazLang.Get("gridhighlight_weight_tooltip")));
 
             weightRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_min"), _data.MinimumWeight,
-                v => { _data.MinimumWeight = v; GridHighlightData.RecheckMatchStatus(); }, tooltip: TazLang.Get("gridhighlight_minweight_tooltip")));
+                v => { _data.MinimumWeight = v; GridHighlightData.ConfigurationChanged(); }, tooltip: TazLang.Get("gridhighlight_minweight_tooltip")));
             weightRow.Widgets.Add(LabeledNumber(TazLang.Get("gridhighlight_max"), _data.MaximumWeight,
-                v => { _data.MaximumWeight = v; GridHighlightData.RecheckMatchStatus(); }, tooltip: TazLang.Get("gridhighlight_maxweight_tooltip")));
+                v => { _data.MaximumWeight = v; GridHighlightData.ConfigurationChanged(); }, tooltip: TazLang.Get("gridhighlight_maxweight_tooltip")));
             _content.Widgets.Add(weightRow);
 
             _content.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_excludedesc"), MyraLabel.TextStyle.P));
@@ -318,9 +345,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             _content.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_adddisqualifying"), () =>
             {
                 _data.ExcludeNegatives.Add("");
-                _data.InvalidateCache();
                 Rebuild();
-                GridHighlightData.RecheckMatchStatus();
             }));
         }
 
@@ -341,9 +366,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             _content.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_addrarity"), () =>
             {
                 _data.RequiredRarities.Add("");
-                _data.InvalidateCache();
                 Rebuild();
-                GridHighlightData.RecheckMatchStatus();
             }));
         }
 
@@ -359,14 +382,26 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
             var input = new MyraInputBox { Text = list[index] ?? "", Width = 230 };
             input.TextChangedByUser += (_, _) => list[index] = input.Text ?? "";
+            input.LostFocus = () =>
+            {
+                if (index < list.Count && string.IsNullOrWhiteSpace(list[index]))
+                {
+                    list.RemoveAt(index);
+                    Rebuild();
+                }
+                GridHighlightData.ConfigurationChanged();
+            };
 
             // Setting Text programmatically doesn't raise TextChangedByUser, so commit the value to
             // the model here too or the picked value is shown but never saved.
             if (suggestions != null && suggestions.Length > 0)
                 row.Widgets.Add(SuggestionCombo(suggestions, v =>
                 {
-                    input.Text = v;
+                    if (index >= list.Count)
+                        return;
                     list[index] = v;
+                    input.Text = v;
+                    GridHighlightData.ConfigurationChanged();
                 }));
 
             row.Widgets.Add(input);
@@ -374,9 +409,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             row.Widgets.Add(MyraStyle.ApplyButtonDangerStyle(new MyraButton("X", () =>
             {
                 list.RemoveAt(index);
-                _data.InvalidateCache();
                 Rebuild();
-                GridHighlightData.RecheckMatchStatus();
+                GridHighlightData.ConfigurationChanged();
             }) { Tooltip = TazLang.Get("gridhighlight_deleteproperty_tooltip") }));
 
             return row;
@@ -385,11 +419,12 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         /// <summary>A numeric input followed by its label, committing valid integers as the user types.</summary>
         private static Widget LabeledNumber(string label, int value, Action<int> onChanged, string tooltip = null)
         {
-            var box = new MyraInputBox { Text = value.ToString(), Width = 55, Tooltip = tooltip, InputFilter = IntInputFilter };
-            box.TextChangedByUser += (_, _) =>
+            var box = new MyraInputBox { Text = Math.Max(0, value).ToString(), Width = 55, Tooltip = tooltip, InputFilter = NonNegativeIntInputFilter };
+            box.LostFocus = () =>
             {
-                if (int.TryParse(box.Text, out int v))
-                    onChanged(v);
+                int parsed = int.TryParse(box.Text, out int v) ? Math.Max(0, v) : 0;
+                box.Text = parsed.ToString();
+                onChanged(parsed);
             };
 
             var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
