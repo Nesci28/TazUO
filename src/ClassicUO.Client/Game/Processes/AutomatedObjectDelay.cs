@@ -5,8 +5,6 @@ using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Managers.Structs;
 using ClassicUO.Game.UI.Gumps;
-using ClassicUO.Network;
-using ClassicUO.Utility.Logging;
 
 namespace ClassicUO.Game.Processes;
 
@@ -48,11 +46,8 @@ public static class AutomatedObjectDelay
     {
         if (e.Cliloc == 500119)
         {
-            uint ping = AsyncNetClient.Socket.PingManager.Ping;
-            int baseDelay = _delay + (STEP_CHANGE * 2);
-            _delay = baseDelay + (int)ping;
+            _delay += STEP_CHANGE * 2;
             ProfileManager.CurrentProfile.MoveMultiObjectDelay = _delay;
-            GameActions.Print($"Object delay: {baseDelay} ms + ping: {ping} ms = {_delay} ms.");
             End();
         }
     }
@@ -86,7 +81,7 @@ public static class AutomatedObjectDelay
                 _timer.Elapsed += TimerOnElapsed;
                 _timer.AutoReset = false;
                 _timer.Start();
-            }),
+            }, includePingInCooldown: false),
             ActionPriority.MoveItem);
     }
 
@@ -98,7 +93,12 @@ public static class AutomatedObjectDelay
 
     private static void End()
     {
-        GameActions.Print($"Automated object delay finished. ({_delay})", Constants.HUE_SUCCESS);
+        uint ping = GlobalActionCooldown.CurrentPing;
+        long queuedDelay = _delay + ping;
+        GameActions.Print(
+            $"Automated object delay finished. Base: {_delay} ms + ping: {ping} ms = {queuedDelay} ms.",
+            Constants.HUE_SUCCESS
+        );
         _item = null;
         _timer?.Stop();
         _timer = null;
