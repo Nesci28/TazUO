@@ -631,6 +631,7 @@ namespace ClassicUO.Configuration
         public ushort MainWindowBackgroundHue { get; set => SetProperty(ref field, value); } = 1;
 
         public int MoveMultiObjectDelay { get; set => SetProperty(ref field, value); } = 1000;
+        public bool MoveMultiAutoRetry { get; set => SetProperty(ref field, value); }
 
         public bool SpellIcon_DisplayHotkey { get; set => SetProperty(ref field, value); } = true;
         public ushort SpellIcon_HotkeyHue { get; set => SetProperty(ref field, value); } = 1;
