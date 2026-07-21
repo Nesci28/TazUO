@@ -48,8 +48,11 @@ public static class AutomatedObjectDelay
     {
         if (e.Cliloc == 500119)
         {
-            _delay += (STEP_CHANGE * 2) + (int)AsyncNetClient.Socket.Statistics.Ping;
+            uint ping = AsyncNetClient.Socket.PingManager.Ping;
+            int baseDelay = _delay + (STEP_CHANGE * 2);
+            _delay = baseDelay + (int)ping;
             ProfileManager.CurrentProfile.MoveMultiObjectDelay = _delay;
+            GameActions.Print($"Object delay: {baseDelay} ms + ping: {ping} ms = {_delay} ms.");
             End();
         }
     }
