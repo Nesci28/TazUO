@@ -94,9 +94,10 @@ public static class AutomatedObjectDelay
     private static void End()
     {
         uint ping = GlobalActionCooldown.CurrentPing;
-        long queuedDelay = _delay + ping + GlobalActionCooldown.NetworkSafetyMargin;
+        uint safetyMargin = GlobalActionCooldown.GetNetworkSafetyMargin(ping);
+        long queuedDelay = _delay + ping + safetyMargin;
         GameActions.Print(
-            $"Automated object delay finished. Base: {_delay} ms + ping: {ping} ms + safety: {GlobalActionCooldown.NetworkSafetyMargin} ms = {queuedDelay} ms.",
+            $"Automated object delay finished. Base: {_delay} ms + ping: {ping} ms + safety: {safetyMargin} ms = {queuedDelay} ms.",
             Constants.HUE_SUCCESS
         );
         _item = null;
