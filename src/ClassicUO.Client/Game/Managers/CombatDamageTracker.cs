@@ -2,41 +2,27 @@ using System;
 using System.Collections.Generic;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
-using ClassicUO.Utility;
 
 namespace ClassicUO.Game.Managers;
 
+/// <summary>
+/// Tracks damage observed by the client and attributes whole damage events only when a matching
+/// source event is available. Damage packets contain the target and amount, but not the attacker.
+/// </summary>
 public sealed class CombatDamageTracker
 {
     private const uint IdleResetMs = 30_000;
     private const uint PruneAfterMs = 60_000;
-    private const uint RecentActionMs = 3_500;
-    private const uint StrongAttackMs = 650;
-    private const uint AttackDecayMs = 2_400;
-    private const uint SwingWindowMs = 1_800;
-    private const uint SpellWindowMs = 3_000;
-    private const uint SpellTargetWindowMs = 2_500;
-    private const uint TargetSwapPenaltyMs = 700;
-    private const uint SustainedMeleeSessionMs = 12_000;
-    private const double SustainedMeleeFloor = 0.85;
-    private const double SustainedMeleeRefreshThreshold = 0.55;
-
-    private static readonly TimeSpan DamageWindow = TimeSpan.FromSeconds(15);
+    private const uint SwingEvidenceMs = 1_200;
+    private const uint SpellEvidenceMs = 3_500;
 
     private readonly object _sync = new();
     private readonly Dictionary<uint, TargetDamageState> _targets = new();
+    private readonly Dictionary<uint, List<SourceEvidence>> _sourceEvidence = new();
     private readonly World _world;
 
-    private IntentRecord _lastAttackIntent;
-    private IntentRecord _lastSwingIntent;
-    private IntentRecord _lastSpellIntent;
-    private IntentRecord _lastSpellVisualIntent;
-    private IntentRecord _lastSpellTargetIntent;
-    private IntentRecord _lastMeleeSessionIntent;
-
-    private uint _lastTargetSerial;
-    private uint _lastTargetChangedAt;
-    private uint _lastAnyActivityAt;
+    private uint _activeTargetSerial;
+    private uint _lastDamageAt;
     private bool _isSubscribed;
 
     public CombatDamageTracker(World world)
@@ -54,7 +40,6 @@ public sealed class CombatDamageTracker
         EventSink.OnEntityDamage += OnEntityDamage;
         EventSink.OnPlayerDeath += OnPlayerDeath;
         EventSink.OnDisconnected += OnDisconnected;
-        EventSink.SpellCastBegin += OnSpellCastBegin;
         _isSubscribed = true;
     }
 
@@ -68,7 +53,6 @@ public sealed class CombatDamageTracker
         EventSink.OnEntityDamage -= OnEntityDamage;
         EventSink.OnPlayerDeath -= OnPlayerDeath;
         EventSink.OnDisconnected -= OnDisconnected;
-        EventSink.SpellCastBegin -= OnSpellCastBegin;
         _isSubscribed = false;
         Reset();
     }
@@ -78,70 +62,40 @@ public sealed class CombatDamageTracker
         lock (_sync)
         {
             _targets.Clear();
-            _lastAttackIntent = default;
-            _lastSwingIntent = default;
-            _lastSpellIntent = default;
-            _lastSpellVisualIntent = default;
-            _lastSpellTargetIntent = default;
-            _lastMeleeSessionIntent = default;
-            _lastTargetSerial = 0;
-            _lastTargetChangedAt = 0;
-            _lastAnyActivityAt = 0;
+            _sourceEvidence.Clear();
+            _activeTargetSerial = 0;
+            _lastDamageAt = 0;
         }
     }
 
-    public void RecordAttackIntent(uint targetSerial)
+    /// <summary>
+    /// Records a server swing event. The swing packet identifies both attacker and defender.
+    /// </summary>
+    public void RecordSwing(uint attackerSerial, uint targetSerial)
     {
-        if (!IsValidCombatTarget(targetSerial))
+        if (!IsValidCombatTarget(targetSerial) || !SerialHelper.IsValid(attackerSerial))
         {
             return;
         }
 
-        lock (_sync)
-        {
-            uint now = Time.Ticks;
-            RefreshTargetAnchor(now);
-            _lastAttackIntent = new IntentRecord(targetSerial, now);
-            _lastMeleeSessionIntent = new IntentRecord(targetSerial, now);
-            _lastAnyActivityAt = now;
-            TrackTargetChange(targetSerial, now);
-        }
-    }
-
-    public void RecordSwing(uint targetSerial)
-    {
-        if (!IsValidCombatTarget(targetSerial))
-        {
-            return;
-        }
+        DamageSource source = attackerSerial == _world.Player?.Serial
+            ? DamageSource.Mine
+            : DamageSource.Others;
 
         lock (_sync)
         {
-            uint now = Time.Ticks;
-            RefreshTargetAnchor(now);
-            _lastSwingIntent = new IntentRecord(targetSerial, now);
-            _lastMeleeSessionIntent = new IntentRecord(targetSerial, now);
-            _lastAnyActivityAt = now;
-            TrackTargetChange(targetSerial, now);
+            if (source == DamageSource.Mine)
+            {
+                _activeTargetSerial = targetSerial;
+            }
+
+            AddEvidence(targetSerial, source, Time.Ticks, SwingEvidenceMs);
         }
     }
 
-    public void RecordSpellIntent(int spellId)
-    {
-        if (!IsHarmfulSpell(spellId))
-        {
-            return;
-        }
-
-        lock (_sync)
-        {
-            uint now = Time.Ticks;
-            RefreshTargetAnchor(now);
-            _lastSpellIntent = new IntentRecord(_world.TargetManager.LastAttack, now);
-            _lastAnyActivityAt = now;
-        }
-    }
-
+    /// <summary>
+    /// Records an outgoing harmful target selection from this client.
+    /// </summary>
     public void RecordHarmfulTargetIntent(uint targetSerial, TargetType targetType)
     {
         if (targetType != TargetType.Harmful || !IsValidCombatTarget(targetSerial))
@@ -151,27 +105,33 @@ public sealed class CombatDamageTracker
 
         lock (_sync)
         {
-            uint now = Time.Ticks;
-            RefreshTargetAnchor(now);
-            _lastSpellTargetIntent = new IntentRecord(targetSerial, now);
-            _lastAnyActivityAt = now;
-            TrackTargetChange(targetSerial, now);
+            _activeTargetSerial = targetSerial;
+            AddEvidence(targetSerial, DamageSource.Mine, Time.Ticks, SpellEvidenceMs);
         }
     }
 
     public CombatDamageSnapshot GetActiveSnapshot()
     {
-        uint targetSerial = _world.TargetManager.LastAttack;
-
         lock (_sync)
         {
-            if (!IsValidCombatTarget(targetSerial) && IsValidCombatTarget(_lastMeleeSessionIntent.TargetSerial))
-            {
-                targetSerial = _lastMeleeSessionIntent.TargetSerial;
-            }
-        }
+            uint now = Time.Ticks;
+            ResetIfIdle(now);
+            Prune(now);
 
-        return GetSnapshot(targetSerial);
+            uint targetSerial = _activeTargetSerial;
+
+            if (!IsValidCombatTarget(targetSerial) || !_targets.ContainsKey(targetSerial))
+            {
+                targetSerial = _world.TargetManager.LastAttack;
+
+                if (!IsValidCombatTarget(targetSerial) || !_targets.ContainsKey(targetSerial))
+                {
+                    targetSerial = GetMostRecentTarget(now);
+                }
+            }
+
+            return GetSnapshotLocked(targetSerial);
+        }
     }
 
     public CombatDamageSnapshot GetSnapshot(uint targetSerial)
@@ -181,21 +141,48 @@ public sealed class CombatDamageTracker
             uint now = Time.Ticks;
             ResetIfIdle(now);
             Prune(now);
-
-            if (!IsValidCombatTarget(targetSerial) || !_targets.TryGetValue(targetSerial, out TargetDamageState state))
-            {
-                return new CombatDamageSnapshot(targetSerial, 0, 0, 0, 0, 0, 0, 0, false);
-            }
-
-            return state.GetSnapshot(now);
+            return GetSnapshotLocked(targetSerial);
         }
+    }
+
+    private CombatDamageSnapshot GetSnapshotLocked(uint targetSerial)
+    {
+        if (!IsValidCombatTarget(targetSerial) || !_targets.TryGetValue(targetSerial, out TargetDamageState state))
+        {
+            return new CombatDamageSnapshot(targetSerial, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false);
+        }
+
+        return state.GetSnapshot();
     }
 
     private void OnEntityDamage(object sender, int damage)
     {
-        if (sender is Entity entity)
+        if (sender is not Entity entity || damage <= 0 || !IsValidCombatTarget(entity.Serial))
         {
-            RecordDamage(entity, damage);
+            return;
+        }
+
+        lock (_sync)
+        {
+            uint now = Time.Ticks;
+            ResetIfIdle(now);
+
+            DamageSource source = ResolveSource(entity.Serial, now);
+
+            if (source == DamageSource.Mine)
+            {
+                _activeTargetSerial = entity.Serial;
+            }
+
+            if (!_targets.TryGetValue(entity.Serial, out TargetDamageState state))
+            {
+                state = new TargetDamageState(entity.Serial);
+                _targets[entity.Serial] = state;
+            }
+
+            state.AddDamage(now, damage, source);
+            _lastDamageAt = now;
+            Prune(now);
         }
     }
 
@@ -203,193 +190,108 @@ public sealed class CombatDamageTracker
 
     private void OnDisconnected(object sender, EventArgs e) => Reset();
 
-    private void OnSpellCastBegin(object sender, int spellId)
+    private void AddEvidence(uint targetSerial, DamageSource source, uint now, uint lifetimeMs)
     {
-        if (!IsHarmfulSpell(spellId))
+        if (!_sourceEvidence.TryGetValue(targetSerial, out List<SourceEvidence> evidence))
         {
-            return;
+            evidence = new List<SourceEvidence>();
+            _sourceEvidence[targetSerial] = evidence;
         }
 
-        lock (_sync)
+        RemoveExpiredEvidence(evidence, now);
+        evidence.Add(new SourceEvidence(source, now, lifetimeMs));
+    }
+
+    private DamageSource ResolveSource(uint targetSerial, uint now)
+    {
+        if (!_sourceEvidence.TryGetValue(targetSerial, out List<SourceEvidence> evidence))
         {
-            uint now = Time.Ticks;
-            RefreshTargetAnchor(now);
-            _lastSpellVisualIntent = new IntentRecord(_world.TargetManager.LastAttack, now);
-            _lastAnyActivityAt = now;
+            return DamageSource.Unknown;
+        }
+
+        RemoveExpiredEvidence(evidence, now);
+
+        if (evidence.Count == 0)
+        {
+            _sourceEvidence.Remove(targetSerial);
+            return DamageSource.Unknown;
+        }
+
+        DamageSource source = evidence[0].Source;
+        bool hasConflictingSource = false;
+        int bestIndex = 0;
+        uint bestElapsed = uint.MaxValue;
+
+        for (int i = 0; i < evidence.Count; i++)
+        {
+            if (evidence[i].Source != source)
+            {
+                hasConflictingSource = true;
+            }
+
+            uint elapsed = Elapsed(now, evidence[i].Tick);
+
+            if (elapsed < bestElapsed)
+            {
+                bestElapsed = elapsed;
+                bestIndex = i;
+            }
+        }
+
+        if (hasConflictingSource)
+        {
+            _sourceEvidence.Remove(targetSerial);
+            return DamageSource.Unknown;
+        }
+
+        evidence.RemoveAt(bestIndex);
+
+        if (evidence.Count == 0)
+        {
+            _sourceEvidence.Remove(targetSerial);
+        }
+
+        return source;
+    }
+
+    private static void RemoveExpiredEvidence(List<SourceEvidence> evidence, uint now)
+    {
+        for (int i = evidence.Count - 1; i >= 0; i--)
+        {
+            if (Elapsed(now, evidence[i].Tick) > evidence[i].LifetimeMs)
+            {
+                evidence.RemoveAt(i);
+            }
         }
     }
 
-    private void RecordDamage(Entity entity, int damage)
+    private uint GetMostRecentTarget(uint now)
     {
-        if (damage <= 0 || entity == null || !IsValidCombatTarget(entity.Serial))
+        uint targetSerial = 0;
+        uint shortestElapsed = uint.MaxValue;
+
+        foreach ((uint serial, TargetDamageState state) in _targets)
         {
-            return;
+            uint elapsed = Elapsed(now, state.LastDamageTick);
+
+            if (elapsed < shortestElapsed)
+            {
+                shortestElapsed = elapsed;
+                targetSerial = serial;
+            }
         }
 
-        lock (_sync)
-        {
-            uint now = Time.Ticks;
-            RefreshTargetAnchor(now);
-            ResetIfIdle(now);
-
-            double probabilityMine = ComputeMineProbability(entity.Serial, now);
-            TargetDamageState state = GetOrCreateState(entity.Serial);
-            state.AddDamage(now, damage, probabilityMine);
-            RefreshSustainedMeleeSession(entity.Serial, now, probabilityMine);
-            _lastAnyActivityAt = now;
-            Prune(now);
-        }
-    }
-
-    private double ComputeMineProbability(uint targetSerial, uint now)
-    {
-        uint anchor = _world.TargetManager.LastAttack;
-        bool targetIsLastAttack = targetSerial == anchor;
-
-        double score = targetIsLastAttack ? 0.22 : 0.04;
-
-        score += IntentScore(_lastAttackIntent, targetSerial, now, StrongAttackMs, AttackDecayMs, 0.38);
-        score += IntentScore(_lastSwingIntent, targetSerial, now, 0, SwingWindowMs, 0.46);
-        score += IntentScore(_lastSpellIntent, targetSerial, now, 0, SpellWindowMs, 0.24);
-        score += IntentScore(_lastSpellVisualIntent, targetSerial, now, 0, SpellWindowMs, 0.12);
-        score += IntentScore(_lastSpellTargetIntent, targetSerial, now, 0, SpellTargetWindowMs, 0.30);
-
-        bool hasRecentTargetAction = HasRecentTargetAction(targetSerial, now);
-        bool hasSustainedMeleeSession = HasSustainedMeleeSession(targetSerial, now);
-
-        if (!hasRecentTargetAction)
-        {
-            score *= targetIsLastAttack ? 0.55 : 0.25;
-        }
-
-        if (!targetIsLastAttack && !hasRecentTargetAction && !hasSustainedMeleeSession)
-        {
-            score *= 0.45;
-        }
-
-        if (_lastTargetChangedAt != 0 && Elapsed(now, _lastTargetChangedAt) <= TargetSwapPenaltyMs && !hasRecentTargetAction)
-        {
-            score *= 0.6;
-        }
-
-        if (_lastAnyActivityAt == 0 || Elapsed(now, _lastAnyActivityAt) > RecentActionMs)
-        {
-            score *= 0.5;
-        }
-
-        if (hasSustainedMeleeSession)
-        {
-            score = Math.Max(score, SustainedMeleeFloor);
-        }
-
-        return Math.Clamp(score, 0.02, 0.98);
-    }
-
-    private double IntentScore(IntentRecord intent, uint targetSerial, uint now, uint strongMs, uint decayMs, double weight)
-    {
-        if (!intent.IsSet || !IntentMatches(intent, targetSerial))
-        {
-            return 0;
-        }
-
-        uint elapsed = Elapsed(now, intent.Tick);
-
-        if (elapsed > decayMs)
-        {
-            return 0;
-        }
-
-        if (strongMs > 0 && elapsed <= strongMs)
-        {
-            return weight;
-        }
-
-        uint decayStart = strongMs;
-        uint decayDuration = Math.Max(1u, decayMs - decayStart);
-        double remaining = 1.0 - Math.Min(1.0, (double)(elapsed - decayStart) / decayDuration);
-
-        return weight * remaining;
-    }
-
-    private bool IntentMatches(IntentRecord intent, uint targetSerial)
-    {
-        return intent.TargetSerial == targetSerial
-               || (!IsValidCombatTarget(intent.TargetSerial) && targetSerial == _world.TargetManager.LastAttack);
-    }
-
-    private bool HasRecentTargetAction(uint targetSerial, uint now)
-    {
-        return HasRecentAction(_lastAttackIntent, targetSerial, now)
-               || HasRecentAction(_lastSwingIntent, targetSerial, now)
-               || HasRecentAction(_lastSpellIntent, targetSerial, now)
-               || HasRecentAction(_lastSpellVisualIntent, targetSerial, now)
-               || HasRecentAction(_lastSpellTargetIntent, targetSerial, now);
-    }
-
-    private bool HasRecentAction(IntentRecord intent, uint targetSerial, uint now)
-    {
-        return intent.IsSet
-               && IntentMatches(intent, targetSerial)
-               && Elapsed(now, intent.Tick) <= RecentActionMs;
-    }
-
-    private bool HasSustainedMeleeSession(uint targetSerial, uint now)
-    {
-        return _lastMeleeSessionIntent.IsSet
-               && _lastMeleeSessionIntent.TargetSerial == targetSerial
-               && _world.Player?.InWarMode == true
-               && Elapsed(now, _lastMeleeSessionIntent.Tick) <= SustainedMeleeSessionMs;
-    }
-
-    private void RefreshSustainedMeleeSession(uint targetSerial, uint now, double probabilityMine)
-    {
-        if (probabilityMine < SustainedMeleeRefreshThreshold || !HasSustainedMeleeSession(targetSerial, now))
-        {
-            return;
-        }
-
-        _lastMeleeSessionIntent = new IntentRecord(targetSerial, now);
-    }
-
-    private void RefreshTargetAnchor(uint now)
-    {
-        TrackTargetChange(_world.TargetManager.LastAttack, now);
-    }
-
-    private void TrackTargetChange(uint targetSerial, uint now)
-    {
-        if (_lastTargetSerial != targetSerial)
-        {
-            _lastTargetSerial = targetSerial;
-            _lastTargetChangedAt = now;
-        }
-    }
-
-    private TargetDamageState GetOrCreateState(uint targetSerial)
-    {
-        if (!_targets.TryGetValue(targetSerial, out TargetDamageState state))
-        {
-            state = new TargetDamageState(targetSerial);
-            _targets[targetSerial] = state;
-        }
-
-        return state;
+        return targetSerial;
     }
 
     private void ResetIfIdle(uint now)
     {
-        if (_lastAnyActivityAt != 0 && Elapsed(now, _lastAnyActivityAt) > IdleResetMs)
+        if (_targets.Count > 0 && Elapsed(now, _lastDamageAt) > IdleResetMs)
         {
             _targets.Clear();
-            _lastAttackIntent = default;
-            _lastSwingIntent = default;
-            _lastSpellIntent = default;
-            _lastSpellVisualIntent = default;
-            _lastSpellTargetIntent = default;
-            _lastMeleeSessionIntent = default;
-            _lastTargetSerial = _world.TargetManager.LastAttack;
-            _lastTargetChangedAt = now;
-            _lastAnyActivityAt = 0;
+            _sourceEvidence.Clear();
+            _activeTargetSerial = 0;
+            _lastDamageAt = 0;
         }
     }
 
@@ -408,18 +310,31 @@ public sealed class CombatDamageTracker
 
         if (remove == null)
         {
-            return;
+            remove = new List<uint>();
         }
 
         foreach (uint serial in remove)
         {
             _targets.Remove(serial);
+            _sourceEvidence.Remove(serial);
         }
-    }
 
-    private bool IsHarmfulSpell(int spellId)
-    {
-        return SpellDefinition.FullIndexGetSpell(spellId)?.TargetType == TargetType.Harmful;
+        remove.Clear();
+
+        foreach ((uint serial, List<SourceEvidence> evidence) in _sourceEvidence)
+        {
+            RemoveExpiredEvidence(evidence, now);
+
+            if (evidence.Count == 0)
+            {
+                remove.Add(serial);
+            }
+        }
+
+        foreach (uint serial in remove)
+        {
+            _sourceEvidence.Remove(serial);
+        }
     }
 
     private bool IsValidCombatTarget(uint serial)
@@ -428,19 +343,22 @@ public sealed class CombatDamageTracker
         return SerialHelper.IsValid(serial) && (player == null || serial != player.Serial);
     }
 
-    private static uint Elapsed(uint now, uint then) => now - then;
+    private static uint Elapsed(uint now, uint then) => unchecked(now - then);
 
-    private readonly record struct IntentRecord(uint TargetSerial, uint Tick)
+    private enum DamageSource
     {
-        public bool IsSet => Tick != 0;
+        Unknown,
+        Mine,
+        Others
     }
+
+    private readonly record struct SourceEvidence(DamageSource Source, uint Tick, uint LifetimeMs);
 
     private sealed class TargetDamageState
     {
-        private readonly AverageOverTime _mine = new(DamageWindow);
-        private readonly AverageOverTime _others = new(DamageWindow);
-        private readonly AverageOverTime _total = new(DamageWindow);
-        private readonly AverageOverTime _confidence = new(DamageWindow);
+        private long _mineDamage;
+        private long _othersDamage;
+        private long _unknownDamage;
 
         public TargetDamageState(uint serial)
         {
@@ -448,30 +366,69 @@ public sealed class CombatDamageTracker
         }
 
         public uint Serial { get; }
+        public uint FirstDamageTick { get; private set; }
         public uint LastDamageTick { get; private set; }
+        public int HitCount { get; private set; }
 
-        public void AddDamage(uint now, int damage, double probabilityMine)
+        public void AddDamage(uint now, int damage, DamageSource source)
         {
-            double mine = damage * probabilityMine;
-            _mine.AddValue(now, mine);
-            _others.AddValue(now, damage - mine);
-            _total.AddValue(now, damage);
-            _confidence.AddValue(now, probabilityMine);
+            if (HitCount > 0 && Elapsed(now, LastDamageTick) > IdleResetMs)
+            {
+                _mineDamage = 0;
+                _othersDamage = 0;
+                _unknownDamage = 0;
+                HitCount = 0;
+            }
+
+            if (HitCount == 0)
+            {
+                FirstDamageTick = now;
+            }
+
+            switch (source)
+            {
+                case DamageSource.Mine:
+                    _mineDamage += damage;
+                    break;
+                case DamageSource.Others:
+                    _othersDamage += damage;
+                    break;
+                default:
+                    _unknownDamage += damage;
+                    break;
+            }
+
+            HitCount++;
             LastDamageTick = now;
         }
 
-        public CombatDamageSnapshot GetSnapshot(uint now)
+        public CombatDamageSnapshot GetSnapshot()
         {
+            if (HitCount == 0)
+            {
+                return new CombatDamageSnapshot(Serial, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false);
+            }
+
+            long totalDamage = _mineDamage + _othersDamage + _unknownDamage;
+            double elapsedSeconds = Elapsed(LastDamageTick, FirstDamageTick) / 1_000.0;
+            double rateSeconds = elapsedSeconds > 0 ? elapsedSeconds : 1.0;
+            long attributedDamage = _mineDamage + _othersDamage;
+            double attributionCoverage = totalDamage > 0 ? (double)attributedDamage / totalDamage : 0;
+
             return new CombatDamageSnapshot(
                 Serial,
-                Math.Round(_mine.AveragePerSecond(now), 1),
-                Math.Round(_others.AveragePerSecond(now), 1),
-                Math.Round(_total.AveragePerSecond(now), 1),
-                Math.Round(_mine.Sum(now), 1),
-                Math.Round(_others.Sum(now), 1),
-                Math.Round(_total.Sum(now), 1),
-                Math.Round(_confidence.Average(now), 2),
-                LastDamageTick != 0
+                Math.Round(_mineDamage / rateSeconds, 1),
+                Math.Round(_othersDamage / rateSeconds, 1),
+                Math.Round(_unknownDamage / rateSeconds, 1),
+                Math.Round(totalDamage / rateSeconds, 1),
+                _mineDamage,
+                _othersDamage,
+                _unknownDamage,
+                totalDamage,
+                HitCount,
+                Math.Round(elapsedSeconds, 1),
+                Math.Round(attributionCoverage, 2),
+                true
             );
         }
     }

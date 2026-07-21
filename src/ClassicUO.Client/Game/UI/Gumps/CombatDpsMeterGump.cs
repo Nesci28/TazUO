@@ -17,9 +17,9 @@ namespace ClassicUO.Game.UI.Gumps;
 public sealed class CombatDpsMeterGump : MyraControl
 {
     private const uint RefreshIntervalMs = 250;
-    private const int MeterWidth = 300;
-    private const int LabelWidth = 48;
-    private const int BarWidth = 150;
+    private const int MeterWidth = 330;
+    private const int LabelWidth = 58;
+    private const int BarWidth = 170;
     private const int BarHeight = 12;
     private const int ValueWidth = 54;
 
@@ -27,9 +27,11 @@ public sealed class CombatDpsMeterGump : MyraControl
     private static readonly Color BorderColor = new(74, 82, 126, 180);
     private static readonly Color MineColor = new(33, 170, 227, 245);
     private static readonly Color OthersColor = new(178, 37, 61, 235);
+    private static readonly Color UnknownColor = new(126, 126, 148, 235);
     private static readonly Color TotalColor = new(215, 149, 72, 240);
 
     private readonly MyraLabel _targetValue;
+    private readonly MyraLabel _summaryValue;
     private readonly MyraTabControl _meterTabs;
     private readonly Dictionary<MeterTab, MeterTabRows> _rowsByTab = new();
     private MeterTab _activeTab;
@@ -48,7 +50,12 @@ public sealed class CombatDpsMeterGump : MyraControl
             Width = MeterWidth
         };
 
-        root.Widgets.Add(BuildTargetRow(_targetValue = ValueLabel(210)));
+        root.Widgets.Add(BuildTargetRow(_targetValue = ValueLabel(240)));
+        root.Widgets.Add(_summaryValue = new MyraLabel("No damage observed", MyraLabel.TextStyle.H6)
+        {
+            Width = MeterWidth - 16,
+            Tooltip = "Mine/Others are whole hits attributed from matching combat events. Unknown is observed damage without a reliable source."
+        });
 
         _meterTabs = new MyraTabControl();
         _meterTabs.SelectedIndexChanged += (_, _) =>
@@ -110,6 +117,9 @@ public sealed class CombatDpsMeterGump : MyraControl
         _snapshot = world?.CombatDamageTracker.GetActiveSnapshot() ?? default;
 
         _targetValue.Text = FormatTarget(world, _snapshot.TargetSerial);
+        _summaryValue.Text = _snapshot.HasData
+            ? $"{_snapshot.HitCount} hits | {_snapshot.ElapsedSeconds:0.0} s | {_snapshot.AttributionCoverage:P0} attributed"
+            : "No damage observed";
 
         UpdateBars();
     }
@@ -138,6 +148,7 @@ public sealed class CombatDpsMeterGump : MyraControl
         var rows = new MeterTabRows(
             new MeterBarRow("Mine", MineColor),
             new MeterBarRow("Others", OthersColor),
+            new MeterBarRow("Unknown", UnknownColor),
             new MeterBarRow("Total", TotalColor)
         );
         _rowsByTab[tab] = rows;
@@ -150,6 +161,7 @@ public sealed class CombatDpsMeterGump : MyraControl
 
         chartPanel.Widgets.Add(rows.Mine.Root);
         chartPanel.Widgets.Add(rows.Others.Root);
+        chartPanel.Widgets.Add(rows.Unknown.Root);
         chartPanel.Widgets.Add(rows.Total.Root);
         UpdateRows(tab, rows);
         return chartPanel;
@@ -159,12 +171,14 @@ public sealed class CombatDpsMeterGump : MyraControl
     {
         double mine = tab == MeterTab.Dps ? _snapshot.MineDps : _snapshot.MineDamage;
         double others = tab == MeterTab.Dps ? _snapshot.OthersDps : _snapshot.OthersDamage;
+        double unknown = tab == MeterTab.Dps ? _snapshot.UnknownDps : _snapshot.UnknownDamage;
         double total = tab == MeterTab.Dps ? _snapshot.TotalDps : _snapshot.TotalDamage;
-        double max = Math.Max(total, Math.Max(mine, others));
+        double max = Math.Max(total, Math.Max(unknown, Math.Max(mine, others)));
 
-        rows.Mine.SetValue(mine, max, FormatValue(mine));
-        rows.Others.SetValue(others, max, FormatValue(others));
-        rows.Total.SetValue(total, max, FormatValue(total));
+        rows.Mine.SetValue(mine, max, FormatValue(mine, tab));
+        rows.Others.SetValue(others, max, FormatValue(others, tab));
+        rows.Unknown.SetValue(unknown, max, FormatValue(unknown, tab));
+        rows.Total.SetValue(total, max, FormatValue(total, tab));
     }
 
     private static HorizontalStackPanel BuildTargetRow(MyraLabel value)
@@ -199,7 +213,8 @@ public sealed class CombatDpsMeterGump : MyraControl
         return string.IsNullOrWhiteSpace(entity?.Name) ? $"0x{serial:X8}" : $"{entity.Name} (0x{serial:X8})";
     }
 
-    private static string FormatValue(double value) => value.ToString("0.0", CultureInfo.InvariantCulture);
+    private static string FormatValue(double value, MeterTab tab) =>
+        value.ToString(tab == MeterTab.Dps ? "0.0" : "0", CultureInfo.InvariantCulture);
 
     private enum MeterTab
     {
@@ -207,7 +222,12 @@ public sealed class CombatDpsMeterGump : MyraControl
         Damage
     }
 
-    private sealed record MeterTabRows(MeterBarRow Mine, MeterBarRow Others, MeterBarRow Total);
+    private sealed record MeterTabRows(
+        MeterBarRow Mine,
+        MeterBarRow Others,
+        MeterBarRow Unknown,
+        MeterBarRow Total
+    );
 
     private sealed class MeterBarRow
     {

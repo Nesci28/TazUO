@@ -56,12 +56,6 @@ namespace ClassicUO.Utility
             return _values.Count > 0 ? _sum / _values.Count : 0;
         }
 
-        public double Sum(uint currentTicks)
-        {
-            RemoveOldValues(currentTicks);
-            return _sum;
-        }
-
         public double AveragePerSecond(uint currentTicks)
         {
             if (_values.Count == 0)
