@@ -12,8 +12,9 @@ namespace ClassicUO.Network;
 /// </summary>
 /// <remarks>
 /// The UO ping packet (0x73) is preferred because it travels through the game protocol. Some
-/// shards, including official shards, do not always echo that packet, so an ICMP measurement to
-/// the connected endpoint is kept as a fallback.
+/// shards, including official shards, do not echo that packet. In that case, the RTT maintained by
+/// the active TCP connection on macOS, Linux, or Windows is used, with ICMP to the connected
+/// endpoint as a final fallback.
 /// </remarks>
 public sealed class PingManager
 {
@@ -27,6 +28,7 @@ public sealed class PingManager
     private readonly object _sync = new();
     private readonly Func<bool> _isConnected;
     private readonly Action<byte> _sendProtocolPing;
+    private readonly Func<uint?> _getTcpRoundTripTime;
     private readonly Func<IPAddress> _getRemoteAddress;
     private readonly Func<uint> _getTicks;
     private readonly Func<IPAddress, Task<uint?>> _sendNetworkPing;
@@ -50,6 +52,7 @@ public sealed class PingManager
         : this(
             () => socket?.IsConnected ?? false,
             sequence => socket?.Send_Ping(sequence),
+            () => socket?.TcpRoundTripTime,
             () => (socket?.RemoteEndPoint as IPEndPoint)?.Address,
             () => Time.Ticks,
             SendNetworkPingAsync)
@@ -59,12 +62,14 @@ public sealed class PingManager
     internal PingManager(
         Func<bool> isConnected,
         Action<byte> sendProtocolPing,
+        Func<uint?> getTcpRoundTripTime,
         Func<IPAddress> getRemoteAddress,
         Func<uint> getTicks,
         Func<IPAddress, Task<uint?>> sendNetworkPing)
     {
         _isConnected = isConnected ?? throw new ArgumentNullException(nameof(isConnected));
         _sendProtocolPing = sendProtocolPing ?? throw new ArgumentNullException(nameof(sendProtocolPing));
+        _getTcpRoundTripTime = getTcpRoundTripTime ?? throw new ArgumentNullException(nameof(getTcpRoundTripTime));
         _getRemoteAddress = getRemoteAddress ?? throw new ArgumentNullException(nameof(getRemoteAddress));
         _getTicks = getTicks ?? throw new ArgumentNullException(nameof(getTicks));
         _sendNetworkPing = sendNetworkPing ?? throw new ArgumentNullException(nameof(sendNetworkPing));
@@ -73,7 +78,7 @@ public sealed class PingManager
 
     /// <summary>
     /// Gets the rolling average RTT in milliseconds. A recent UO protocol measurement takes
-    /// precedence over the ICMP fallback.
+    /// precedence over the operating-system and ICMP fallbacks.
     /// </summary>
     public uint Ping
     {
@@ -129,6 +134,7 @@ public sealed class PingManager
         lock (_sync)
         {
             uint now = _getTicks();
+            uint? tcpRoundTripTime = _getTcpRoundTripTime();
             sequence = _sequence;
             _sequence = unchecked((byte)(_sequence + 1));
             _protocolPingSentAt[sequence] = now;
@@ -138,8 +144,23 @@ public sealed class PingManager
                 _protocolPingCount > 0
                 && Elapsed(now, _lastProtocolPingReceived) <= PROTOCOL_PING_FRESHNESS_MS;
 
+            bool tcpPingIsAvailable =
+                tcpRoundTripTime.HasValue
+                && tcpRoundTripTime.Value <= MAX_ACCEPTED_PING_MS;
+
+            if (tcpPingIsAvailable)
+            {
+                AddSample(
+                    _networkPings,
+                    ref _networkPingCount,
+                    ref _networkPingWriteIndex,
+                    Math.Max(1, tcpRoundTripTime.Value)
+                );
+            }
+
             if (
                 !protocolPingIsFresh
+                && !tcpPingIsAvailable
                 && !_networkPingInFlight
                 && (_nextNetworkPing == 0 || IsDue(now, _nextNetworkPing))
             )
