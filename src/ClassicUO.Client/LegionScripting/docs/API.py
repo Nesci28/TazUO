@@ -1244,7 +1244,7 @@ def ProcessCallbacks() -> None:
        API.ProcessCallbacks()
        API.Pause(0.1)
      ```
-    
+
     """
     pass
 
@@ -1366,7 +1366,8 @@ def Attack(serial: "int") -> None:
 
 def GetCombatDps(serial: "int" = 0) -> "Any":
     """
-     Gets probabilistic Mine/Others/Total DPS for a target. Pass 0 for the current last-attack target.
+     Gets observed combat damage for a target. Mine and Others contain attributed whole hits;
+     Unknown contains damage whose source could not be identified; Total contains all observed damage.
 
     """
     pass
