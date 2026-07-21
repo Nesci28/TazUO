@@ -564,8 +564,8 @@ namespace ClassicUO.Game.UI.Gumps
             _pendingMove = null;
             MoveItems.Enqueue(currentItem);
 
-            long retryDelay = (AsyncNetClient.Socket?.Statistics?.Ping ?? 0)
-                              + GlobalActionCooldown.NetworkSafetyMargin;
+            uint ping = AsyncNetClient.Socket?.Statistics?.Ping ?? 0;
+            long retryDelay = ping + GlobalActionCooldown.GetNetworkSafetyMargin(ping);
             GlobalActionCooldown.BeginCooldown(retryDelay);
 
             _lastMoveTick = unchecked(Time.Ticks - (uint)Math.Max(ObjDelay, 0));
