@@ -697,7 +697,8 @@ namespace ClassicUO.LegionScripting
         public void Attack(uint serial) => OnMain(() => GameActions.Attack(World, serial));
 
         /// <summary>
-        /// Gets probabilistic Mine/Others/Total DPS for a target. Pass 0 for the current last-attack target.
+        /// Gets observed combat damage for a target. Mine and Others contain attributed whole hits;
+        /// Unknown contains damage whose source could not be identified; Total contains all observed damage.
         /// </summary>
         /// <param name="serial">Target serial, or 0 for current last attack.</param>
         public ApiCombatDpsSnapshot GetCombatDps(uint serial = 0) => OnMain(() =>
@@ -707,7 +708,6 @@ namespace ClassicUO.LegionScripting
                     : World.CombatDamageTracker.GetSnapshot(serial)
             )
         );
-
 
         /// <summary>
         /// Sets the player's war mode state (peace/war toggle).

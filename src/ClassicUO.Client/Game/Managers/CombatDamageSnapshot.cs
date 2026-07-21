@@ -4,10 +4,14 @@ public readonly record struct CombatDamageSnapshot(
     uint TargetSerial,
     double MineDps,
     double OthersDps,
+    double UnknownDps,
     double TotalDps,
-    double MineDamage,
-    double OthersDamage,
-    double TotalDamage,
-    double Confidence,
+    long MineDamage,
+    long OthersDamage,
+    long UnknownDamage,
+    long TotalDamage,
+    int HitCount,
+    double ElapsedSeconds,
+    double AttributionCoverage,
     bool HasData
 );
