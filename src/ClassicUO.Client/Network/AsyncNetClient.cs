@@ -27,6 +27,7 @@ namespace ClassicUO.Network
 
         public event EventHandler OnConnected, OnDisconnected;
         public event EventHandler<SocketError> OnError;
+        public EndPoint RemoteEndPoint => _socket?.Client?.RemoteEndPoint;
 
         public async Task<bool> ConnectAsync(string ip, int port, CancellationToken cancellationToken = default, int timeoutS = 2)
         {
@@ -215,6 +216,8 @@ namespace ClassicUO.Network
 #nullable disable
         public static AsyncNetClient Socket { get; set; } = new AsyncNetClient();
         public bool IsConnected => _socket != null && _socket.IsConnected;
+        public EndPoint RemoteEndPoint => _socket?.RemoteEndPoint;
+        public PingManager PingManager { get; }
         public NetStatistics Statistics { get; }
 
         /// <summary>
@@ -226,6 +229,7 @@ namespace ClassicUO.Network
 
         public AsyncNetClient()
         {
+            PingManager = new PingManager(this);
             Statistics = new NetStatistics(this);
 
             _socket = new AsyncSocketWrapper(this);
