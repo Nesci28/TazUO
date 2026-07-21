@@ -53,7 +53,7 @@ public class ObjectActionQueue : ConcurrentPriorityQueue<ObjectActionQueueItem, 
 /// </summary>
 /// <param name="action">The action to perform</param>
 /// <param name="afterInvoked">Called after the action was performed, will be called weather it was canceled or not.</param>
-/// <param name="includePingInCooldown">Add the current server ping to the cooldown after this action.</param>
+/// <param name="includePingInCooldown">Add the current server ping and safety margin to the cooldown after this action.</param>
 public class ObjectActionQueueItem(
     Action action,
     Action<ObjectActionQueueItem> afterInvoked = null,
