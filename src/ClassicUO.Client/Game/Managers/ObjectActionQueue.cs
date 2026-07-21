@@ -42,7 +42,7 @@ public class ObjectActionQueue : ConcurrentPriorityQueue<ObjectActionQueueItem, 
             if (!(item.TriggersGlobalCooldown?.Invoke() ?? true))
                 continue;
 
-            GlobalActionCooldown.BeginCooldown();
+            GlobalActionCooldown.BeginCooldown(item.IncludePingInCooldown);
             break;
         }
     }
@@ -53,10 +53,16 @@ public class ObjectActionQueue : ConcurrentPriorityQueue<ObjectActionQueueItem, 
 /// </summary>
 /// <param name="action">The action to perform</param>
 /// <param name="afterInvoked">Called after the action was performed, will be called weather it was canceled or not.</param>
-public class ObjectActionQueueItem(Action action, Action<ObjectActionQueueItem> afterInvoked = null)
+/// <param name="includePingInCooldown">Add the current server ping to the cooldown after this action.</param>
+public class ObjectActionQueueItem(
+    Action action,
+    Action<ObjectActionQueueItem> afterInvoked = null,
+    bool includePingInCooldown = true
+)
 {
     public Action Action { get; } = action;
     public Action<ObjectActionQueueItem> AfterInvoked { get; } = afterInvoked;
+    public bool IncludePingInCooldown { get; } = includePingInCooldown;
     public bool Canceled { get; private set; }
 
     /// <summary>
