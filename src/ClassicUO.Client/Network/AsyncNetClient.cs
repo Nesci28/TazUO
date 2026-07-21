@@ -28,6 +28,8 @@ namespace ClassicUO.Network
         public event EventHandler<SocketError> OnError;
         public EndPoint RemoteEndPoint => _socket?.Client?.RemoteEndPoint;
 
+        public uint? GetTcpRoundTripTime() => TcpRoundTripTime.Get(_socket?.Client);
+
         public async Task<bool> ConnectAsync(string ip, int port, CancellationToken cancellationToken = default, int timeoutS = 2)
         {
             if (IsConnected)
@@ -206,6 +208,7 @@ namespace ClassicUO.Network
         public static AsyncNetClient Socket { get; set; } = new AsyncNetClient();
         public bool IsConnected => _socket != null && _socket.IsConnected;
         public EndPoint RemoteEndPoint => _socket?.RemoteEndPoint;
+        public uint? TcpRoundTripTime => _socket?.GetTcpRoundTripTime();
         public PingManager PingManager { get; }
         public NetStatistics Statistics { get; }
 
