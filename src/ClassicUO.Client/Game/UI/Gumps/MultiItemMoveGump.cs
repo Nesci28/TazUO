@@ -9,6 +9,7 @@ using ClassicUO.Game.Managers.Structs;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
+using ClassicUO.Network;
 using ClassicUO.Utility;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
@@ -81,6 +82,7 @@ namespace ClassicUO.Game.UI.Gumps
         {
             _world = World.Instance;
             ObjDelay = ProfileManager.CurrentProfile.MoveMultiObjectDelay;
+            EventSink.ClilocMessageReceived += OnClilocMessageReceived;
 
             Build();
             SetPosition(x, y);
@@ -440,6 +442,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void Dispose()
         {
+            EventSink.ClilocMessageReceived -= OnClilocMessageReceived;
             ClearAll();
             base.Dispose();
         }
@@ -535,6 +538,37 @@ namespace ClassicUO.Game.UI.Gumps
             pending.QueueItem = queueItem;
             _pendingMove = pending;
             ObjectActionQueue.Instance.Enqueue(queueItem, ActionPriority.MoveItem);
+        }
+
+        private void OnClilocMessageReceived(object sender, MessageEventArgs e)
+        {
+            if (
+                e.Cliloc != 500119
+                || !processing
+                || !ProfileManager.CurrentProfile.MoveMultiAutoRetry
+            )
+            {
+                return;
+            }
+
+            PendingMoveAttempt pending = _pendingMove;
+
+            if (pending == null || !pending.WasInvoked)
+                return;
+
+            Item currentItem = _world.Items.Get(pending.Serial);
+
+            if (!pending.IsStillAtSource(currentItem))
+                return;
+
+            _pendingMove = null;
+            MoveItems.Enqueue(currentItem);
+
+            long retryDelay = (AsyncNetClient.Socket?.Statistics?.Ping ?? 0)
+                              + GlobalActionCooldown.NetworkSafetyMargin;
+            GlobalActionCooldown.BeginCooldown(retryDelay);
+
+            _lastMoveTick = unchecked(Time.Ticks - (uint)Math.Max(ObjDelay, 0));
         }
 
         private static void UpdatePendingMove(World world)
