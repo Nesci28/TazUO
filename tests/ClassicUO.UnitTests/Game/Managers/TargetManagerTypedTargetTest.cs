@@ -46,11 +46,10 @@ namespace ClassicUO.UnitTests.Game.Managers
             try
             {
                 world.GetOrCreateMobile(1);
-                var pet = world.GetOrCreateMobile(2);
-                pet.IsRenamable = true;
+                world.GetOrCreateMobile(2);
 
                 world.TargetManager.LastAttack = 1;
-                world.TargetManager.LastTargetInfo.SetEntity(2);
+                HealthbarGrabberGump.OnTargetSelected(world, 2, TargetType.Beneficial);
 
                 grabber = new HealthbarGrabberGump(world);
 
@@ -62,6 +61,27 @@ namespace ClassicUO.UnitTests.Game.Managers
             finally
             {
                 grabber?.Dispose();
+                world.Mobiles.Clear();
+                world.Clear();
+            }
+        }
+
+        [Fact]
+        public void ChangingLastTarget_DoesNotPopulateGrabberTargets()
+        {
+            var world = new World();
+
+            try
+            {
+                world.GetOrCreateMobile(1);
+
+                world.TargetManager.LastTargetInfo.SetEntity(1);
+
+                Assert.Equal(0u, world.TargetManager.LastHarmfulTarget);
+                Assert.Equal(0u, world.TargetManager.LastBeneficialTarget);
+            }
+            finally
+            {
                 world.Mobiles.Clear();
                 world.Clear();
             }
