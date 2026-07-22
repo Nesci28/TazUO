@@ -11,6 +11,7 @@ using System.Text.Json;
 using Microsoft.Xna.Framework;
 using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
+using Myra.Graphics2D.UI.Styles;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
 {
@@ -149,13 +150,16 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             nameBox.TextChangedByUser += (_, _) => data.Name = nameBox.Text ?? "";
             AddRowWidget(row, nameBox, 1);
 
-            var colorButton = new MyraButton(TazLang.Get("gridhighlight_color")) { Tooltip = TazLang.Get("gridhighlight_color_tooltip") };
-            ApplyColorButtonStyle(colorButton, data.HighlightColor);
+            var colorButton = new GridHighlightColorButton(TazLang.Get("gridhighlight_color"))
+            {
+                Tooltip = TazLang.Get("gridhighlight_color_tooltip")
+            };
+            colorButton.SetColor(data.HighlightColor);
             colorButton.OnClick = () => RGBColorPickerGump.Open(data.HighlightColor, selectedColor =>
             {
                 data.HighlightColor = selectedColor;
                 data.Hue = (ushort)(selectedColor.R + (selectedColor.G << 8) + (selectedColor.B << 16));
-                ApplyColorButtonStyle(colorButton, selectedColor);
+                colorButton.SetColor(selectedColor);
                 GridHighlightData.RecheckMatchStatus();
             });
             AddRowWidget(row, colorButton, 2);
@@ -190,6 +194,31 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         {
             row.Widgets.Add(widget);
             Grid.SetColumn(widget, column);
+        }
+
+        private sealed class GridHighlightColorButton : MyraButton
+        {
+            private Color _color;
+            private bool _hasColor;
+
+            public GridHighlightColorButton(string text) : base(text)
+            {
+            }
+
+            public void SetColor(Color color)
+            {
+                _color = color;
+                _hasColor = true;
+                ApplyColorButtonStyle(this, color);
+            }
+
+            protected override void InternalSetStyle(Stylesheet stylesheet, string name)
+            {
+                base.InternalSetStyle(stylesheet, name);
+
+                if (_hasColor)
+                    ApplyColorButtonStyle(this, _color);
+            }
         }
 
         private static void ApplyColorButtonStyle(MyraButton button, Color color)
