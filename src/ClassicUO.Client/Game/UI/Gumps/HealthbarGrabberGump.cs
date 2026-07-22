@@ -103,11 +103,17 @@ namespace ClassicUO.Game.UI.Gumps
                 _selfColumn.SetSerial(world.Player.Serial);
             }
 
+            RestoreTypedTargets();
+
             Width = WIDTH;
             Height = HEIGHT;
         }
 
         public override GumpType GumpType => GumpType.HealthBarGrabber;
+
+        internal uint HarmfulSerial => _harmfulColumn.Serial;
+
+        internal uint BeneficialSerial => _beneficialColumn.Serial;
 
         public static void OnTargetSelected(World world, uint serial, TargetType targetType)
         {
@@ -128,6 +134,7 @@ namespace ClassicUO.Game.UI.Gumps
                 return;
             }
 
+            world.TargetManager.RecordTypedTarget(serial, targetType);
             GameActions.RequestMobileStatus(world, serial);
 
             foreach (HealthbarGrabberGump grabberGump in UIManager.Gumps.OfType<HealthbarGrabberGump>())
@@ -136,8 +143,10 @@ namespace ClassicUO.Game.UI.Gumps
             }
         }
 
-        public static void MobileDestroyed(uint serial)
+        public static void MobileDestroyed(World world, uint serial)
         {
+            world?.TargetManager.ClearTypedTarget(serial);
+
             foreach (HealthbarGrabberGump grabberGump in UIManager.Gumps.OfType<HealthbarGrabberGump>())
             {
                 grabberGump.ClearSerial(serial);
@@ -180,6 +189,21 @@ namespace ClassicUO.Game.UI.Gumps
             if (_world.Player != null)
             {
                 _selfColumn.SetSerial(_world.Player.Serial);
+            }
+
+            RestoreTypedTargets();
+        }
+
+        private void RestoreTypedTargets()
+        {
+            if (_world.TargetManager.LastHarmfulTarget != 0)
+            {
+                _harmfulColumn.SetSerial(_world.TargetManager.LastHarmfulTarget);
+            }
+
+            if (_world.TargetManager.LastBeneficialTarget != 0)
+            {
+                _beneficialColumn.SetSerial(_world.TargetManager.LastBeneficialTarget);
             }
         }
 
