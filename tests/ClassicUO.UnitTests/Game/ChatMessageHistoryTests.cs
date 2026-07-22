@@ -1,4 +1,5 @@
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Configuration;
 using FluentAssertions;
 using Xunit;
 
@@ -6,6 +7,12 @@ namespace ClassicUO.UnitTests.Game;
 
 public class ChatMessageHistoryTests
 {
+    [Fact]
+    public void ArrowKeyHistory_ShouldBeEnabledByDefault()
+    {
+        new Profile().DisableChatHistoryArrowKeys.Should().BeFalse();
+    }
+
     [Fact]
     public void Previous_ShouldReturnMessagesFromNewestToOldest()
     {
