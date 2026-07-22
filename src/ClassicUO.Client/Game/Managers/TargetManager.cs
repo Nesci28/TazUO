@@ -206,6 +206,10 @@ namespace ClassicUO.Game.Managers
 
         public readonly LastTargetInfo LastTargetInfo = new LastTargetInfo();
 
+        public uint LastHarmfulTarget { get; private set; }
+
+        public uint LastBeneficialTarget { get; private set; }
+
         public static readonly AutoTargetInfo NextAutoTarget = new AutoTargetInfo();
 
         public MultiTargetInfo MultiTargetInfo { get; private set; }
@@ -274,6 +278,33 @@ namespace ClassicUO.Game.Managers
         }
 
         public static void SetAutoTarget(uint serial, TargetType targetType, bool matchAnyTargetType = false) => NextAutoTarget.Set(serial, targetType, matchAnyTargetType);
+
+        internal void RecordTypedTarget(uint serial, TargetType targetType)
+        {
+            switch (targetType)
+            {
+                case TargetType.Harmful:
+                    LastHarmfulTarget = serial;
+                    break;
+
+                case TargetType.Beneficial:
+                    LastBeneficialTarget = serial;
+                    break;
+            }
+        }
+
+        internal void ClearTypedTarget(uint serial)
+        {
+            if (LastHarmfulTarget == serial)
+            {
+                LastHarmfulTarget = 0;
+            }
+
+            if (LastBeneficialTarget == serial)
+            {
+                LastBeneficialTarget = 0;
+            }
+        }
 
         public void CancelTarget()
         {
