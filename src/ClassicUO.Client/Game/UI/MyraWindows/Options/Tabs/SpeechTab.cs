@@ -30,6 +30,15 @@ internal static class SpeechTab
                     search: new SearchMetadata(TazLang.Get("mog_chattab_speech_chatgradient"))
                 ),
                 Option.Checkbox(
+                    TazLang.Get("mog_chattab_speech_usechathistoryarrowkeys"),
+                    new Accessor<bool>(() => profile.UseChatHistoryArrowKeys),
+                    TazLang.Get("mog_chattab_speech_usechathistoryarrowkeystooltip"),
+                    new SearchMetadata(
+                        TazLang.Get("mog_chattab_speech_usechathistoryarrowkeys"),
+                        Keywords: [TazLang.Get("mog_kw_arrow"), TazLang.Get("mog_kw_history"), TazLang.Get("mog_kw_keyboard")]
+                    )
+                ),
+                Option.Checkbox(
                     TazLang.Get("mog_chattab_speech_hideguildchat"),
                     new Accessor<bool>(() => profile.IgnoreGuildMessages),
                     search: new SearchMetadata(TazLang.Get("mog_chattab_speech_hideguildchat"))
