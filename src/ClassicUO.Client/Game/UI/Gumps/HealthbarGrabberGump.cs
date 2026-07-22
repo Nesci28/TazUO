@@ -117,12 +117,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public static void OnTargetSelected(World world, uint serial, TargetType targetType)
         {
-            if (world?.Player == null || serial == world.Player.Serial || !SerialHelper.IsMobile(serial))
-            {
-                return;
-            }
-
-            if (targetType != TargetType.Harmful && targetType != TargetType.Beneficial)
+            if (world == null || serial == world.Player?.Serial || !SerialHelper.IsMobile(serial))
             {
                 return;
             }
@@ -130,6 +125,13 @@ namespace ClassicUO.Game.UI.Gumps
             Entity entity = world.Get(serial);
 
             if (entity is not Mobile mobile || mobile.IsDestroyed)
+            {
+                return;
+            }
+
+            targetType = world.TargetManager.ResolveTargetType(mobile, targetType);
+
+            if (targetType != TargetType.Harmful && targetType != TargetType.Beneficial)
             {
                 return;
             }

@@ -46,12 +46,16 @@ namespace ClassicUO.UnitTests.Game.Managers
             try
             {
                 world.GetOrCreateMobile(1);
-                world.GetOrCreateMobile(2);
-                world.TargetManager.RecordTypedTarget(1, TargetType.Harmful);
-                world.TargetManager.RecordTypedTarget(2, TargetType.Beneficial);
+                var pet = world.GetOrCreateMobile(2);
+                pet.IsRenamable = true;
+
+                world.TargetManager.LastAttack = 1;
+                world.TargetManager.LastTargetInfo.SetEntity(2);
 
                 grabber = new HealthbarGrabberGump(world);
 
+                Assert.Equal(1u, world.TargetManager.LastHarmfulTarget);
+                Assert.Equal(2u, world.TargetManager.LastBeneficialTarget);
                 Assert.Equal(1u, grabber.HarmfulSerial);
                 Assert.Equal(2u, grabber.BeneficialSerial);
             }
