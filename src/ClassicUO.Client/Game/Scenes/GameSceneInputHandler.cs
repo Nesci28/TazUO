@@ -1481,7 +1481,7 @@ namespace ClassicUO.Game.Scenes
 
             if (
                 UIManager.SystemChat.IsActive
-                && ProfileManager.CurrentProfile.UseChatHistoryArrowKeys
+                && !ProfileManager.CurrentProfile.DisableChatHistoryArrowKeys
                 && !Keyboard.Ctrl
                 && !Keyboard.Alt
                 && !Keyboard.Shift

@@ -31,7 +31,10 @@ internal static class SpeechTab
                 ),
                 Option.Checkbox(
                     TazLang.Get("mog_chattab_speech_usechathistoryarrowkeys"),
-                    new Accessor<bool>(() => profile.UseChatHistoryArrowKeys),
+                    new Accessor<bool>(
+                        () => !profile.DisableChatHistoryArrowKeys,
+                        enabled => profile.DisableChatHistoryArrowKeys = !enabled
+                    ),
                     TazLang.Get("mog_chattab_speech_usechathistoryarrowkeystooltip"),
                     new SearchMetadata(
                         TazLang.Get("mog_chattab_speech_usechathistoryarrowkeys"),
