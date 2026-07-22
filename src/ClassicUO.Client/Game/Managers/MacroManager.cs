@@ -1969,6 +1969,7 @@ namespace ClassicUO.Game.Managers
                             else if (SerialHelper.IsMobile(_world.TargetManager.SelectedTarget))
                             {
                                 AsyncNetClient.Socket.Send_TargetSelectedObject(bandage.Serial, _world.TargetManager.SelectedTarget);
+                                HealthbarGrabberGump.OnTargetSelected(_world, _world.TargetManager.SelectedTarget, TargetType.Beneficial);
                             }
                         }
                     }
