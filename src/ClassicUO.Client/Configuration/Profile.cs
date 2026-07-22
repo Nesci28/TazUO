@@ -298,6 +298,7 @@ namespace ClassicUO.Configuration
         public bool ActivateChatAfterEnter { get; set => SetProperty(ref field, value); }
         public bool ActivateChatAdditionalButtons { get; set => SetProperty(ref field, value); } = true;
         public bool ActivateChatShiftEnterSupport { get; set => SetProperty(ref field, value); } = true;
+        public bool UseChatHistoryArrowKeys { get; set => SetProperty(ref field, value); }
         public bool UseObjectsFading { get; set => SetProperty(ref field, value); } = true;
         public bool HoldDownKeyAltToCloseAnchored { get; set => SetProperty(ref field, value); } = true;
         public bool CloseAllAnchoredGumpsInGroupWithRightClick { get; set => SetProperty(ref field, value); } = false;
