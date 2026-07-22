@@ -122,16 +122,14 @@ namespace ClassicUO.Game.UI.Gumps
                 return;
             }
 
-            Entity entity = world.Get(serial);
-
-            if (entity is not Mobile mobile || mobile.IsDestroyed)
+            if (targetType != TargetType.Harmful && targetType != TargetType.Beneficial)
             {
                 return;
             }
 
-            targetType = world.TargetManager.ResolveTargetType(mobile, targetType);
+            Entity entity = world.Get(serial);
 
-            if (targetType != TargetType.Harmful && targetType != TargetType.Beneficial)
+            if (entity is not Mobile mobile || mobile.IsDestroyed)
             {
                 return;
             }

@@ -77,13 +77,6 @@ namespace ClassicUO.Game.Managers
 
     public class LastTargetInfo
     {
-        private readonly Action<uint> _entityChanged;
-
-        public LastTargetInfo(Action<uint> entityChanged = null)
-        {
-            _entityChanged = entityChanged;
-        }
-
         public bool IsEntity => IsSet && SerialHelper.IsValid(Serial);
         public bool IsStatic => IsSet && !IsEntity && Graphic != 0 && Graphic != 0xFFFF;
         public bool IsLand => IsSet && !IsStatic;
@@ -103,7 +96,6 @@ namespace ClassicUO.Game.Managers
             X = Y = 0xFFFF;
             Z = sbyte.MinValue;
             IsSet = true;
-            _entityChanged?.Invoke(serial);
         }
 
         internal void SetStatic(ushort graphic, ushort x, ushort y, sbyte z)
@@ -169,11 +161,7 @@ namespace ClassicUO.Game.Managers
         private readonly byte[] _lastDataBuffer = new byte[19];
         private Action<object> _targetCallback;
 
-        public TargetManager(World world)
-        {
-            _world = world;
-            LastTargetInfo = new LastTargetInfo(OnLastTargetChanged);
-        }
+        public TargetManager(World world) { _world = world; }
 
         public uint SelectedTarget, NewTargetSystemSerial;
 
@@ -218,7 +206,7 @@ namespace ClassicUO.Game.Managers
             }
         }
 
-        public readonly LastTargetInfo LastTargetInfo;
+        public readonly LastTargetInfo LastTargetInfo = new LastTargetInfo();
 
         public uint LastHarmfulTarget { get; private set; }
 
@@ -317,34 +305,6 @@ namespace ClassicUO.Game.Managers
             if (LastBeneficialTarget == serial)
             {
                 LastBeneficialTarget = 0;
-            }
-        }
-
-        internal TargetType ResolveTargetType(Mobile mobile, TargetType targetType)
-        {
-            if (targetType == TargetType.Harmful || targetType == TargetType.Beneficial)
-            {
-                return targetType;
-            }
-
-            if (targetType != TargetType.Neutral || mobile == null)
-            {
-                return targetType;
-            }
-
-            return mobile.IsRenamable
-                || _world.Party.Contains(mobile.Serial)
-                || mobile.NotorietyFlag == NotorietyFlag.Ally
-                || FriendsListManager.Instance.IsFriend(mobile.Serial)
-                    ? TargetType.Beneficial
-                    : TargetType.Harmful;
-        }
-
-        private void OnLastTargetChanged(uint serial)
-        {
-            if (!IsTargeting)
-            {
-                HealthbarGrabberGump.OnTargetSelected(_world, serial, TargetType.Neutral);
             }
         }
 
