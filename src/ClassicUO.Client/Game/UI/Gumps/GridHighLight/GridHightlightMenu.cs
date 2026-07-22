@@ -23,7 +23,11 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
     internal class GridHighlightMenu : MyraControl
     {
         private readonly World _world;
-        private readonly VerticalStackPanel _listPanel = new() { Spacing = MyraStyle.STANDARD_SPACING };
+        private readonly VerticalStackPanel _listPanel = new()
+        {
+            Spacing = MyraStyle.STANDARD_SPACING,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
 
         public GridHighlightMenu(World world) : base(TazLang.Get("gridhighlight_settings_title"))
         {
@@ -48,14 +52,23 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         private void Build()
         {
-            var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+            var root = new VerticalStackPanel
+            {
+                Spacing = MyraStyle.STANDARD_SPACING,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
 
             root.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_settings_desc"), MyraLabel.TextStyle.P) { Width = 400 });
 
             root.Widgets.Add(BuildToolbar());
 
             RebuildList();
-            root.Widgets.Add(new ScrollViewer { MaxHeight = 400, Content = _listPanel });
+            root.Widgets.Add(new ScrollViewer
+            {
+                MaxHeight = 400,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Content = _listPanel
+            });
 
             SetRootContent(root);
         }
@@ -106,17 +119,35 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         {
             GridHighlightData data = GridHighlightData.GetGridHighlightData(keyLoc);
 
-            var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var row = new Grid
+            {
+                ColumnSpacing = 4,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Center
+            };
 
-            row.Widgets.Add(MyraCheckButton.CreateWithCallback(data.Enabled, isChecked =>
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Fill));
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+            row.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+
+            AddRowWidget(row, MyraCheckButton.CreateWithCallback(data.Enabled, isChecked =>
             {
                 data.Enabled = isChecked;
                 GridHighlightData.RecheckMatchStatus();
-            }, tooltip: TazLang.Get("gridhighlight_enabled_tooltip")));
+            }, tooltip: TazLang.Get("gridhighlight_enabled_tooltip")), 0);
 
-            var nameBox = new MyraInputBox { Text = data.Name ?? "", Width = 150 };
+            var nameBox = new MyraInputBox
+            {
+                Text = data.Name ?? "",
+                MinWidth = 150,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
             nameBox.TextChangedByUser += (_, _) => data.Name = nameBox.Text ?? "";
-            row.Widgets.Add(nameBox);
+            AddRowWidget(row, nameBox, 1);
 
             var colorButton = new MyraButton(TazLang.Get("gridhighlight_color")) { Tooltip = TazLang.Get("gridhighlight_color_tooltip") };
             ApplyColorButtonStyle(colorButton, data.HighlightColor);
@@ -127,32 +158,38 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 ApplyColorButtonStyle(colorButton, selectedColor);
                 GridHighlightData.RecheckMatchStatus();
             });
-            row.Widgets.Add(colorButton);
+            AddRowWidget(row, colorButton, 2);
 
-            row.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_properties"), () => GridHighlightProperties.Show(_world, keyLoc)));
+            AddRowWidget(row, new MyraButton(TazLang.Get("gridhighlight_properties"), () => GridHighlightProperties.Show(_world, keyLoc)), 3);
 
-            row.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_up"), () =>
+            AddRowWidget(row, new MyraButton(TazLang.Get("gridhighlight_up"), () =>
             {
                 data.Move(true);
                 GridHighlightData.AllConfigs = null;
                 RebuildList();
-            }) { Tooltip = TazLang.Get("gridhighlight_up_tooltip") });
+            }) { Tooltip = TazLang.Get("gridhighlight_up_tooltip") }, 4);
 
-            row.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_down"), () =>
+            AddRowWidget(row, new MyraButton(TazLang.Get("gridhighlight_down"), () =>
             {
                 data.Move(false);
                 GridHighlightData.AllConfigs = null;
                 RebuildList();
-            }) { Tooltip = TazLang.Get("gridhighlight_down_tooltip") });
+            }) { Tooltip = TazLang.Get("gridhighlight_down_tooltip") }, 5);
 
-            row.Widgets.Add(MyraStyle.ApplyButtonDangerStyle(new MyraButton("X", () =>
+            AddRowWidget(row, MyraStyle.ApplyButtonDangerStyle(new MyraButton("X", () =>
             {
                 data.Delete();
                 RebuildList();
                 GridHighlightData.RecheckMatchStatus();
-            }) { Tooltip = TazLang.Get("gridhighlight_delete_tooltip") }));
+            }) { Tooltip = TazLang.Get("gridhighlight_delete_tooltip") }), 6);
 
             return row;
+        }
+
+        private static void AddRowWidget(Grid row, Widget widget, int column)
+        {
+            row.Widgets.Add(widget);
+            Grid.SetColumn(widget, column);
         }
 
         private static void ApplyColorButtonStyle(MyraButton button, Color color)
