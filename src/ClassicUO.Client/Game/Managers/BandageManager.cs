@@ -1,6 +1,7 @@
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Network;
 using System;
 using System.Collections.Generic;
@@ -434,8 +435,11 @@ namespace ClassicUO.Game.Managers
                 }
 
                 if (UseNewBandagePacket)
+                {
                     // Use the same pattern as BandageSelf but target the mobile
                     AsyncNetClient.Socket.Send_TargetSelectedObject(bandage.Serial, mobile.Serial);
+                    HealthbarGrabberGump.OnTargetSelected(World.Instance, mobile.Serial, TargetType.Beneficial);
+                }
                 else
                 {
                     // Set up auto-target before double-clicking
