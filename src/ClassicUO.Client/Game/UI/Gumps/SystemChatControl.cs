@@ -65,7 +65,7 @@ namespace ClassicUO.Game.UI.Gumps
             AcceptMouseInput = false;
             AcceptKeyboardInput = false;
 
-            TextBoxControl = new StbTextBox
+            TextBoxControl = new ChatTextBox
             (
                 ProfileManager.CurrentProfile.ChatFont,
                 -1,
@@ -80,6 +80,7 @@ namespace ClassicUO.Game.UI.Gumps
                 Width = Width - CHAT_X_OFFSET,
                 Height = CHAT_HEIGHT,
                 LoseFocusOnEscapeKey = false,
+                HistoryKeyHandler = HandleHistoryKeyDown,
             };
 
             float gradientTransparency = ProfileManager.CurrentProfile != null && ProfileManager.CurrentProfile.HideChatGradient ? 0.0f : 0.5f;
@@ -498,24 +499,6 @@ namespace ClassicUO.Game.UI.Gumps
         {
             switch (key)
             {
-                case SDL.SDL_Keycode.SDLK_UP when ProfileManager.CurrentProfile.UseChatHistoryArrowKeys && !Keyboard.Ctrl && !Keyboard.Alt && !Keyboard.Shift:
-
-                    if (IsActive)
-                    {
-                        ApplyHistoryEntry(_messageHistory.Previous(Mode, TextBoxControl.Text));
-                    }
-
-                    break;
-
-                case SDL.SDL_Keycode.SDLK_DOWN when ProfileManager.CurrentProfile.UseChatHistoryArrowKeys && !Keyboard.Ctrl && !Keyboard.Alt && !Keyboard.Shift:
-
-                    if (IsActive)
-                    {
-                        ApplyHistoryEntry(_messageHistory.Next());
-                    }
-
-                    break;
-
                 case SDL.SDL_Keycode.SDLK_Q when HotKeys.IsPressed(HotKeyRegistrar.ChatHistoryModId) && !ProfileManager.CurrentProfile.DisableCtrlQWBtn:
 
                     GameScene scene = Client.Game.GetScene<GameScene>();
@@ -581,6 +564,34 @@ namespace ClassicUO.Game.UI.Gumps
                     _gump.World.MessageManager.PromptData = default;
 
                     break;
+            }
+        }
+
+        private bool HandleHistoryKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod)
+        {
+            if (
+                ProfileManager.CurrentProfile.DisableChatHistoryArrowKeys
+                || !IsActive
+                || Keyboard.Ctrl
+                || Keyboard.Alt
+                || Keyboard.Shift
+            )
+            {
+                return false;
+            }
+
+            switch (key)
+            {
+                case SDL.SDL_Keycode.SDLK_UP:
+                    ApplyHistoryEntry(_messageHistory.Previous(Mode, TextBoxControl.Text));
+                    return true;
+
+                case SDL.SDL_Keycode.SDLK_DOWN:
+                    ApplyHistoryEntry(_messageHistory.Next());
+                    return true;
+
+                default:
+                    return false;
             }
         }
 
@@ -948,6 +959,32 @@ namespace ClassicUO.Game.UI.Gumps
                     textBox?.Dispose();
                     textBox = null;
                 }
+            }
+        }
+
+        private sealed class ChatTextBox : StbTextBox
+        {
+            public ChatTextBox(
+                byte font,
+                int maxCharCount,
+                int maxWidth,
+                bool isUnicode,
+                FontStyle style,
+                ushort hue
+            ) : base(font, maxCharCount, maxWidth, isUnicode, style, hue)
+            {
+            }
+
+            internal Func<SDL.SDL_Keycode, SDL.SDL_Keymod, bool> HistoryKeyHandler { get; init; }
+
+            public override void OnKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod)
+            {
+                if (HistoryKeyHandler?.Invoke(key, mod) == true)
+                {
+                    return;
+                }
+
+                base.OnKeyDown(key, mod);
             }
         }
     }
