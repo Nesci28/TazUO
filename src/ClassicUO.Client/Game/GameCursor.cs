@@ -783,6 +783,9 @@ namespace ClassicUO.Game
         {
             StaticPic staticPic => staticPic.Graphic,
             ButtonTileArt buttonTileArt => buttonTileArt.Graphic,
+            // OSI Vendor Search uses tilepicasgumppic, parsed as a GumpPic. Only treat it as
+            // item art when itemproperty has attached a serial tooltip to that same control.
+            GumpPic gumpPic when gumpPic.Tooltip is uint => gumpPic.Graphic,
             _ => 0
         };
 
