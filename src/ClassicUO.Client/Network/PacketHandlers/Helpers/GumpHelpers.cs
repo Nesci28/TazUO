@@ -113,6 +113,7 @@ internal static class GumpHelpers
         int page = 0;
 
         bool textBoxFocused = false;
+        ushort lastItemGraphic = 0;
 
         // Reused across commands: no control constructor retains the list, so the per-command
         // allocation can be avoided.
@@ -147,7 +148,11 @@ internal static class GumpHelpers
                     StringComparison.OrdinalIgnoreCase
                 )
             )
-                gump.Add(new ButtonTileArt(gparams), page);
+            {
+                var itemArt = new ButtonTileArt(gparams);
+                gump.Add(itemArt, page);
+                lastItemGraphic = itemArt.Graphic;
+            }
             else if (
                 string.Equals(
                     entry,
@@ -176,6 +181,11 @@ internal static class GumpHelpers
                 string.Equals(entry, "gumppic", StringComparison.OrdinalIgnoreCase)
             )
             {
+                bool isTilePicAsGumpPic = string.Equals(
+                    entry,
+                    "tilepicasgumppic",
+                    StringComparison.InvariantCultureIgnoreCase
+                );
                 GumpPic pic;
                 bool isVirtue = gparams.Count >= 6
                                 && gparams[5].IndexOf(
@@ -299,6 +309,9 @@ internal static class GumpHelpers
                     pic = new GumpPic(gparams);
 
                 gump.Add(pic, page);
+
+                if (isTilePicAsGumpPic)
+                    lastItemGraphic = UInt16Converter.Parse(gparams[3]);
             }
             else if (
                 string.Equals(
@@ -445,7 +458,11 @@ internal static class GumpHelpers
                 string.Equals(entry, "tilepichue", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(entry, "tilepic", StringComparison.OrdinalIgnoreCase)
             )
-                gump.Add(new StaticPic(gparams), page);
+            {
+                var itemArt = new StaticPic(gparams);
+                gump.Add(itemArt, page);
+                lastItemGraphic = itemArt.Graphic;
+            }
             else if (
                 string.Equals(entry, "noclose", StringComparison.OrdinalIgnoreCase)
             )
@@ -560,6 +577,9 @@ internal static class GumpHelpers
                         }
                     }
 
+                    if (itemGraphic == 0)
+                        itemGraphic = lastItemGraphic;
+
                     if (itemControl is Control control)
                         control.SetItemPropertyTooltip(itemSerial, itemGraphic);
                     else
@@ -571,6 +591,8 @@ internal static class GumpHelpers
                     )
                         SharedStore.AddMegaCliLocRequest(s);
                 }
+
+                lastItemGraphic = 0;
             }
             else if (
                 string.Equals(entry, "noresize", StringComparison.OrdinalIgnoreCase)
