@@ -32,13 +32,13 @@ internal static class ItemComparisonTooltips
         if (itemLayer == Layer.Backpack)
             return null;
 
-        Item equipped = world.Player.FindItemByLayer(itemLayer);
+        Item equipped = FindEquippedItem(world, itemLayer);
         Item secondEquipped = null;
 
         if (itemLayer == Layer.OneHanded || itemLayer == Layer.TwoHanded)
         {
             Layer otherHand = itemLayer == Layer.OneHanded ? Layer.TwoHanded : Layer.OneHanded;
-            secondEquipped = world.Player.FindItemByLayer(otherHand);
+            secondEquipped = FindEquippedItem(world, otherHand);
 
             if (equipped == null)
             {
@@ -101,5 +101,32 @@ internal static class ItemComparisonTooltips
             tooltips.ToArray(),
             hoverReference
         );
+    }
+
+    /// <summary>
+    /// Finds the equipped item by its network layer first, then by the static tile-data layer.
+    /// The fallback handles equipment packets that leave <see cref="Item.Layer"/> unset even though
+    /// the item is linked directly to the player and its art identifies the correct wearable slot.
+    /// </summary>
+    internal static Item FindEquippedItem(World world, Layer layer)
+    {
+        Item equipped = world?.Player?.FindItemByLayer(layer);
+        if (equipped != null || world?.Player == null)
+            return equipped;
+
+        for (var current = world.Player.Items; current != null; current = current.Next)
+        {
+            var item = (Item)current;
+            if (
+                !item.IsDestroyed
+                && item.Container == world.Player.Serial
+                && item.ItemData.Layer == (byte)layer
+            )
+            {
+                return item;
+            }
+        }
+
+        return null;
     }
 }
