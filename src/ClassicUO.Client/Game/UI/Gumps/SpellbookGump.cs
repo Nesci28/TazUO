@@ -701,14 +701,13 @@ namespace ClassicUO.Game.UI.Gumps
                 if (_spellBookType == SpellBookType.Mastery)
                 {
                     iconGraphic = (ushort)SpellsMastery.GetSpell(i + 1).GumpIconID;
-
-                    toolTipCliloc = i >= 0 && i < 6 ? 1115689 : 1155938 - 6;
                 }
                 else
                 {
                     iconGraphic = (ushort)spellDef.GumpIconSmallID;
-                    GetSpellToolTip(out toolTipCliloc);
                 }
+
+                toolTipCliloc = SpellBookDefinition.GetSpellDescriptionCliloc(spellDef.ID);
 
                 var icon = new HueGumpPic(
                     this,
@@ -727,7 +726,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (toolTipCliloc > 0)
                 {
-                    string tooltip = Client.Game.UO.FileManager.Clilocs.GetString(toolTipCliloc + i);
+                    string tooltip = Client.Game.UO.FileManager.Clilocs.GetString(toolTipCliloc);
                     icon.SetTooltip(tooltip);
                 }
 
@@ -1050,67 +1049,6 @@ namespace ClassicUO.Game.UI.Gumps
             if (dictionaryPagesCount % 2 != 0)
             {
                 dictionaryPagesCount++;
-            }
-        }
-
-        private void GetSpellToolTip(out int offset)
-        {
-            switch (_spellBookType)
-            {
-                case SpellBookType.Magery:
-                    offset = 1061290;
-
-                    break;
-
-                case SpellBookType.Necromancy:
-                    offset = 1061390;
-
-                    break;
-
-                case SpellBookType.Chivalry:
-                    offset = 1061490;
-
-                    break;
-
-                case SpellBookType.Bushido:
-                    offset = 1063263;
-
-                    break;
-
-                case SpellBookType.Ninjitsu:
-                    offset = 1063279;
-
-                    break;
-
-                case SpellBookType.Spellweaving:
-                    offset = 1072042;
-
-                    break;
-
-                case SpellBookType.Mysticism:
-                    offset = 1095193;
-
-                    break;
-
-                case SpellBookType.Mastery:
-                    offset = 0;
-
-                    break;
-
-                case SpellBookType.Druidic when Settings.GlobalSettings.CustomServer == Settings.CustomServers.Eventine:
-                    offset = 1136632;
-
-                    break;
-
-                case SpellBookType.Cleric when Settings.GlobalSettings.CustomServer == Settings.CustomServers.Eventine:
-                    offset = 1136654;
-
-                    break;
-
-                default:
-                    offset = 0;
-
-                    break;
             }
         }
 
