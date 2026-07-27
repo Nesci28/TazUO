@@ -207,7 +207,7 @@ namespace ClassicUO.Game.Managers
             ToolTipOverrideData[] toolTipOverrides = GetAllToolTipOverrides();
 
             bool headerHandled = false;
-            foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.item?.ItemData.Layer ?? 0))
+            foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.ItemLayer))
             {
                 if (MatchItemName(itemPropertiesData.Name, overrideData.SearchText))
                 {
@@ -248,7 +248,7 @@ namespace ClassicUO.Game.Managers
                 ToolTipOverrideData matchedOverride = null;
                 if (toolTipOverrides != null)
                 {
-                    foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.item?.ItemData.Layer ?? 0))
+                    foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.ItemLayer))
                     {
                         if (!MatchPropertyName(World.Instance, property.OriginalString, overrideData.SearchText))
                             continue;
@@ -340,6 +340,17 @@ namespace ClassicUO.Game.Managers
                 : new ItemPropertiesData(world, world.Items.Get(serial));
 
             return BuildTooltip(itemPropertiesData, out borderHue, compareTo);
+        }
+
+        /// <summary>
+        /// Processes an item that exists only as OPL data, such as a Vendor Search result, and
+        /// optionally compares it with a real equipped item. The explicit layer preserves
+        /// layer-specific tooltip overrides without adding a fabricated item to the world.
+        /// </summary>
+        public static string ProcessTooltipText(World world, uint serial, byte itemLayer, out int borderHue, Item compareTo = null)
+        {
+            var itemPropertiesData = new ItemPropertiesData(world, serial, itemLayer, compareTo);
+            return BuildTooltip(itemPropertiesData, out borderHue, compareTo?.Serial ?? uint.MinValue);
         }
 
         public static string ProcessTooltipText(string text)
