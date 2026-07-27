@@ -207,9 +207,25 @@ namespace ClassicUO.Game.Managers
         }
 
         public ItemPropertiesData(string tooltip)
+            : this(null, tooltip, 0)
+        {
+        }
+
+        /// <summary>
+        /// Builds comparable property data from tooltip text embedded directly in a server gump.
+        /// </summary>
+        public ItemPropertiesData(
+            World world,
+            string tooltip,
+            byte itemLayer,
+            Item compareTo = null
+        )
         {
             if (string.IsNullOrEmpty(tooltip))
                 return;
+            this.world = world;
+            ItemLayer = itemLayer;
+            itemComparedTo = compareTo;
             if (tooltip.Contains("\n"))
             {
                 Name = tooltip.Substring(0, tooltip.IndexOf("\n"));

@@ -664,22 +664,42 @@ namespace ClassicUO.Game
                 return false;
             }
 
-            if (!TryResolveItemProperty(hoveredControl, out uint serial, out ushort graphic))
+            bool itemPropertyResolved = TryResolveItemProperty(
+                hoveredControl,
+                out uint serial,
+                out ushort graphic
+            );
+            string rawTooltip = null;
+
+            if (
+                !itemPropertyResolved
+                && serial == 0
+                && graphic != 0
+            )
+            {
+                TryResolveItemTooltipText(hoveredControl, out rawTooltip);
+            }
+
+            if (!itemPropertyResolved && string.IsNullOrWhiteSpace(rawTooltip))
             {
                 string controlType = hoveredControl.GetType().Name;
                 string controlDetails = hoveredControl is ButtonTileArt buttonTileArt
                     ? $", graphic 0x{buttonTileArt.Graphic:X4}, button {buttonTileArt.ButtonID}, position {buttonTileArt.X},{buttonTileArt.Y}"
                     : string.Empty;
+                string tooltipType = hoveredControl.Tooltip?.GetType().Name ?? "none";
                 ReportItemComparisonFailure(
                     serial,
                     serial == 0
-                        ? $"item serial could not be resolved (control {controlType}{controlDetails})"
+                        ? $"item serial could not be resolved (control {controlType}{controlDetails}, tooltip {tooltipType})"
                         : $"item art could not be resolved (serial 0x{serial:X8}, control {controlType})"
                 );
                 return false;
             }
 
-            if (!_world.OPL.TryGetNameAndData(serial, out _, out _))
+            if (
+                string.IsNullOrWhiteSpace(rawTooltip)
+                && !_world.OPL.TryGetNameAndData(serial, out _, out _)
+            )
             {
                 ReportItemComparisonFailure(serial, "item properties are not loaded");
                 return false;
@@ -692,12 +712,9 @@ namespace ClassicUO.Game
                 return false;
             }
 
-            MultipleToolTipGump tooltip = ItemComparisonTooltips.Create(
-                _world,
-                serial,
-                layer,
-                hoveredControl
-            );
+            MultipleToolTipGump tooltip = string.IsNullOrWhiteSpace(rawTooltip)
+                ? ItemComparisonTooltips.Create(_world, serial, layer, hoveredControl)
+                : ItemComparisonTooltips.Create(_world, rawTooltip, layer, hoveredControl);
 
             if (tooltip == null)
             {
@@ -803,6 +820,68 @@ namespace ClassicUO.Game
             return serial != 0 && graphic != 0;
         }
 
+        internal static bool TryResolveItemTooltipText(
+            Control hoveredControl,
+            out string tooltipText
+        )
+        {
+            tooltipText = null;
+
+            if (hoveredControl == null)
+                return false;
+
+            if (TryGetItemTooltipText(hoveredControl, out tooltipText))
+                return true;
+
+            IGui current = hoveredControl;
+
+            while (current.Parent != null)
+            {
+                List<IGui> siblings = current.Parent.Children;
+                int currentIndex = siblings.IndexOf(current);
+
+                for (int distance = 1; distance < siblings.Count; distance++)
+                {
+                    int beforeIndex = currentIndex - distance;
+                    int afterIndex = currentIndex + distance;
+
+                    if (
+                        beforeIndex >= 0
+                        && siblings[beforeIndex] is Control beforeControl
+                        && TryGetItemTooltipText(beforeControl, out tooltipText)
+                    )
+                    {
+                        return true;
+                    }
+
+                    if (
+                        afterIndex >= 0
+                        && afterIndex < siblings.Count
+                        && siblings[afterIndex] is Control afterControl
+                        && TryGetItemTooltipText(afterControl, out tooltipText)
+                    )
+                    {
+                        return true;
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetItemTooltipText(Control control, out string tooltipText)
+        {
+            tooltipText = control.Tooltip as string;
+
+            return !string.IsNullOrWhiteSpace(tooltipText)
+                && (
+                    tooltipText.Contains('\n')
+                    || tooltipText.Contains("<br", StringComparison.OrdinalIgnoreCase)
+                );
+        }
+
         private static void ResolveItemPropertyFromSibling(
             Control control,
             ref uint serial,
@@ -884,6 +963,9 @@ namespace ClassicUO.Game
             if (!TryFindItemArtCommand(lines, itemArtControl, out int itemArtIndex))
                 return false;
 
+            if (TryResolveItemSerialByOrdinal(lines, itemArtIndex, out serial))
+                return true;
+
             bool searchBefore = true;
             bool searchAfter = true;
 
@@ -934,6 +1016,53 @@ namespace ClassicUO.Game
             }
 
             return false;
+        }
+
+        private static bool TryResolveItemSerialByOrdinal(
+            string[] lines,
+            int itemArtIndex,
+            out uint serial
+        )
+        {
+            serial = 0;
+            int artCount = 0;
+            int itemArtOrdinal = -1;
+            var itemPropertySerials = new List<uint>();
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string[] command = SplitGumpCommand(lines[i]);
+
+                if (
+                    command.Length != 0
+                    && string.Equals(
+                        command[0],
+                        "buttontileart",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    if (i == itemArtIndex)
+                        itemArtOrdinal = artCount;
+
+                    artCount++;
+                }
+
+                if (TryGetItemPropertySerial(command, out uint itemSerial))
+                    itemPropertySerials.Add(itemSerial);
+            }
+
+            if (
+                itemArtOrdinal < 0
+                || artCount != itemPropertySerials.Count
+                || itemArtOrdinal >= itemPropertySerials.Count
+            )
+            {
+                return false;
+            }
+
+            serial = itemPropertySerials[itemArtOrdinal];
+            return serial != 0;
         }
 
         private static bool TryFindItemArtCommand(
