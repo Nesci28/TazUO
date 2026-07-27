@@ -520,13 +520,19 @@ internal static class GumpHelpers
                     }
                     else
                     {
-                        // Some server gumps attach itemproperty to a row/button placed after the
+                        // Some server gumps attach itemproperty to a row/control placed after the
                         // tile art. Associate the nearest preceding item art with that control.
                         for (int i = gump.Children.Count - 2; i >= 0; i--)
                         {
                             if (gump.Children[i] is StaticPic precedingItemArt)
                             {
                                 itemGraphic = precedingItemArt.Graphic;
+                                break;
+                            }
+
+                            if (gump.Children[i] is ButtonTileArt precedingButtonItemArt)
+                            {
+                                itemGraphic = precedingButtonItemArt.Graphic;
                                 break;
                             }
                         }
