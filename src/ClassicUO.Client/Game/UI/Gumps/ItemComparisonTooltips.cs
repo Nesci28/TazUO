@@ -24,6 +24,26 @@ internal static class ItemComparisonTooltips
     }
 
     public static MultipleToolTipGump Create(World world, uint candidateSerial, byte candidateLayer, Control hoverReference)
+        => Create(world, candidateSerial, null, candidateLayer, hoverReference);
+
+    /// <summary>
+    /// Creates a comparison for server gumps that provide the complete tooltip text without an
+    /// itemproperty serial. OSI Vendor Search can use this representation for ButtonTileArt rows.
+    /// </summary>
+    public static MultipleToolTipGump Create(
+        World world,
+        string candidateTooltip,
+        byte candidateLayer,
+        Control hoverReference
+    ) => Create(world, 0, candidateTooltip, candidateLayer, hoverReference);
+
+    private static MultipleToolTipGump Create(
+        World world,
+        uint candidateSerial,
+        string candidateTooltipText,
+        byte candidateLayer,
+        Control hoverReference
+    )
     {
         if (world?.Player == null || hoverReference == null || candidateLayer == 0)
             return null;
@@ -50,15 +70,25 @@ internal static class ItemComparisonTooltips
         if (equipped == null)
             return null;
 
-        var candidateTooltip = new CustomToolTip(
-            world,
-            candidateSerial,
-            candidateLayer,
-            Mouse.Position.X + 5,
-            Mouse.Position.Y + 5,
-            hoverReference,
-            compareTo: equipped
-        );
+        CustomToolTip candidateTooltip = string.IsNullOrWhiteSpace(candidateTooltipText)
+            ? new CustomToolTip(
+                world,
+                candidateSerial,
+                candidateLayer,
+                Mouse.Position.X + 5,
+                Mouse.Position.Y + 5,
+                hoverReference,
+                compareTo: equipped
+            )
+            : new CustomToolTip(
+                world,
+                candidateTooltipText,
+                candidateLayer,
+                Mouse.Position.X + 5,
+                Mouse.Position.Y + 5,
+                hoverReference,
+                compareTo: equipped
+            );
 
         var equippedTooltip = new CustomToolTip(
             world,
@@ -73,7 +103,9 @@ internal static class ItemComparisonTooltips
 
         if (CUOEnviroment.Debug)
         {
-            var candidateProperties = new ItemPropertiesData(world, candidateSerial, candidateLayer);
+            ItemPropertiesData candidateProperties = string.IsNullOrWhiteSpace(candidateTooltipText)
+                ? new ItemPropertiesData(world, candidateSerial, candidateLayer)
+                : new ItemPropertiesData(world, candidateTooltipText, candidateLayer);
             var equippedProperties = new ItemPropertiesData(world, equipped);
 
             if (candidateProperties.GenerateComparisonTooltip(equippedProperties, out string compiledTooltip))
