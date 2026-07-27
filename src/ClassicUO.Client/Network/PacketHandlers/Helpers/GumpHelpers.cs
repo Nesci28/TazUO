@@ -114,6 +114,7 @@ internal static class GumpHelpers
 
         bool textBoxFocused = false;
         ushort lastItemGraphic = 0;
+        Control lastItemArtControl = null;
 
         // Reused across commands: no control constructor retains the list, so the per-command
         // allocation can be avoided.
@@ -152,6 +153,7 @@ internal static class GumpHelpers
                 var itemArt = new ButtonTileArt(gparams);
                 gump.Add(itemArt, page);
                 lastItemGraphic = itemArt.Graphic;
+                lastItemArtControl = itemArt;
             }
             else if (
                 string.Equals(
@@ -311,7 +313,10 @@ internal static class GumpHelpers
                 gump.Add(pic, page);
 
                 if (isTilePicAsGumpPic)
+                {
                     lastItemGraphic = UInt16Converter.Parse(gparams[3]);
+                    lastItemArtControl = pic;
+                }
             }
             else if (
                 string.Equals(
@@ -462,6 +467,7 @@ internal static class GumpHelpers
                 var itemArt = new StaticPic(gparams);
                 gump.Add(itemArt, page);
                 lastItemGraphic = itemArt.Graphic;
+                lastItemArtControl = itemArt;
             }
             else if (
                 string.Equals(entry, "noclose", StringComparison.OrdinalIgnoreCase)
@@ -585,6 +591,12 @@ internal static class GumpHelpers
                     else
                         itemControl.SetTooltip(itemSerial);
 
+                    // The item art can overlap the row/background control that itemproperty
+                    // targets. Attach the same metadata to both so hit-testing either one gives
+                    // Ctrl+hover enough information to build the comparison tooltip.
+                    if (lastItemArtControl != null && lastItemArtControl != itemControl)
+                        lastItemArtControl.SetItemPropertyTooltip(itemSerial, itemGraphic);
+
                     if (
                         uint.TryParse(gparams[1], out uint s)
                         && (!world.OPL.TryGetRevision(s, out uint rev) || rev == 0)
@@ -593,6 +605,7 @@ internal static class GumpHelpers
                 }
 
                 lastItemGraphic = 0;
+                lastItemArtControl = null;
             }
             else if (
                 string.Equals(entry, "noresize", StringComparison.OrdinalIgnoreCase)
