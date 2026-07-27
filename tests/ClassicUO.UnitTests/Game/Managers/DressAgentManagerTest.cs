@@ -98,6 +98,104 @@ namespace ClassicUO.UnitTests.Game.Managers
 
         #endregion
 
+        #region KR Packet Routing Tests
+
+        [Fact]
+        public void ShouldUseKREquipPacket_WithDefaultBag_ShouldReturnTrue()
+        {
+            // Arrange
+            var config = new DressConfig { UseKREquipPacket = true };
+
+            // Act
+            bool result = DressAgentManager.ShouldUseKREquipPacket(config, 456u);
+
+            // Assert
+            result.Should().BeTrue();
+        }
+
+        [Fact]
+        public void ShouldUseKREquipPacket_WithBackpackConfiguredExplicitly_ShouldReturnTrue()
+        {
+            // Arrange
+            var config = new DressConfig
+            {
+                UseKREquipPacket = true,
+                UndressBagSerial = 789u
+            };
+
+            // Act
+            bool result = DressAgentManager.ShouldUseKREquipPacket(config, 789u);
+
+            // Assert
+            result.Should().BeTrue();
+        }
+
+        [Fact]
+        public void ShouldUseKREquipPacket_WithDifferentConfiguredBag_ShouldReturnFalse()
+        {
+            // Arrange
+            var config = new DressConfig
+            {
+                UseKREquipPacket = true,
+                UndressBagSerial = 789u
+            };
+
+            // Act
+            bool result = DressAgentManager.ShouldUseKREquipPacket(config, 456u);
+
+            // Assert
+            result.Should().BeFalse();
+        }
+
+        [Fact]
+        public void ShouldUseKREquipPacket_WithKRPacketDisabled_ShouldReturnFalse()
+        {
+            // Arrange
+            var config = new DressConfig { UseKREquipPacket = false };
+
+            // Act
+            bool result = DressAgentManager.ShouldUseKREquipPacket(config, 456u);
+
+            // Assert
+            result.Should().BeFalse();
+        }
+
+        [Fact]
+        public void ShouldWarnAboutKRFallback_WithCustomBag_ShouldReturnTrue()
+        {
+            // Arrange
+            var config = new DressConfig
+            {
+                UseKREquipPacket = true,
+                UndressBagSerial = 789u
+            };
+
+            // Act
+            bool result = DressAgentManager.ShouldWarnAboutKRFallback(config, 456u);
+
+            // Assert
+            result.Should().BeTrue();
+        }
+
+        [Fact]
+        public void ShouldWarnAboutKRFallback_WithBackpackConfiguredExplicitly_ShouldReturnFalse()
+        {
+            // Arrange
+            var config = new DressConfig
+            {
+                UseKREquipPacket = true,
+                UndressBagSerial = 789u
+            };
+
+            // Act
+            bool result = DressAgentManager.ShouldWarnAboutKRFallback(config, 789u);
+
+            // Assert
+            result.Should().BeFalse();
+        }
+
+        #endregion
+
         #region DressItem Tests
 
         [Fact]
