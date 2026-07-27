@@ -14,6 +14,7 @@ public class GameCursorItemPropertyTests
     private const uint VendorItemSerial = 0x40000001;
     private const uint SecondVendorItemSerial = 0x40000002;
     private const ushort EarringsGraphic = 0x1087;
+    private const string RawVendorTooltip = "Solaria's Secret Poisons\nninjitsu +10\nhit chance increase 10%";
 
     [Fact]
     public void ResolvesDirectButtonTileArtFromNormalItemPropertyTooltip()
@@ -159,10 +160,10 @@ public class GameCursorItemPropertyTests
         var gump = new Gump(null, 0, 1)
         {
             PacketGumpText = $"""
-                itemproperty 0x{VendorItemSerial:X8}
                 buttontileart 100 200 0 1 0 0 0 0x{EarringsGraphic:X4} 0 8 8
-                itemproperty 0x{SecondVendorItemSerial:X8}
                 buttontileart 100 300 0 1 0 0 0 0x{EarringsGraphic:X4} 0 8 8
+                itemproperty 0x{VendorItemSerial:X8}
+                itemproperty 0x{SecondVendorItemSerial:X8}
                 """
         };
         ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
@@ -180,6 +181,21 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(SecondVendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
+    public void ResolvesRawTooltipTextFromHoveredButtonTileArtWithoutSerial()
+    {
+        ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
+        itemArt.SetTooltip(RawVendorTooltip);
+
+        bool resolved = GameCursor.TryResolveItemTooltipText(
+            itemArt,
+            out string tooltipText
+        );
+
+        resolved.Should().BeTrue();
+        tooltipText.Should().Be(RawVendorTooltip);
     }
 
     [Fact]
