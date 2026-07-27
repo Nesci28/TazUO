@@ -276,7 +276,7 @@ namespace ClassicUO.Game.Managers
             if (World.Instance == null || World.Instance.Player == null)
                 return;
 
-            if (config.UseKREquipPacket)
+            if (UseKREquipPacketOrWarn(config))
             {
                 // Then collect items to equip
                 var itemsToEquip = new List<uint>();
@@ -338,7 +338,7 @@ namespace ClassicUO.Game.Managers
 
         private void Undress(DressConfig config)
         {
-            if (config.UseKREquipPacket)
+            if (UseKREquipPacketOrWarn(config))
             {
                 // Use KR Unequip Packets for faster operation
                 var layersToUnequip = new List<Layer>();
@@ -379,6 +379,32 @@ namespace ClassicUO.Game.Managers
                 foreach (uint serial in itemsToUnequip)
                     UnequipItemAsync(serial, config);
             }
+        }
+
+        // KR packets always place unequipped items in the player backpack and cannot target another container.
+        internal static bool ShouldUseKREquipPacket(DressConfig config, uint backpackSerial) =>
+            config.UseKREquipPacket
+            && backpackSerial != 0
+            && (config.UndressBagSerial == 0 || config.UndressBagSerial == backpackSerial);
+
+        internal static bool ShouldWarnAboutKRFallback(DressConfig config, uint backpackSerial) =>
+            config.UseKREquipPacket
+            && backpackSerial != 0
+            && config.UndressBagSerial != 0
+            && config.UndressBagSerial != backpackSerial;
+
+        private bool UseKREquipPacketOrWarn(DressConfig config)
+        {
+            uint backpackSerial = World.Instance.Player?.Backpack?.Serial ?? 0;
+
+            if (ShouldWarnAboutKRFallback(config, backpackSerial))
+                GameActions.Print(
+                    World.Instance,
+                    "Dress Agent: KR packets only support the player backpack. Using queued item moves for the custom undress bag.",
+                    Constants.HUE_WARN
+                );
+
+            return ShouldUseKREquipPacket(config, backpackSerial);
         }
 
         private void UnequipLayers(List<byte> layers, DressConfig config)
