@@ -25,7 +25,7 @@ public class GridItem : Control
     private Label _count;
     private readonly AlphaBlendControl _background;
     private readonly Label _listLabel;
-    private CustomToolTip _toolTipThis, _toolTipitem1, _toolTipitem2;
+    private MultipleToolTipGump _comparisonTooltip;
     private readonly List<SimpleTimedTextGump> _timedTexts = new();
     private readonly World _world;
     private static readonly HashSet<uint> _toggledThisAltDrag = new HashSet<uint>();
@@ -545,30 +545,6 @@ public class GridItem : Control
     }
 
     /// <summary>
-    /// Gets the weapon comparison items for tooltip comparison (handles one-handed and two-handed weapons)
-    /// </summary>
-    private (Item primary, Item secondary) GetWeaponComparisonItems(Layer itemLayer)
-    {
-        if (itemLayer != Layer.OneHanded && itemLayer != Layer.TwoHanded)
-            return (null, null);
-
-        Layer primaryLayer = itemLayer;
-        Layer secondaryLayer = itemLayer == Layer.OneHanded ? Layer.TwoHanded : Layer.OneHanded;
-
-        Item primary = _world.Player.FindItemByLayer(primaryLayer);
-        Item secondary = _world.Player.FindItemByLayer(secondaryLayer);
-
-        // If no item in primary layer, swap with secondary
-        if (primary == null && secondary != null)
-        {
-            primary = secondary;
-            secondary = null;
-        }
-
-        return (primary, secondary);
-    }
-
-    /// <summary>
     /// Draws a highlighted border around the grid item
     /// </summary>
     private void DrawHighlightBorder(UltimaBatcher2D batcher, Rectangle cellBounds, Texture2D borderTexture, Vector3 borderHueVec)
@@ -962,52 +938,16 @@ public class GridItem : Control
         if (!_hasItem || !_gridContainer.IsCompare || _item.ItemData.Layer <= 0 || !MouseIsOver)
             return;
 
-        // Bail if a comparison tooltip is already showing.
-        if ((_toolTipThis != null && !_toolTipThis.IsDisposed) ||
-            (_toolTipitem1 != null && !_toolTipitem1.IsDisposed) ||
-            (_toolTipitem2 != null && !_toolTipitem2.IsDisposed))
+        if (_comparisonTooltip is { IsDisposed: false })
             return;
 
-        var itemLayer = (Layer)_item.ItemData.Layer;
-        Item compItem = _world.Player.FindItemByLayer(itemLayer);
-        Item compItem2 = null;
-
-        // For weapons, get both possible comparison items (one-handed and two-handed)
-        (Item weaponPrimary, Item weaponSecondary) = GetWeaponComparisonItems(itemLayer);
-        if (weaponPrimary != null)
-        {
-            compItem = weaponPrimary;
-            compItem2 = weaponSecondary;
-        }
-
-        if (compItem == null || itemLayer == Layer.Backpack)
+        MultipleToolTipGump comparisonTooltip = ItemComparisonTooltips.Create(_world, _item, this);
+        if (comparisonTooltip == null)
             return;
 
         ClearTooltip();
-        var toolTipList = new List<CustomToolTip>();
-        _toolTipThis = new CustomToolTip(_world, _item, Mouse.Position.X + 5, Mouse.Position.Y + 5, this, compareTo: compItem);
-        toolTipList.Add(_toolTipThis);
-        _toolTipitem1 = new CustomToolTip(_world, compItem, _toolTipThis.X + _toolTipThis.Width + 10, _toolTipThis.Y, this, "<basefont color=\"orange\">Equipped Item<br>");
-        toolTipList.Add(_toolTipitem1);
-
-        if (CUOEnviroment.Debug)
-        {
-            var i1 = new ItemPropertiesData(_world, _item);
-            var i2 = new ItemPropertiesData(_world, compItem);
-
-            if (i1.GenerateComparisonTooltip(i2, out string compileToolTip))
-                GameActions.Print(_world, compileToolTip);
-        }
-
-        // Add second weapon comparison if both hands have weapons
-        if (compItem2 != null)
-        {
-            _toolTipitem2 = new CustomToolTip(_world, compItem2, _toolTipitem1.X + _toolTipitem1.Width + 10, _toolTipitem1.Y, this, "<basefont color=\"orange\">Equipped Item<br>");
-            toolTipList.Add(_toolTipitem2);
-        }
-
-        var multipleToolTipGump = new MultipleToolTipGump(_world, Mouse.Position.X + 10, Mouse.Position.Y + 10, toolTipList.ToArray(), this);
-        UIManager.Add(multipleToolTipGump);
+        _comparisonTooltip = comparisonTooltip;
+        UIManager.Add(_comparisonTooltip);
     }
 
     public override bool Draw(UltimaBatcher2D batcher, int x, int y)

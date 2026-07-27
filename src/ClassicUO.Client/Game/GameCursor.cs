@@ -6,8 +6,10 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.Managers.Hotkeys;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Renderer;
@@ -68,6 +70,8 @@ namespace ClassicUO.Game
         private readonly List<Multi> _temp = new List<Multi>();
         private readonly Tooltip _tooltip;
         private readonly World _world;
+        private HotKeyEntry _compareItemHotkey;
+        private MultipleToolTipGump _comparisonTooltip;
 
         /// <summary>
         ///     The game cursor's visual style override.
@@ -557,6 +561,11 @@ namespace ClassicUO.Game
                 }
                 else
                 {
+                    if (TryShowItemComparison())
+                    {
+                        return;
+                    }
+
                     if (
                         UIManager.IsMouseOverWorld
                         && SelectedObject.Object is Entity item
@@ -623,6 +632,44 @@ namespace ClassicUO.Game
             {
                 _tooltip.Clear();
             }
+        }
+
+        private bool TryShowItemComparison()
+        {
+            if (UIManager.MouseOverControl is not Control hoveredControl)
+                return false;
+
+            if (_comparisonTooltip is { IsDisposed: false })
+            {
+                _tooltip.Clear();
+                return true;
+            }
+
+            if (hoveredControl.ItemPropertySerial == 0 || hoveredControl.ItemPropertyGraphic == 0)
+                return false;
+
+            _compareItemHotkey ??= HotKeys.Get(HotKeyRegistrar.GridCompareId);
+            if (_compareItemHotkey?.IsPressed() != true)
+                return false;
+
+            if (!_world.OPL.TryGetNameAndData(hoveredControl.ItemPropertySerial, out _, out _))
+                return false;
+
+            byte layer = Client.Game.UO.FileManager.TileData.StaticData[hoveredControl.ItemPropertyGraphic].Layer;
+            MultipleToolTipGump tooltip = ItemComparisonTooltips.Create(
+                _world,
+                hoveredControl.ItemPropertySerial,
+                layer,
+                hoveredControl
+            );
+
+            if (tooltip == null)
+                return false;
+
+            _tooltip.Clear();
+            _comparisonTooltip = tooltip;
+            UIManager.Add(_comparisonTooltip);
+            return true;
         }
 
         private ushort AssignGraphicByState()
