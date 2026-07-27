@@ -667,10 +667,13 @@ namespace ClassicUO.Game
             if (!TryResolveItemProperty(hoveredControl, out uint serial, out ushort graphic))
             {
                 string controlType = hoveredControl.GetType().Name;
+                string controlDetails = hoveredControl is ButtonTileArt buttonTileArt
+                    ? $", graphic 0x{buttonTileArt.Graphic:X4}, button {buttonTileArt.ButtonID}, position {buttonTileArt.X},{buttonTileArt.Y}"
+                    : string.Empty;
                 ReportItemComparisonFailure(
                     serial,
                     serial == 0
-                        ? $"item serial could not be resolved (control {controlType})"
+                        ? $"item serial could not be resolved (control {controlType}{controlDetails})"
                         : $"item art could not be resolved (serial 0x{serial:X8}, control {controlType})"
                 );
                 return false;
@@ -771,17 +774,29 @@ namespace ClassicUO.Game
                 current = current.Parent;
             }
 
-            if (graphic == 0 && serial != 0 && hoveredControl.RootParent is Gump rootGump)
+            if (hoveredControl.RootParent is Gump rootGump)
             {
-                graphic = FindAssociatedItemPropertyGraphic(rootGump, serial);
-
-                if (graphic == 0)
+                if (serial == 0)
                 {
-                    TryResolveItemGraphicFromGumpText(
+                    TryResolveItemSerialFromGumpText(
                         rootGump.PacketGumpText,
-                        serial,
-                        out graphic
+                        hoveredControl,
+                        out serial
                     );
+                }
+
+                if (graphic == 0 && serial != 0)
+                {
+                    graphic = FindAssociatedItemPropertyGraphic(rootGump, serial);
+
+                    if (graphic == 0)
+                    {
+                        TryResolveItemGraphicFromGumpText(
+                            rootGump.PacketGumpText,
+                            serial,
+                            out graphic
+                        );
+                    }
                 }
             }
 
@@ -839,6 +854,168 @@ namespace ClassicUO.Game
 
             return 0;
         }
+
+        /// <summary>
+        /// Resolves the itemproperty serial nearest the exact tile-art command represented by the
+        /// hovered control. OSI Vendor Search can emit itemproperty before its ButtonTileArt, so
+        /// there may be no serial-bearing sibling for normal control-tree lookup to discover.
+        /// </summary>
+        internal static bool TryResolveItemSerialFromGumpText(
+            string packetGumpText,
+            Control itemArtControl,
+            out uint serial
+        )
+        {
+            serial = 0;
+
+            if (
+                itemArtControl == null
+                || string.IsNullOrWhiteSpace(packetGumpText)
+            )
+            {
+                return false;
+            }
+
+            string[] lines = packetGumpText.Split(
+                '\n',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            );
+
+            if (!TryFindItemArtCommand(lines, itemArtControl, out int itemArtIndex))
+                return false;
+
+            bool searchBefore = true;
+            bool searchAfter = true;
+
+            for (
+                int distance = 1;
+                searchBefore || searchAfter;
+                distance++
+            )
+            {
+                int beforeIndex = itemArtIndex - distance;
+                int afterIndex = itemArtIndex + distance;
+
+                if (searchBefore)
+                {
+                    if (beforeIndex < 0)
+                    {
+                        searchBefore = false;
+                    }
+                    else
+                    {
+                        string[] command = SplitGumpCommand(lines[beforeIndex]);
+
+                        if (TryGetItemPropertySerial(command, out serial))
+                            return true;
+
+                        if (IsItemArtCommand(command))
+                            searchBefore = false;
+                    }
+                }
+
+                if (searchAfter)
+                {
+                    if (afterIndex >= lines.Length)
+                    {
+                        searchAfter = false;
+                    }
+                    else
+                    {
+                        string[] command = SplitGumpCommand(lines[afterIndex]);
+
+                        if (TryGetItemPropertySerial(command, out serial))
+                            return true;
+
+                        if (IsItemArtCommand(command))
+                            searchAfter = false;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryFindItemArtCommand(
+            string[] lines,
+            Control itemArtControl,
+            out int commandIndex
+        )
+        {
+            commandIndex = -1;
+
+            if (itemArtControl is not ButtonTileArt buttonTileArt)
+                return false;
+
+            int fallbackIndex = -1;
+            int fallbackCount = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string[] command = SplitGumpCommand(lines[i]);
+
+                if (
+                    command.Length <= 8
+                    || !string.Equals(
+                        command[0],
+                        "buttontileart",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                    || ClassicUO.Utility.UInt16Converter.Parse(command[8])
+                        != buttonTileArt.Graphic
+                    || !int.TryParse(command[7], out int buttonID)
+                    || buttonID != buttonTileArt.ButtonID
+                )
+                {
+                    continue;
+                }
+
+                fallbackIndex = i;
+                fallbackCount++;
+
+                if (
+                    int.TryParse(command[1], out int x)
+                    && int.TryParse(command[2], out int y)
+                    && (
+                        x == buttonTileArt.X
+                        || (int)(x * buttonTileArt.InternalScale) == buttonTileArt.X
+                    )
+                    && (
+                        y == buttonTileArt.Y
+                        || (int)(y * buttonTileArt.InternalScale) == buttonTileArt.Y
+                    )
+                )
+                {
+                    commandIndex = i;
+                    return true;
+                }
+            }
+
+            if (fallbackCount == 1)
+            {
+                commandIndex = fallbackIndex;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetItemPropertySerial(string[] command, out uint serial)
+        {
+            serial = 0;
+
+            return command.Length > 1
+                && string.Equals(
+                    command[0],
+                    "itemproperty",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && TryParseSerial(command[1], out serial)
+                && serial != 0;
+        }
+
+        private static bool IsItemArtCommand(string[] command) =>
+            GetItemGraphicFromGumpCommand(command) != 0;
 
         /// <summary>
         /// Resolves item art directly from a server gump's normalized command text. This is the
