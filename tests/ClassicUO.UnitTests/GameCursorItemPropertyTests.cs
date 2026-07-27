@@ -12,6 +12,7 @@ namespace ClassicUO.UnitTests.Game;
 public class GameCursorItemPropertyTests
 {
     private const uint VendorItemSerial = 0x40000001;
+    private const uint SecondVendorItemSerial = 0x40000002;
     private const ushort EarringsGraphic = 0x1087;
 
     [Fact]
@@ -125,6 +126,59 @@ public class GameCursorItemPropertyTests
         );
 
         resolved.Should().BeTrue();
+        graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
+    public void ResolvesSerialWhenItemPropertyPrecedesHoveredButtonTileArt()
+    {
+        var gump = new Gump(null, 0, 1)
+        {
+            PacketGumpText = $"""
+                itemproperty 0x{VendorItemSerial:X8}
+                buttontileart 0 0 0 1 0 0 0 0x{EarringsGraphic:X4} 0 8 8
+                """
+        };
+        ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
+        gump.Add(itemArt);
+
+        bool resolved = GameCursor.TryResolveItemProperty(
+            itemArt,
+            out uint serial,
+            out ushort graphic
+        );
+
+        resolved.Should().BeTrue();
+        serial.Should().Be(VendorItemSerial);
+        graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
+    public void ResolvesCorrectSerialAmongRepeatedScaledButtonTileArtRows()
+    {
+        var gump = new Gump(null, 0, 1)
+        {
+            PacketGumpText = $"""
+                itemproperty 0x{VendorItemSerial:X8}
+                buttontileart 100 200 0 1 0 0 0 0x{EarringsGraphic:X4} 0 8 8
+                itemproperty 0x{SecondVendorItemSerial:X8}
+                buttontileart 100 300 0 1 0 0 0 0x{EarringsGraphic:X4} 0 8 8
+                """
+        };
+        ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
+        itemArt.X = 125;
+        itemArt.Y = 375;
+        itemArt.InternalScale = 1.25;
+        gump.Add(itemArt);
+
+        bool resolved = GameCursor.TryResolveItemProperty(
+            itemArt,
+            out uint serial,
+            out ushort graphic
+        );
+
+        resolved.Should().BeTrue();
+        serial.Should().Be(SecondVendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
     }
 
