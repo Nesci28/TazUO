@@ -72,6 +72,7 @@ namespace ClassicUO.Game
         private readonly World _world;
         private HotKeyEntry _compareItemHotkey;
         private MultipleToolTipGump _comparisonTooltip;
+        private string _lastItemComparisonFailure;
 
         /// <summary>
         ///     The game cursor's visual style override.
@@ -637,7 +638,16 @@ namespace ClassicUO.Game
         private bool TryShowItemComparison()
         {
             if (UIManager.MouseOverControl is not Control hoveredControl)
+            {
+                _lastItemComparisonFailure = null;
                 return false;
+            }
+
+            if (hoveredControl.RootParent is not Gump { IsFromServer: true })
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
 
             if (_comparisonTooltip is { IsDisposed: false })
             {
@@ -645,17 +655,37 @@ namespace ClassicUO.Game
                 return true;
             }
 
-            if (!TryResolveItemProperty(hoveredControl, out uint serial, out ushort graphic))
-                return false;
-
             _compareItemHotkey ??= HotKeys.Get(HotKeyRegistrar.GridCompareId);
-            if (_compareItemHotkey?.IsPressed() != true)
+            // Vendor Search is expected to support Ctrl+hover even when the shared grid hotkey
+            // registry has not been initialized yet or a profile failed to restore that binding.
+            if (!IsItemComparisonPressed(_compareItemHotkey))
+            {
+                _lastItemComparisonFailure = null;
                 return false;
+            }
+
+            if (!TryResolveItemProperty(hoveredControl, out uint serial, out ushort graphic))
+            {
+                ReportItemComparisonFailure(
+                    hoveredControl.Tooltip is uint tooltipSerial ? tooltipSerial : 0,
+                    "item art could not be resolved"
+                );
+                return false;
+            }
 
             if (!_world.OPL.TryGetNameAndData(serial, out _, out _))
+            {
+                ReportItemComparisonFailure(serial, "item properties are not loaded");
                 return false;
+            }
 
             byte layer = Client.Game.UO.FileManager.TileData.StaticData[graphic].Layer;
+            if (layer == 0)
+            {
+                ReportItemComparisonFailure(serial, $"graphic 0x{graphic:X4} has no equipment layer");
+                return false;
+            }
+
             MultipleToolTipGump tooltip = ItemComparisonTooltips.Create(
                 _world,
                 serial,
@@ -664,12 +694,26 @@ namespace ClassicUO.Game
             );
 
             if (tooltip == null)
+            {
+                ReportItemComparisonFailure(serial, $"no equipped item was found on layer {(Layer)layer}");
                 return false;
+            }
 
+            _lastItemComparisonFailure = null;
             _tooltip.Clear();
             _comparisonTooltip = tooltip;
             UIManager.Add(_comparisonTooltip);
             return true;
+        }
+
+        private void ReportItemComparisonFailure(uint serial, string reason)
+        {
+            string failure = $"{serial:X8}:{reason}";
+            if (_lastItemComparisonFailure == failure)
+                return;
+
+            _lastItemComparisonFailure = failure;
+            GameActions.PrintUserWarn(_world, $"Vendor comparison unavailable: {reason}.");
         }
 
         /// <summary>
@@ -731,6 +775,9 @@ namespace ClassicUO.Game
 
             return serial != 0 && graphic != 0;
         }
+
+        internal static bool IsItemComparisonPressed(HotKeyEntry compareHotkey) =>
+            Keyboard.Ctrl || compareHotkey?.IsPressed() == true;
 
         private static ushort GetItemArtGraphic(Control control) => control switch
         {

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using ClassicUO.Game;
 using ClassicUO.Game.UI.Controls;
 using FluentAssertions;
+using SDL3;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game;
@@ -45,6 +46,32 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(VendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
+    public void CtrlActivatesVendorComparisonWithoutRegisteredGridHotkey()
+    {
+        var keyDown = new SDL.SDL_KeyboardEvent
+        {
+            key = (uint)SDL.SDL_Keycode.SDLK_LCTRL,
+            mod = SDL.SDL_Keymod.SDL_KMOD_LCTRL
+        };
+
+        var keyUp = new SDL.SDL_KeyboardEvent
+        {
+            key = (uint)SDL.SDL_Keycode.SDLK_LCTRL,
+            mod = SDL.SDL_Keymod.SDL_KMOD_NONE
+        };
+
+        try
+        {
+            ClassicUO.Input.Keyboard.OnKeyDown(keyDown);
+            GameCursor.IsItemComparisonPressed(null).Should().BeTrue();
+        }
+        finally
+        {
+            ClassicUO.Input.Keyboard.OnKeyUp(keyUp);
+        }
     }
 
     private static ButtonTileArt CreateButtonTileArt(ushort graphic)
