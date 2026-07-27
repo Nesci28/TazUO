@@ -439,7 +439,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         {
             EnsureCache();
 
-            if (!IsItemNameMatch(itemData.Name) || (itemData.item != null && !MatchesSlot(itemData.item.ItemData.Layer)))
+            if (!IsItemNameMatch(itemData.Name) || (itemData.ItemLayer != 0 && !MatchesSlot(itemData.ItemLayer)))
                 return false;
 
             // Rules
@@ -528,7 +528,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             if (!IsItemNameMatch(itemData.Name))
                 return false;
 
-            if (itemData.item != null && !MatchesSlot(itemData.item.ItemData.Layer))
+            if (itemData.ItemLayer != 0 && !MatchesSlot(itemData.ItemLayer))
                 return false;
 
             var normalizedItemLines = itemData.singlePropertyData

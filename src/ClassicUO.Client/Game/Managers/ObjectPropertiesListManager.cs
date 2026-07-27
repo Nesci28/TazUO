@@ -158,6 +158,7 @@ namespace ClassicUO.Game.Managers
         public string Name = "";
         public readonly string RawData = "";
         public readonly uint serial;
+        public readonly byte ItemLayer;
         public string[] RawLines;
         public readonly Item item, itemComparedTo;
         public List<SinglePropertyData> singlePropertyData = new List<SinglePropertyData>();
@@ -173,7 +174,31 @@ namespace ClassicUO.Game.Managers
             itemComparedTo = compareTo;
 
             serial = item.Serial;
+            ItemLayer = item.ItemData.Layer;
             if (world.OPL.TryGetNameAndData(item.Serial, out Name, out RawData))
+            {
+                Name = Name.Trim();
+                HasData = true;
+                processData();
+            }
+        }
+
+        /// <summary>
+        /// Builds property data for an item represented only by an OPL serial and equipment layer.
+        /// Server-sent gumps such as Vendor Search use this form: the result has OPL data and item
+        /// art, but deliberately has no entry in <see cref="World.Items"/>.
+        /// </summary>
+        public ItemPropertiesData(World world, uint serial, byte itemLayer, Item compareTo = null)
+        {
+            if (world == null)
+                return;
+
+            this.world = world;
+            this.serial = serial;
+            ItemLayer = itemLayer;
+            itemComparedTo = compareTo;
+
+            if (world.OPL.TryGetNameAndData(serial, out Name, out RawData))
             {
                 Name = Name.Trim();
                 HasData = true;
@@ -219,7 +244,9 @@ namespace ClassicUO.Game.Managers
         {
             if (itemComparedTo == null) return;
 
-            var itemPropertiesData = new ItemPropertiesData(world, itemComparedTo);
+            // Property diffs only need the equipped item's OPL. Avoid resolving its tile data here
+            // so OPL-only candidates remain independent from the world-item lookup path.
+            var itemPropertiesData = new ItemPropertiesData(world, itemComparedTo.Serial, 0);
             if (itemPropertiesData.HasData)
             {
                 foreach (SinglePropertyData thisItem in singlePropertyData)
