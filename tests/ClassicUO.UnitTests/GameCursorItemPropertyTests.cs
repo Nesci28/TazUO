@@ -49,6 +49,19 @@ public class GameCursorItemPropertyTests
     }
 
     [Fact]
+    public void ResolvesTilePicAsGumpPicFromNormalItemPropertyTooltip()
+    {
+        GumpPic itemArt = CreateGumpPic(EarringsGraphic);
+        itemArt.SetTooltip(VendorItemSerial);
+
+        bool resolved = GameCursor.TryResolveItemProperty(itemArt, out uint serial, out ushort graphic);
+
+        resolved.Should().BeTrue();
+        serial.Should().Be(VendorItemSerial);
+        graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
     public void CtrlActivatesVendorComparisonWithoutRegisteredGridHotkey()
     {
         var keyDown = new SDL.SDL_KeyboardEvent
@@ -78,6 +91,15 @@ public class GameCursorItemPropertyTests
     {
         var itemArt = (ButtonTileArt)RuntimeHelpers.GetUninitializedObject(typeof(ButtonTileArt));
         typeof(ButtonTileArt)
+            .GetField("_graphic", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(itemArt, graphic);
+        return itemArt;
+    }
+
+    private static GumpPic CreateGumpPic(ushort graphic)
+    {
+        var itemArt = (GumpPic)RuntimeHelpers.GetUninitializedObject(typeof(GumpPic));
+        typeof(GumpPicBase)
             .GetField("_graphic", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(itemArt, graphic);
         return itemArt;
