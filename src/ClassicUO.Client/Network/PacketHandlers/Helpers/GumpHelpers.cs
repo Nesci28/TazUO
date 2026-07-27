@@ -506,9 +506,36 @@ internal static class GumpHelpers
             {
                 if (world.ClientFeatures.TooltipsEnabled && gump.Children.Count != 0)
                 {
-                    gump.Children[gump.Children.Count - 1].SetTooltip(
-                        SerialHelper.Parse(gparams[1])
-                    );
+                    IGui itemControl = gump.Children[gump.Children.Count - 1];
+                    uint itemSerial = SerialHelper.Parse(gparams[1]);
+                    ushort itemGraphic = 0;
+
+                    if (itemControl is StaticPic itemArt)
+                    {
+                        itemGraphic = itemArt.Graphic;
+                    }
+                    else if (itemControl is ButtonTileArt buttonItemArt)
+                    {
+                        itemGraphic = buttonItemArt.Graphic;
+                    }
+                    else
+                    {
+                        // Some server gumps attach itemproperty to a row/button placed after the
+                        // tile art. Associate the nearest preceding item art with that control.
+                        for (int i = gump.Children.Count - 2; i >= 0; i--)
+                        {
+                            if (gump.Children[i] is StaticPic precedingItemArt)
+                            {
+                                itemGraphic = precedingItemArt.Graphic;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (itemControl is Control control)
+                        control.SetItemPropertyTooltip(itemSerial, itemGraphic);
+                    else
+                        itemControl.SetTooltip(itemSerial);
 
                     if (
                         uint.TryParse(gparams[1], out uint s)
