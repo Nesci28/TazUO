@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using ClassicUO.Game;
 using ClassicUO.Game.UI.Controls;
+using ClassicUO.Game.UI.Gumps;
 using FluentAssertions;
 using SDL3;
 using Xunit;
@@ -49,6 +50,28 @@ public class GameCursorItemPropertyTests
     }
 
     [Fact]
+    public void ResolvesFollowingItemPropertyWhenActualItemArtIsHovered()
+    {
+        var parent = new TestControl();
+        ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
+        var propertyControl = new TestControl();
+
+        parent.Add(itemArt);
+        parent.Add(propertyControl);
+        propertyControl.SetItemPropertyTooltip(VendorItemSerial, EarringsGraphic);
+
+        bool resolved = GameCursor.TryResolveItemProperty(
+            itemArt,
+            out uint serial,
+            out ushort graphic
+        );
+
+        resolved.Should().BeTrue();
+        serial.Should().Be(VendorItemSerial);
+        graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
     public void ResolvesTilePicAsGumpPicFromNormalItemPropertyTooltip()
     {
         GumpPic itemArt = CreateGumpPic(EarringsGraphic);
@@ -58,6 +81,50 @@ public class GameCursorItemPropertyTests
 
         resolved.Should().BeTrue();
         serial.Should().Be(VendorItemSerial);
+        graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
+    public void ResolvesTilePicAsGumpPicFromPacketTextWhenOverlayHasTooltip()
+    {
+        var gump = new Gump(null, 0, 1)
+        {
+            PacketGumpText = $"""
+                Vendor Search Results
+                tilepicasgumppic 96 350 0x{EarringsGraphic:X4} 0 0 0 0
+                resizepic 88 342 2620 160 120
+                itemproperty 0x{VendorItemSerial:X8}
+                """
+        };
+        var overlay = new TestControl { Parent = gump };
+        overlay.SetTooltip(VendorItemSerial);
+
+        bool resolved = GameCursor.TryResolveItemProperty(
+            overlay,
+            out uint serial,
+            out ushort graphic
+        );
+
+        resolved.Should().BeTrue();
+        serial.Should().Be(VendorItemSerial);
+        graphic.Should().Be(EarringsGraphic);
+    }
+
+    [Fact]
+    public void ResolvesButtonTileArtFromPacketTextWhenItemPropertyPrecedesVisual()
+    {
+        string packetGumpText = $"""
+            itemproperty {VendorItemSerial}
+            buttontileart 88 342 0 1 0 0 0 0x{EarringsGraphic:X4} 0 8 8
+            """;
+
+        bool resolved = GameCursor.TryResolveItemGraphicFromGumpText(
+            packetGumpText,
+            VendorItemSerial,
+            out ushort graphic
+        );
+
+        resolved.Should().BeTrue();
         graphic.Should().Be(EarringsGraphic);
     }
 
