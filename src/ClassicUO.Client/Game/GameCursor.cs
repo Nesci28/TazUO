@@ -645,20 +645,20 @@ namespace ClassicUO.Game
                 return true;
             }
 
-            if (hoveredControl.ItemPropertySerial == 0 || hoveredControl.ItemPropertyGraphic == 0)
+            if (!TryResolveItemProperty(hoveredControl, out uint serial, out ushort graphic))
                 return false;
 
             _compareItemHotkey ??= HotKeys.Get(HotKeyRegistrar.GridCompareId);
             if (_compareItemHotkey?.IsPressed() != true)
                 return false;
 
-            if (!_world.OPL.TryGetNameAndData(hoveredControl.ItemPropertySerial, out _, out _))
+            if (!_world.OPL.TryGetNameAndData(serial, out _, out _))
                 return false;
 
-            byte layer = Client.Game.UO.FileManager.TileData.StaticData[hoveredControl.ItemPropertyGraphic].Layer;
+            byte layer = Client.Game.UO.FileManager.TileData.StaticData[graphic].Layer;
             MultipleToolTipGump tooltip = ItemComparisonTooltips.Create(
                 _world,
-                hoveredControl.ItemPropertySerial,
+                serial,
                 layer,
                 hoveredControl
             );
@@ -671,6 +671,73 @@ namespace ClassicUO.Game
             UIManager.Add(_comparisonTooltip);
             return true;
         }
+
+        /// <summary>
+        /// Resolves the serial and art attached to an itemproperty entry. Server gumps do not have
+        /// to place the itemproperty command directly on the tile-art control, so the normal uint
+        /// tooltip and the nearest preceding item art are also accepted as fallbacks.
+        /// </summary>
+        internal static bool TryResolveItemProperty(
+            Control hoveredControl,
+            out uint serial,
+            out ushort graphic
+        )
+        {
+            serial = hoveredControl?.ItemPropertySerial ?? 0;
+            graphic = hoveredControl?.ItemPropertyGraphic ?? 0;
+
+            if (hoveredControl == null)
+                return false;
+
+            if (serial == 0 && hoveredControl.Tooltip is uint tooltipSerial)
+                serial = tooltipSerial;
+
+            if (graphic == 0)
+                graphic = GetItemArtGraphic(hoveredControl);
+
+            IGui current = hoveredControl;
+
+            while (graphic == 0 && current.Parent != null)
+            {
+                List<IGui> siblings = current.Parent.Children;
+                int currentIndex = siblings.IndexOf(current);
+
+                for (int i = currentIndex; i >= 0; i--)
+                {
+                    IGui sibling = siblings[i];
+
+                    if (sibling is Control siblingControl)
+                    {
+                        if (
+                            siblingControl.ItemPropertySerial == serial
+                            && siblingControl.ItemPropertyGraphic != 0
+                        )
+                        {
+                            graphic = siblingControl.ItemPropertyGraphic;
+                            break;
+                        }
+
+                        ushort siblingGraphic = GetItemArtGraphic(siblingControl);
+                        if (siblingGraphic != 0)
+                        {
+                            graphic = siblingGraphic;
+                            break;
+                        }
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            return serial != 0 && graphic != 0;
+        }
+
+        private static ushort GetItemArtGraphic(Control control) => control switch
+        {
+            StaticPic staticPic => staticPic.Graphic,
+            ButtonTileArt buttonTileArt => buttonTileArt.Graphic,
+            _ => 0
+        };
 
         private ushort AssignGraphicByState()
         {
