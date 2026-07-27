@@ -11,7 +11,8 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class CustomToolTip : Gump
     {
-        private readonly Item item;
+        private readonly uint itemSerial;
+        private readonly byte itemLayer;
         private Control hoverReference;
         private readonly string prepend;
         private readonly string append;
@@ -24,9 +25,19 @@ namespace ClassicUO.Game.UI.Gumps
 
         public event FinishedLoadingEvent OnOPLLoaded;
 
-        public CustomToolTip(World world, Item item, int x, int y, Control hoverReference, string prepend = "", string append = "", Item compareTo = null) : base(world, 0, 0)
+        public CustomToolTip(World world, Item item, int x, int y, Control hoverReference, string prepend = "", string append = "", Item compareTo = null)
+            : this(world, item?.Serial ?? 0, item?.ItemData.Layer ?? 0, x, y, hoverReference, prepend, append, compareTo)
         {
-            this.item = item;
+        }
+
+        /// <summary>
+        /// Creates a tooltip for an item represented by OPL data but not by a world item. This is
+        /// the representation used by Vendor Search and other server-sent item gumps.
+        /// </summary>
+        public CustomToolTip(World world, uint serial, byte layer, int x, int y, Control hoverReference, string prepend = "", string append = "", Item compareTo = null) : base(world, 0, 0)
+        {
+            itemSerial = serial;
+            itemLayer = layer;
             this.hoverReference = hoverReference;
             this.prepend = prepend;
             this.append = append;
@@ -59,25 +70,22 @@ namespace ClassicUO.Game.UI.Gumps
         {
             if (attempt > 4 || IsDisposed)
                 return;
-            if (item == null)
+            if (!SerialHelper.IsValid(itemSerial))
             {
                 Dispose();
                 return;
             }
 
-            string name = item.OPLName;
-            string data = item.OPLData ?? string.Empty;
+            World.OPL.TryGetNameAndData(itemSerial, out string name, out string data);
+            data ??= string.Empty;
 
             if (name.NotNullNotEmpty())
             {
                 string finalString = FormatTooltip(name, data);
-                if (SerialHelper.IsItem(item.Serial))
-                {
-                    finalString = Managers.ToolTipOverrideData.ProcessTooltipText(World, item.Serial, out borderHueOverride, compareTo == null ? uint.MinValue : compareTo.Serial);
-                    if (finalString == null)
-                        finalString = FormatTooltip(name, data);
-                    finalString = prepend + finalString + append;
-                }
+                finalString = Managers.ToolTipOverrideData.ProcessTooltipText(World, itemSerial, itemLayer, out borderHueOverride, compareTo);
+                if (finalString == null)
+                    finalString = FormatTooltip(name, data);
+                finalString = prepend + finalString + append;
 
                 text?.Dispose();
                 text = TextBox.GetOne(

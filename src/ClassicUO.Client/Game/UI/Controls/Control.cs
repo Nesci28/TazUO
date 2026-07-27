@@ -116,6 +116,14 @@ namespace ClassicUO.Game.UI.Controls
     /// <summary>Optional line drawn above <see cref="Tooltip"/>, e.g. a counter cell's keybind. Ignored when there is no tooltip.</summary>
     public string TooltipPrefix { get; set; }
 
+    /// <summary>
+    /// Item art associated with a server-gump itemproperty tooltip. Vendor Search can attach the
+    /// property serial to a row control rather than directly to the preceding StaticPic.
+    /// </summary>
+    internal ushort ItemPropertyGraphic { get; private set; }
+
+    internal uint ItemPropertySerial { get; private set; }
+
     public bool HasTooltip => /*World.ClientFlags.TooltipsEnabled &&*/ Tooltip != null;
 
     public virtual bool AcceptKeyboardInput
@@ -561,6 +569,13 @@ namespace ClassicUO.Game.UI.Controls
     {
         ClearTooltip();
         Tooltip = entity;
+    }
+
+    internal void SetItemPropertyTooltip(uint serial, ushort graphic)
+    {
+        ItemPropertySerial = serial;
+        ItemPropertyGraphic = graphic;
+        SetTooltip(serial);
     }
 
     public void SetTooltip(IGui c)

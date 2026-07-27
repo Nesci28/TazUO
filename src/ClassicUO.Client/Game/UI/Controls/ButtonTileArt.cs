@@ -15,6 +15,8 @@ namespace ClassicUO.Game.UI.Controls
         private ushort _graphic;
         private Vector3 hueVector;
 
+        public ushort Graphic => _graphic;
+
         public ButtonTileArt(List<string> gparams) : base(gparams)
         {
             X = int.Parse(gparams[1]);
