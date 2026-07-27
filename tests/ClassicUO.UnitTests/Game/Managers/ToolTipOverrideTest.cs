@@ -159,6 +159,45 @@ namespace ClassicUO.UnitTests.Game.Managers
             world.Clear();
         }
 
+        [Fact]
+        public void ProcessTooltipText_RawVendorItem_ComparesAgainstEquippedItem()
+        {
+            const uint equippedSerial = ITEM_SERIAL + 1;
+
+            SetTooltipOverrides(
+                new ToolTipOverrideData(
+                    0,
+                    "Fire Resist",
+                    "FIRERES={1}{4}",
+                    -1,
+                    100,
+                    -1,
+                    100,
+                    (byte)TooltipLayers.Any
+                )
+            );
+
+            var world = new World();
+            world.OPL.Add(equippedSerial, 1, "Equipped Earrings", "Fire Resist 10", 0);
+
+            var equipped = (ClassicUO.Game.GameObjects.Item)
+                System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+                    typeof(ClassicUO.Game.GameObjects.Item)
+                );
+            equipped.Serial = equippedSerial;
+
+            string result = ToolTipOverrideData.ProcessTooltipText(
+                world,
+                "Vendor Earrings\nFire Resist 15",
+                (byte)Layer.Earrings,
+                out _,
+                equipped
+            );
+
+            result.Should().Contain("FIRERES=15(5)");
+            world.Clear();
+        }
+
         #endregion
 
         #region Fallback / no-override behaviour

@@ -367,6 +367,31 @@ namespace ClassicUO.Game.Managers
         }
 
         /// <summary>
+        /// Processes tooltip text embedded directly in a server gump while preserving its item
+        /// layer and comparison against the equipped item.
+        /// </summary>
+        public static string ProcessTooltipText(
+            World world,
+            string text,
+            byte itemLayer,
+            out int borderHue,
+            Item compareTo = null
+        )
+        {
+            var itemPropertiesData = new ItemPropertiesData(
+                world,
+                text,
+                itemLayer,
+                compareTo
+            );
+            return BuildTooltip(
+                itemPropertiesData,
+                out borderHue,
+                compareTo?.Serial ?? uint.MinValue
+            );
+        }
+
+        /// <summary>
         /// Resolve the final tooltip text for a hovered object, applying any configured overrides.
         /// Items that exist in the world are resolved by serial. Items shown in server-sent gumps
         /// (and vendor search results) are referenced by serial but aren't real world items, so the

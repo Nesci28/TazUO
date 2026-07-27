@@ -17,6 +17,7 @@ namespace ClassicUO.Game.UI.Gumps
         private readonly string prepend;
         private readonly string append;
         private readonly Item compareTo;
+        private readonly string rawTooltip;
         private TextBox text;
         private readonly uint hue = 0xFFFF;
 
@@ -51,6 +52,28 @@ namespace ClassicUO.Game.UI.Gumps
             BuildGump();
         }
 
+        /// <summary>
+        /// Creates a comparison tooltip from text embedded directly in a server gump. Some OSI
+        /// Vendor Search rows expose no itemproperty serial but still provide the complete item
+        /// tooltip on their ButtonTileArt control.
+        /// </summary>
+        public CustomToolTip(World world, string rawTooltip, byte layer, int x, int y, Control hoverReference, string prepend = "", string append = "", Item compareTo = null) : base(world, 0, 0)
+        {
+            this.rawTooltip = rawTooltip;
+            itemLayer = layer;
+            this.hoverReference = hoverReference;
+            this.prepend = prepend;
+            this.append = append;
+            this.compareTo = compareTo;
+            X = x;
+            Y = y;
+            if (ProfileManager.CurrentProfile != null)
+            {
+                hue = ProfileManager.CurrentProfile.TooltipTextHue;
+            }
+            BuildGump();
+        }
+
         public void RemoveHoverReference() => hoverReference = null;
 
         private static TextBox.RTLOptions ToolTipOptions => new TextBox.RTLOptions() { Align = ProfileManager.CurrentProfile.LeftAlignToolTips ? FontStashSharp.RichText.TextHorizontalAlignment.Left : FontStashSharp.RichText.TextHorizontalAlignment.Center };
@@ -63,7 +86,26 @@ namespace ClassicUO.Game.UI.Gumps
             Height = text.Height;
             Width = text.Width;
 
-            LoadOPLData(0);
+            if (string.IsNullOrWhiteSpace(rawTooltip))
+                LoadOPLData(0);
+            else
+                LoadRawTooltipData();
+        }
+
+        private void LoadRawTooltipData()
+        {
+            string finalString = Managers.ToolTipOverrideData.ProcessTooltipText(
+                World,
+                rawTooltip,
+                itemLayer,
+                out borderHueOverride,
+                compareTo
+            );
+
+            if (string.IsNullOrWhiteSpace(finalString))
+                finalString = rawTooltip;
+
+            SetTooltipText(prepend + finalString + append);
         }
 
         private void LoadOPLData(int attempt)
@@ -87,21 +129,7 @@ namespace ClassicUO.Game.UI.Gumps
                     finalString = FormatTooltip(name, data);
                 finalString = prepend + finalString + append;
 
-                text?.Dispose();
-                text = TextBox.GetOne(
-                    TextBox.ConvertHtmlToFontStashSharpCommand(finalString).Trim(),
-                    ProfileManager.CurrentProfile.SelectedToolTipFont,
-                    ProfileManager.CurrentProfile.SelectedToolTipFontSize,
-                    (int)hue,
-                    ToolTipOptions
-                    );
-                text.Width = 600;
-
-                if (text.MeasuredSize.X + 10 < 600)
-                    text.Width = text.MeasuredSize.X + 10;
-
-                Height = text.Height;
-                Width = text.Width;
+                SetTooltipText(finalString);
                 OnOPLLoaded?.Invoke();
             }
             else
@@ -121,6 +149,25 @@ namespace ClassicUO.Game.UI.Gumps
 
 
 
+        }
+
+        private void SetTooltipText(string finalString)
+        {
+            text?.Dispose();
+            text = TextBox.GetOne(
+                TextBox.ConvertHtmlToFontStashSharpCommand(finalString).Trim(),
+                ProfileManager.CurrentProfile.SelectedToolTipFont,
+                ProfileManager.CurrentProfile.SelectedToolTipFontSize,
+                (int)hue,
+                ToolTipOptions
+            );
+            text.Width = 600;
+
+            if (text.MeasuredSize.X + 10 < 600)
+                text.Width = text.MeasuredSize.X + 10;
+
+            Height = text.Height;
+            Width = text.Width;
         }
 
         private string FormatTooltip(string name, string data)
