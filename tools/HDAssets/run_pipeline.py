@@ -13,6 +13,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import urllib.request
 import zipfile
 
@@ -47,6 +48,18 @@ MODEL_FILES = {
             "4576ed5c2fc5fa250d3c3d585ef02248f26abdfc1867088078f501fe71e5d61e",
         ),
     },
+    "upscayl-lite-4x": {
+        "bin": (
+            "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models/"
+            "upscayl-lite-4x.bin",
+            "85ee266b632a765a725425ba6a5620c088c8aa2939a03063b2d83b3462724cc1",
+        ),
+        "param": (
+            "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models/"
+            "upscayl-lite-4x.param",
+            "22174924330297357434ad21ed0af7f4b820008d2a502b492754d130d4142714",
+        ),
+    },
 }
 
 
@@ -66,6 +79,13 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated asset categories",
     )
     parser.add_argument("--model", choices=tuple(MODEL_FILES), default="high-fidelity-4x")
+    parser.add_argument(
+        "--animation-model",
+        choices=tuple(MODEL_FILES),
+        default="upscayl-lite-4x",
+        help="Model for sheets containing only animation frames",
+    )
+    parser.add_argument("--batch-size", type=int, default=25, help="Resume granularity in sheets")
     parser.add_argument("--upscayl-bin", type=Path, help="Use an existing upscayl-ncnn binary")
     parser.add_argument("--models-dir", type=Path, help="Use an existing Upscayl models directory")
     parser.add_argument("--max-assets", type=int, default=0, help="Non-zero creates a sample pack")
@@ -132,8 +152,9 @@ def ensure_models(args: argparse.Namespace) -> Path:
         return args.models_dir.resolve()
 
     model_dir = args.work / "tools" / "models"
-    for extension, (url, digest) in MODEL_FILES[args.model].items():
-        download(url, model_dir / f"{args.model}.{extension}", digest)
+    for model in {args.model, args.animation_model}:
+        for extension, (url, digest) in MODEL_FILES[model].items():
+            download(url, model_dir / f"{model}.{extension}", digest)
     return model_dir
 
 
@@ -160,8 +181,9 @@ def build_tool(repo_root: Path, args: argparse.Namespace) -> Path:
 
 def run_export(tool: Path, args: argparse.Namespace) -> None:
     manifest = args.work / "manifest.json"
-    if manifest.exists():
-        data = json.loads(manifest.read_text())
+    summary_path = args.work / "pipeline-summary.json"
+    if manifest.exists() and summary_path.exists():
+        data = json.loads(summary_path.read_text())
         expected_categories = sorted(
             part.strip() for part in args.categories.split(",") if part.strip()
         )
@@ -213,42 +235,105 @@ def run_export(tool: Path, args: argparse.Namespace) -> None:
     subprocess.run(command, check=True)
 
 
-def run_upscayl(binary: Path, models: Path, args: argparse.Namespace) -> Path:
+def ensure_plan(tool: Path, args: argparse.Namespace) -> dict:
+    summary_path = args.work / "pipeline-summary.json"
+    if not summary_path.exists():
+        subprocess.run(
+            ["dotnet", str(tool), "plan", "--work", str(args.work.resolve())],
+            check=True,
+        )
+    return json.loads(summary_path.read_text())
+
+
+def run_upscayl_batch(
+    binary: Path,
+    models: Path,
+    model: str,
+    input_paths: list[Path],
+    output: Path,
+    args: argparse.Namespace,
+) -> None:
+    with tempfile.TemporaryDirectory(prefix=f"{model}-", dir=args.work / "staging") as temporary:
+        input_directory = Path(temporary)
+        for source in input_paths:
+            os.link(source, input_directory / source.name)
+
+        command = [
+            str(binary),
+            "-i",
+            str(input_directory),
+            "-o",
+            str(output),
+            "-m",
+            str(models),
+            "-n",
+            model,
+            "-z",
+            "4",
+            "-s",
+            str(args.scale),
+            "-f",
+            "png",
+            "-t",
+            str(args.tile_size),
+            "-v",
+        ]
+        subprocess.run(command, check=True)
+
+
+def run_model_batches(
+    binary: Path,
+    models: Path,
+    model: str,
+    sheet_names: list[str],
+    sheets: Path,
+    output: Path,
+    args: argparse.Namespace,
+) -> None:
+    pending = [sheets / name for name in sheet_names if not (output / name).exists()]
+    if not pending:
+        print(f"All {len(sheet_names)} {model} sheets are already complete")
+        return
+
+    print(f"Processing {len(pending)}/{len(sheet_names)} sheets with {model}")
+    for start in range(0, len(pending), args.batch_size):
+        batch = pending[start : start + args.batch_size]
+        batch_number = start // args.batch_size + 1
+        batch_count = (len(pending) + args.batch_size - 1) // args.batch_size
+        print(f"{model}: batch {batch_number}/{batch_count} ({len(batch)} sheets)", flush=True)
+        run_upscayl_batch(binary, models, model, batch, output, args)
+
+
+def run_upscayl(binary: Path, models: Path, summary: dict, args: argparse.Namespace) -> Path:
     sheets = args.work / "sheets"
-    upscaled = args.work / f"upscaled-{args.model}-{args.scale}x"
+    upscaled = args.work / f"upscaled-{args.scale}x"
     upscaled.mkdir(parents=True, exist_ok=True)
+    (args.work / "staging").mkdir(parents=True, exist_ok=True)
 
     input_sheets = sorted(sheets.glob("*.png"))
     if not input_sheets:
         raise RuntimeError(f"No input sheets found in {sheets}")
     completed_sheets = sorted(upscaled.glob("*.png"))
-    if args.skip_upscale or (input_sheets and len(completed_sheets) == len(input_sheets)):
+    if args.skip_upscale or len(completed_sheets) == len(input_sheets):
         print(f"Using {len(completed_sheets)} existing Upscayl sheets: {upscaled}")
         return upscaled
 
     free_gib = shutil.disk_usage(args.work).free / (1024**3)
-    print(f"Upscaling {len(input_sheets)} sheets with {args.model}; {free_gib:.1f} GiB free")
-    command = [
-        str(binary),
-        "-i",
-        str(sheets),
-        "-o",
-        str(upscaled),
-        "-m",
-        str(models),
-        "-n",
-        args.model,
-        "-z",
-        "4",
-        "-s",
-        str(args.scale),
-        "-f",
-        "png",
-        "-t",
-        str(args.tile_size),
-        "-v",
-    ]
-    subprocess.run(command, check=True)
+    print(f"Upscaling {len(input_sheets)} sheets; {free_gib:.1f} GiB free")
+    static_sheets = []
+    animation_sheets = []
+    for name, categories in sorted(summary["sheets"].items()):
+        if categories == ["animations"]:
+            animation_sheets.append(name)
+        else:
+            static_sheets.append(name)
+
+    run_model_batches(
+        binary, models, args.model, static_sheets, sheets, upscaled, args
+    )
+    run_model_batches(
+        binary, models, args.animation_model, animation_sheets, sheets, upscaled, args
+    )
     return upscaled
 
 
@@ -287,9 +372,10 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[2]
     tool = build_tool(repo_root, args)
     run_export(tool, args)
+    summary = ensure_plan(tool, args)
     backend = ensure_backend(args)
     models = ensure_models(args)
-    upscaled = run_upscayl(backend, models, args)
+    upscaled = run_upscayl(backend, models, summary, args)
     run_finalize(tool, upscaled, args)
     print(f"Complete HD pack: {args.output.resolve()}")
     return 0
