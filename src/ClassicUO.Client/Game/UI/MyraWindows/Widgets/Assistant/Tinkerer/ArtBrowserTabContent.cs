@@ -373,8 +373,8 @@ public static class ArtBrowserTabContent
 
             var preview = new MyraArtTexture(id, _hue, _zoomSize);
             _preview = preview;
-            int natW = art.UV.Width;
-            int natH = art.UV.Height;
+            int natW = art.LogicalWidth;
+            int natH = art.LogicalHeight;
 
             if (natW > 0 && natH > 0)
             {
@@ -439,7 +439,7 @@ public static class ArtBrowserTabContent
                 TazLang.Get("tinkerer_art_graphicid", [id.ToString(), $"0x{id:X4}"]), MyraLabel.TextStyle.P));
             _detailPanel.Widgets.Add(new MyraLabel(
                 hasArt
-                    ? TazLang.Get("tinkerer_art_dimensions", [art.UV.Width.ToString(), art.UV.Height.ToString()])
+                    ? TazLang.Get("tinkerer_art_dimensions", [art.LogicalWidth.ToString(), art.LogicalHeight.ToString()])
                     : TazLang.Get("tinkerer_art_dimensions_noart", "Dimensions: No art"),
                 MyraLabel.TextStyle.P));
 

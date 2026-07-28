@@ -24,7 +24,7 @@ namespace ClassicUO.Game.UI.Controls
             public readonly SpriteInfo Sprite;
             public Texture2D Texture => Sprite.Texture;
             public Rectangle SourceBounds => Sprite.UV;
-            public Rectangle LogicalBounds => new Rectangle(0, 0, Sprite.LogicalWidth, Sprite.LogicalHeight);
+            public Rectangle LogicalBounds => Sprite.LogicalBounds;
             public float DrawScale => Sprite.InverseSourceScale;
         }
 

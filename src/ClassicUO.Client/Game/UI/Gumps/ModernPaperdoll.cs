@@ -612,13 +612,7 @@ namespace ClassicUO.Game.UI.Gumps
                             _originalSize.X,
                             _originalSize.Y
                         ),
-                        new Rectangle
-                        (
-                            texture.UV.X + _rect.X,
-                            texture.UV.Y + _rect.Y,
-                            _rect.Width,
-                            _rect.Height
-                        ),
+                        texture.GetPhysicalSourceRectangle(_rect),
                         hueVector
                     );
 
@@ -799,7 +793,7 @@ namespace ClassicUO.Game.UI.Gumps
                             }
                             else
                             {
-                                Rectangle bounds = Client.Game.UO.Gumps.GetGump(0x0804).UV;
+                                Rectangle bounds = Client.Game.UO.Gumps.GetGump(0x0804).LogicalBounds;
 
                                 UIManager.Add
                                 (

@@ -798,7 +798,7 @@ namespace ClassicUO.Game.UI.Gumps
                             UIManager.Add(
                                 new HealthBarGump(World,LocalSerial)
                                 {
-                                    X = Mouse.Position.X - (gumpInfo.UV.Width >> 1),
+                                    X = Mouse.Position.X - (gumpInfo.LogicalWidth >> 1),
                                     Y = Mouse.Position.Y - 5
                                 }
                             );
@@ -1013,12 +1013,7 @@ namespace ClassicUO.Game.UI.Gumps
                                 originalSize.X,
                                 originalSize.Y
                             ),
-                            new Rectangle(
-                                artInfo.UV.X + graphicSize.X,
-                                artInfo.UV.Y + graphicSize.Y,
-                                graphicSize.Width,
-                                graphicSize.Height
-                            ),
+                            artInfo.GetPhysicalSourceRectangle(graphicSize),
                             hueVector
                         );
 
