@@ -258,6 +258,9 @@ paket.lock
 
 # JetBrains Rider
 .idea/
+
+# Local HD asset conversion work (contains copyrighted client exports and AI output)
+HDAssetsWork/
 *.sln.iml
 
 # CodeRush
