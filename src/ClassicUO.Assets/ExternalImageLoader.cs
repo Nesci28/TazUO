@@ -15,7 +15,8 @@ namespace ClassicUO.Assets
             GUMP_EXTERNAL_FOLDER = "gumps",
             ART_EXTERNAL_FOLDER = "art",
             LAND_EXTERNAL_FOLDER = "land",
-            TEXMAP_EXTERNAL_FOLDER = "texmaps";
+            TEXMAP_EXTERNAL_FOLDER = "texmaps",
+            ANIMATION_EXTERNAL_FOLDER = "animations";
 
         private readonly struct ExternalImageFile
         {
@@ -48,11 +49,21 @@ namespace ClassicUO.Assets
         private Dictionary<uint, ExternalImageFile> texmap_availableFiles = new Dictionary<uint, ExternalImageFile>();
         private Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> texmap_textureCache = new Dictionary<uint, (uint[], int, int, int)>();
 
+        private Dictionary<ulong, ExternalImageFile> animation_availableFiles = new Dictionary<ulong, ExternalImageFile>();
+        private Dictionary<ulong, (uint[] pixels, int width, int height, int sourceScale)> animation_textureCache = new Dictionary<ulong, (uint[], int, int, int)>();
+        private Dictionary<ulong, byte[]> animation_zipFiles = new Dictionary<ulong, byte[]>();
+        private readonly object _animationCacheLock = new object();
+
         public bool HasHighResolutionGumps { get; private set; }
         public bool HasHighResolutionArt { get; private set; }
         public bool HasHighResolutionLand { get; private set; }
         public bool HasHighResolutionTexmaps { get; private set; }
-        public bool HasHighResolutionWorldImages => HasHighResolutionArt || HasHighResolutionLand || HasHighResolutionTexmaps;
+        public bool HasHighResolutionAnimations { get; private set; }
+        public bool HasHighResolutionWorldImages =>
+            HasHighResolutionArt
+            || HasHighResolutionLand
+            || HasHighResolutionTexmaps
+            || HasHighResolutionAnimations;
         public bool HasHighResolutionImages => HasHighResolutionGumps || HasHighResolutionWorldImages;
 
         public GraphicsDevice GraphicsDevice { set; get; }
@@ -282,6 +293,98 @@ namespace ClassicUO.Assets
             return new TexmapInfo();
         }
 
+        public ArtInfo LoadAnimationFrameTexture(
+            ushort body,
+            byte action,
+            byte direction,
+            int frame
+        )
+        {
+            ulong key = PackAnimationFrameKey(body, action, direction, frame);
+            ExternalImageFile imageFile;
+            byte[] encodedBytes = null;
+
+            lock (_animationCacheLock)
+            {
+                if (!animation_availableFiles.TryGetValue(key, out imageFile))
+                    return new ArtInfo();
+
+                animation_zipFiles.TryGetValue(key, out encodedBytes);
+
+                if (
+                    animation_textureCache.TryGetValue(
+                        key,
+                        out (uint[] pixels, int width, int height, int sourceScale) cached
+                    )
+                )
+                {
+                    return new ArtInfo
+                    {
+                        Pixels = cached.pixels,
+                        Width = cached.width,
+                        Height = cached.height,
+                        SourceScale = cached.sourceScale
+                    };
+                }
+            }
+
+            string fullImagePath = imageFile.Path;
+            if (
+                GraphicsDevice == null
+                || encodedBytes == null && !File.Exists(fullImagePath)
+            )
+                return new ArtInfo();
+
+            try
+            {
+                Texture2D tempTexture;
+                if (encodedBytes != null)
+                {
+                    using var imageStream = new MemoryStream(encodedBytes, false);
+                    tempTexture = Texture2D.FromStream(GraphicsDevice, imageStream);
+                }
+                else if (fullImagePath.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
+                    tempTexture = LoadBmp(GraphicsDevice, fullImagePath);
+                else
+                {
+                    using FileStream imageStream = File.OpenRead(fullImagePath);
+                    tempTexture = Texture2D.FromStream(GraphicsDevice, imageStream);
+                }
+
+                if (tempTexture == null)
+                    return new ArtInfo();
+
+                FixPNGAlpha(ref tempTexture);
+                uint[] pixels = GetPixels(tempTexture);
+                int width = tempTexture.Width;
+                int height = tempTexture.Height;
+                tempTexture.Dispose();
+
+                lock (_animationCacheLock)
+                {
+                    animation_textureCache[key] = (
+                        pixels,
+                        width,
+                        height,
+                        imageFile.SourceScale
+                    );
+                }
+
+                return new ArtInfo
+                {
+                    Pixels = pixels,
+                    Width = width,
+                    Height = height,
+                    SourceScale = imageFile.SourceScale
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to load animation frame image '{fullImagePath}': {ex.Message}");
+                return new ArtInfo();
+            }
+        }
+
         private bool TryLoadExternalImage(
             Dictionary<uint, ExternalImageFile> availableFiles,
             Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> textureCache,
@@ -436,6 +539,119 @@ namespace ClassicUO.Assets
                 files[id] = new ExternalImageFile(path, sourceScale);
         }
 
+        private static ulong PackAnimationFrameKey(
+            uint body,
+            uint action,
+            uint direction,
+            int frame
+        ) => body | ((ulong)action << 16) | ((ulong)direction << 24) | ((ulong)(uint)frame << 32);
+
+        private void RegisterAvailableAnimationFile(
+            ulong key,
+            string path,
+            int sourceScale
+        )
+        {
+            lock (_animationCacheLock)
+            {
+                if (
+                    !animation_availableFiles.TryGetValue(key, out ExternalImageFile current)
+                    || sourceScale > current.SourceScale
+                )
+                {
+                    animation_availableFiles[key] = new ExternalImageFile(path, sourceScale);
+                }
+            }
+
+            HasHighResolutionAnimations |= sourceScale > 1;
+        }
+
+        private static bool TryParseAnimationPathParts(
+            string[] parts,
+            int animationsIndex,
+            out ulong key,
+            out int sourceScale
+        )
+        {
+            key = 0;
+            sourceScale = 1;
+
+            if (animationsIndex < 0 || parts.Length != animationsIndex + 5)
+                return false;
+
+            string frameName = Path.GetFileNameWithoutExtension(parts[animationsIndex + 4]);
+
+            if (
+                !TryParseId(parts[animationsIndex + 1], out uint body)
+                || body > ushort.MaxValue
+                || !TryParseId(parts[animationsIndex + 2], out uint action)
+                || action >= AnimationsLoader.MAX_ACTIONS
+                || !TryParseId(parts[animationsIndex + 3], out uint direction)
+                || direction >= AnimationsLoader.MAX_DIRECTIONS
+                || !TryParseAnimationFrameName(frameName, out uint frame, out sourceScale)
+                || frame > ushort.MaxValue
+            )
+            {
+                return false;
+            }
+
+            key = PackAnimationFrameKey(body, action, direction, (int)frame);
+            return true;
+        }
+
+        private static bool TryParseAnimationFrameName(
+            string value,
+            out uint frame,
+            out int sourceScale
+        )
+        {
+            if (TryParseIdAndScale(value, out frame, out sourceScale))
+                return true;
+
+            if (value.EndsWith("@2x", StringComparison.OrdinalIgnoreCase))
+                value = value.Substring(0, value.Length - 3);
+            else if (value.EndsWith("@4x", StringComparison.OrdinalIgnoreCase))
+                value = value.Substring(0, value.Length - 3);
+
+            int separator = value.LastIndexOf('-');
+            return separator >= 0 && TryParseId(value.Substring(separator + 1), out frame);
+        }
+
+        private static bool TryParseLooseAnimationPath(
+            string animationsRoot,
+            string fullPath,
+            out ulong key,
+            out int sourceScale
+        )
+        {
+            string relativePath = Path.GetRelativePath(animationsRoot, fullPath);
+            string[] relativeParts = relativePath.Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries
+            );
+            string[] parts = new string[relativeParts.Length + 1];
+            parts[0] = ANIMATION_EXTERNAL_FOLDER;
+            Array.Copy(relativeParts, 0, parts, 1, relativeParts.Length);
+            return TryParseAnimationPathParts(parts, 0, out key, out sourceScale);
+        }
+
+        private static bool TryParseZipAnimationPath(
+            string entryPath,
+            out ulong key,
+            out int sourceScale
+        )
+        {
+            string[] parts = entryPath.Replace('\\', '/').Split(
+                '/',
+                StringSplitOptions.RemoveEmptyEntries
+            );
+            int animationsIndex = Array.FindIndex(
+                parts,
+                part => part.Equals(ANIMATION_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase)
+            );
+            return TryParseAnimationPathParts(parts, animationsIndex, out key, out sourceScale);
+        }
+
         public void Load(string uoDirectory = null)
         {
             exePath = AppContext.BaseDirectory;
@@ -527,6 +743,43 @@ namespace ClassicUO.Assets
             {
                 Directory.CreateDirectory(texmapPath);
             }
+
+            string animationPath = Path.Combine(
+                exePath,
+                IMAGES_FOLDER,
+                ANIMATION_EXTERNAL_FOLDER
+            );
+
+            if (Directory.Exists(animationPath))
+            {
+                string[] files = FindImageFiles(animationPath);
+
+                for (int i = 0; i < files.Length; i++)
+                {
+                    if (
+                        TryParseLooseAnimationPath(
+                            animationPath,
+                            files[i],
+                            out ulong key,
+                            out int sourceScale
+                        )
+                    )
+                    {
+                        RegisterAvailableAnimationFile(key, files[i], sourceScale);
+                    }
+                    else
+                    {
+                        Log.Warn(
+                            $"Ignoring external animation image '{files[i]}': expected " +
+                            "animations/<body>/<action>/<direction>/<frame>[@2x|@4x].png."
+                        );
+                    }
+                }
+            }
+            else
+            {
+                Directory.CreateDirectory(animationPath);
+            }
         }
 
         public void LoadResourceAssets(GumpsLoader gumps)
@@ -604,8 +857,20 @@ namespace ClassicUO.Assets
                     bytes = ms.ToArray();
                 }
 
-                // Register as a named texture (full path and filename shortcut)
                 string entryPath = entry.FullName.Replace('\\', '/');
+                if (
+                    TryParseZipAnimationPath(
+                        entryPath,
+                        out ulong animationKey,
+                        out int animationScale
+                    )
+                )
+                {
+                    RegisterAnimationFromBytes(animationKey, bytes, animationScale);
+                    continue;
+                }
+
+                // Register as a named texture (full path and filename shortcut)
                 RegisterNamedZipTexture(entryPath, bytes);
                 if (!_zipNamedTextures.ContainsKey(entry.Name))
                     RegisterNamedZipTexture(entry.Name, bytes);
@@ -739,6 +1004,19 @@ namespace ClassicUO.Assets
                     }
 
                     string entryPath = entry.FullName.Replace('\\', '/');
+
+                    if (
+                        TryParseZipAnimationPath(
+                            entryPath,
+                            out ulong animationKey,
+                            out int animationScale
+                        )
+                    )
+                    {
+                        RegisterAnimationFromBytes(animationKey, bytes, animationScale);
+                        continue;
+                    }
+
                     string[] parts = entryPath.Split('/');
                     if (parts.Length >= 2)
                     {
@@ -874,6 +1152,28 @@ namespace ClassicUO.Assets
             catch (Exception ex) { Log.Error($"Error registering zip texmap PNG {id}: {ex.Message}"); }
         }
 
+        private void RegisterAnimationFromBytes(
+            ulong key,
+            byte[] bytes,
+            int sourceScale = 1
+        )
+        {
+            lock (_animationCacheLock)
+            {
+                if (
+                    animation_availableFiles.TryGetValue(key, out ExternalImageFile current)
+                    && sourceScale < current.SourceScale
+                )
+                {
+                    return;
+                }
+
+                animation_zipFiles[key] = bytes;
+            }
+
+            RegisterAvailableAnimationFile(key, $"animation:{key}", sourceScale);
+        }
+
         public void ClearArtPixelCache(uint graphic) => art_textureCache.Remove(graphic);
 
         public void ClearGumpPixelCache(uint graphic) => gump_textureCache.Remove(graphic);
@@ -881,6 +1181,18 @@ namespace ClassicUO.Assets
         public void ClearLandPixelCache(uint graphic) => land_textureCache.Remove(graphic);
 
         public void ClearTexmapPixelCache(uint graphic) => texmap_textureCache.Remove(graphic);
+
+        public void ClearAnimationFramePixelCache(
+            ushort body,
+            byte action,
+            byte direction,
+            int frame
+        )
+        {
+            ulong key = PackAnimationFrameKey(body, action, direction, frame);
+            lock (_animationCacheLock)
+                animation_textureCache.Remove(key);
+        }
 
         public void RejectArtOverride(uint graphic)
         {
@@ -906,12 +1218,30 @@ namespace ClassicUO.Assets
             texmap_availableFiles.Remove(graphic);
         }
 
+        public void RejectAnimationFrameOverride(
+            ushort body,
+            byte action,
+            byte direction,
+            int frame
+        )
+        {
+            ulong key = PackAnimationFrameKey(body, action, direction, frame);
+            lock (_animationCacheLock)
+            {
+                animation_textureCache.Remove(key);
+                animation_availableFiles.Remove(key);
+                animation_zipFiles.Remove(key);
+            }
+        }
+
         public void ClearAllPixelCaches()
         {
             art_textureCache.Clear();
             gump_textureCache.Clear();
             land_textureCache.Clear();
             texmap_textureCache.Clear();
+            lock (_animationCacheLock)
+                animation_textureCache.Clear();
         }
     }
 }

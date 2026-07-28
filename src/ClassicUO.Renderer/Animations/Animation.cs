@@ -1,4 +1,5 @@
 using ClassicUO.Assets;
+using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Runtime.CompilerServices;
@@ -140,8 +141,8 @@ namespace ClassicUO.Renderer.Animations
             {
                 centerX = frames[frameIndex].Center.X;
                 centerY = frames[frameIndex].Center.Y;
-                width = frames[frameIndex].UV.Width;
-                height = frames[frameIndex].UV.Height;
+                width = frames[frameIndex].LogicalWidth;
+                height = frames[frameIndex].LogicalHeight;
                 return;
             }
 
@@ -410,16 +411,93 @@ namespace ClassicUO.Renderer.Animations
                     uint keyLower = (uint)((id | (frame.Num << 16)));
                     ulong key = (keyLower | ((ulong)keyUpper << 32));
 
-                    _picker.Set(key, frame.Width, frame.Height, frame.Pixels);
+                    int sourceScale = 1;
+                    int uploadWidth = frame.Width;
+                    int uploadHeight = frame.Height;
+                    Span<uint> uploadPixels = frame.Pixels.AsSpan(
+                        0,
+                        frame.Width * frame.Height
+                    );
+                    bool loadedExternalFrame = false;
+                    ArtInfo externalFrame = ExternalImageLoader.Instance.LoadAnimationFrameTexture(
+                        id,
+                        action,
+                        dir,
+                        frame.Num
+                    );
+
+                    if (!externalFrame.Pixels.IsEmpty)
+                    {
+                        sourceScale = Math.Max(1, externalFrame.SourceScale);
+                        int expectedWidth = frame.Width * sourceScale;
+                        int expectedHeight = frame.Height * sourceScale;
+
+                        if (
+                            externalFrame.Width != expectedWidth
+                            || externalFrame.Height != expectedHeight
+                            || externalFrame.Width > 4096
+                            || externalFrame.Height > 4096
+                        )
+                        {
+                            Log.Warn(
+                                $"Ignoring HD animation frame {id}/{action}/{dir}/{frame.Num}: " +
+                                $"got {externalFrame.Width}x{externalFrame.Height} for @{sourceScale}x, " +
+                                $"expected {expectedWidth}x{expectedHeight}."
+                            );
+                            ExternalImageLoader.Instance.RejectAnimationFrameOverride(
+                                id,
+                                action,
+                                dir,
+                                frame.Num
+                            );
+                            sourceScale = 1;
+                        }
+                        else
+                        {
+                            RestoreExternalFrameMasks(
+                                frame.Pixels,
+                                frame.Width,
+                                frame.Height,
+                                externalFrame.Pixels,
+                                externalFrame.Width,
+                                externalFrame.Height,
+                                sourceScale
+                            );
+                            uploadWidth = externalFrame.Width;
+                            uploadHeight = externalFrame.Height;
+                            uploadPixels = externalFrame.Pixels;
+                            loadedExternalFrame = true;
+                        }
+                    }
+
+                    _picker.Set(
+                        key,
+                        uploadWidth,
+                        uploadHeight,
+                        uploadPixels,
+                        sourceScale
+                    );
 
                     spriteInfo.Center.X = frame.CenterX;
                     spriteInfo.Center.Y = frame.CenterY;
+                    spriteInfo.SourceScale = sourceScale;
+                    _atlas.EnsureCapacity(uploadWidth, uploadHeight);
                     spriteInfo.Texture = _atlas.AddSprite(
-                        frame.Pixels.AsSpan(),
-                        frame.Width,
-                        frame.Height,
+                        uploadPixels,
+                        uploadWidth,
+                        uploadHeight,
                         out spriteInfo.UV
                     );
+
+                    if (loadedExternalFrame)
+                    {
+                        ExternalImageLoader.Instance.ClearAnimationFramePixelCache(
+                            id,
+                            action,
+                            dir,
+                            frame.Num
+                        );
+                    }
                 }
                 }
                 finally
@@ -430,6 +508,54 @@ namespace ClassicUO.Renderer.Animations
             }
 
             return animDir.SpriteInfos.AsSpan(0, animDir.FrameCount);
+        }
+
+        private static void RestoreExternalFrameMasks(
+            ReadOnlySpan<uint> originalPixels,
+            int originalWidth,
+            int originalHeight,
+            Span<uint> externalPixels,
+            int externalWidth,
+            int externalHeight,
+            int sourceScale
+        )
+        {
+            for (int y = 0; y < externalHeight; y++)
+            {
+                int originalY = Math.Min(originalHeight - 1, y / sourceScale);
+
+                for (int x = 0; x < externalWidth; x++)
+                {
+                    int externalIndex = y * externalWidth + x;
+                    int originalX = Math.Min(originalWidth - 1, x / sourceScale);
+                    uint original = originalPixels[originalY * originalWidth + originalX];
+
+                    if (original == 0)
+                    {
+                        externalPixels[externalIndex] = 0;
+                        continue;
+                    }
+
+                    uint pixel = externalPixels[externalIndex];
+                    uint alpha = pixel & 0xFF000000;
+                    if (alpha == 0)
+                        alpha = 0xFF000000;
+
+                    byte originalR = (byte)original;
+                    byte originalG = (byte)(original >> 8);
+                    byte originalB = (byte)(original >> 16);
+
+                    if (originalR == originalG && originalR == originalB)
+                    {
+                        uint gray = (uint)(
+                            ((byte)pixel + (byte)(pixel >> 8) + (byte)(pixel >> 16)) / 3
+                        );
+                        pixel = gray | (gray << 8) | (gray << 16);
+                    }
+
+                    externalPixels[externalIndex] = (pixel & 0x00FFFFFF) | alpha;
+                }
+            }
         }
 
         public void UpdateAnimationTable(BodyConvFlags flags) => _animationLoader.ProcessBodyConvDef(flags);//if (flags != _lastFlags)//{//    if (_lastFlags != (BodyConvFlags)(-1))//    {//        /* This happens when you log out of an account then into another//         * one with different expansions activated. Just reload the anim//         * files from scratch. *///        Array.Clear(_dataIndex, 0, _dataIndex.Length);//        LoadInternal();//    }//    ProcessBodyConvDef(flags);//}//_lastFlags = flags;
