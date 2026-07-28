@@ -64,7 +64,7 @@ namespace ClassicUO.Game.UI.Controls
 
             if (gumpInfo.Texture != null)
             {
-                Height = gumpInfo.UV.Height;
+                Height = gumpInfo.LogicalHeight;
             }
 
             CalculateOffset();
@@ -145,30 +145,46 @@ namespace ClassicUO.Game.UI.Controls
                 ref readonly SpriteInfo gumpInfo2 = ref Client.Game.UO.Gumps.GetGump(215);
                 ref readonly SpriteInfo gumpInfo3 = ref Client.Game.UO.Gumps.GetGump(216);
 
-                batcher.Draw(gumpInfo0.Texture, new Vector2(x, y), gumpInfo0.UV, hueVector);
+                batcher.Draw(
+                    gumpInfo0.Texture,
+                    new Rectangle(x, y, gumpInfo0.LogicalWidth, gumpInfo0.LogicalHeight),
+                    gumpInfo0.UV,
+                    hueVector
+                );
 
                 batcher.DrawTiled(
                     gumpInfo1.Texture,
                     new Rectangle(
-                        x + gumpInfo0.UV.Width,
+                        x + gumpInfo0.LogicalWidth,
                         y,
-                        BarWidth - gumpInfo2.UV.Width - gumpInfo0.UV.Width,
-                        gumpInfo1.UV.Height
+                        BarWidth - gumpInfo2.LogicalWidth - gumpInfo0.LogicalWidth,
+                        gumpInfo1.LogicalHeight
                     ),
                     gumpInfo1.UV,
-                    hueVector
+                    hueVector,
+                    gumpInfo1.InverseSourceScale
                 );
 
                 batcher.Draw(
                     gumpInfo2.Texture,
-                    new Vector2(x + BarWidth - gumpInfo2.UV.Width, y),
+                    new Rectangle(
+                        x + BarWidth - gumpInfo2.LogicalWidth,
+                        y,
+                        gumpInfo2.LogicalWidth,
+                        gumpInfo2.LogicalHeight
+                    ),
                     gumpInfo2.UV,
                     hueVector
                 );
 
                 batcher.Draw(
                     gumpInfo3.Texture,
-                    new Vector2(x + _sliderX, y),
+                    new Rectangle(
+                        x + _sliderX,
+                        y,
+                        gumpInfo3.LogicalWidth,
+                        gumpInfo3.LogicalHeight
+                    ),
                     gumpInfo3.UV,
                     hueVector
                 );
@@ -180,7 +196,12 @@ namespace ClassicUO.Game.UI.Controls
                 if(gumpInfo.Texture != null)
                     batcher.Draw(
                         gumpInfo.Texture,
-                        new Vector2(x + _sliderX, y),
+                        new Rectangle(
+                            x + _sliderX,
+                            y,
+                            gumpInfo.LogicalWidth,
+                            gumpInfo.LogicalHeight
+                        ),
                         gumpInfo.UV,
                         hueVector
                     );
@@ -260,7 +281,7 @@ namespace ClassicUO.Game.UI.Controls
                 (uint)(_style == HSliderBarStyle.MetalWidgetRecessedBar ? 216 : 0x845)
             );
 
-            len -= gumpInfo.UV.Width;
+            len -= gumpInfo.LogicalWidth;
             float perc = x / (float)len * 100.0f;
             Value = (int)(maxValue * perc / 100.0f) + MinValue;
             CalculateOffset();
@@ -284,7 +305,7 @@ namespace ClassicUO.Game.UI.Controls
             ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(
                 (uint)(_style == HSliderBarStyle.MetalWidgetRecessedBar ? 216 : 0x845)
             );
-            length -= gumpInfo.UV.Width;
+            length -= gumpInfo.LogicalWidth;
 
             if (maxValue > 0)
             {

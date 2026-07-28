@@ -38,13 +38,13 @@ namespace ClassicUO.Game.UI.Controls
                 return;
             }
 
-            Width = gumpInfoInactive.UV.Width;
+            Width = gumpInfoInactive.LogicalWidth;
 
             _text = RenderedText.Create(text, color, font, isunicode, maxWidth: maxWidth);
 
             Width += _text.Width;
 
-            Height = Math.Max(gumpInfoInactive.UV.Width, _text.Height);
+            Height = Math.Max(gumpInfoInactive.LogicalWidth, _text.Height);
             CanMove = false;
             AcceptMouseInput = true;
         }
@@ -95,12 +95,17 @@ namespace ClassicUO.Game.UI.Controls
 
             batcher.Draw(
                 gumpInfo.Texture,
-                new Rectangle(x, y, (int)(gumpInfo.UV.Width * scale), (int)(gumpInfo.UV.Height * scale)),
+                new Rectangle(
+                    x,
+                    y,
+                    (int)(gumpInfo.LogicalWidth * scale),
+                    (int)(gumpInfo.LogicalHeight * scale)
+                ),
                 gumpInfo.UV,
                 ShaderHueTranslator.GetHueVector(0)
             );
 
-            _text.Draw(batcher, x + (int)((gumpInfo.UV.Width + 2) * scale), y, scale);
+            _text.Draw(batcher, x + (int)((gumpInfo.LogicalWidth + 2) * scale), y, scale);
 
             return ok;
         }

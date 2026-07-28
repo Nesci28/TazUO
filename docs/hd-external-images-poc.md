@@ -54,6 +54,9 @@ Implemented:
 - normal world item/static rendering, anchoring, shadows, outlines, and pixel selection;
 - common static-art UI rendering;
 - common gump pictures, buttons, item gumps, cropped gump pictures, and tiled gumps;
+- UO `ResizePic` nine-part panels, including tiled edges, tiled centers, and pixel selection;
+- composed UI controls such as checkboxes, expandable scrolls, scrollbars, scroll flags, and horizontal sliders;
+- scaled static paperdoll previews and logical item drag centers;
 - flat 44 x 44 land art and the 64/128 texmaps used when terrain is stretched by elevation;
 - automatic linear filtering while tagged HD images are active;
 - loose files and the existing `tuoassets.zip` registration paths;
@@ -62,11 +65,11 @@ Implemented:
 Not implemented yet:
 
 - mobile, monster, equipment, or effect animations;
-- HD-aware `ResizePic`, nine-slice, and every specialized UI control;
+- every specialized gump class that reads atlas dimensions directly;
 - mipmapped/padded HD atlas pages, streaming, or an LRU cache;
 - partial-hue mask restoration during image preprocessing.
 
-Use ordinary 1x replacements for `ResizePic`/nine-slice component IDs during this POC. Upscaling every gump indiscriminately will include those components and is not expected to work correctly yet.
+The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.
 
 For a terrain set, replace both representations. Flat cells render the Land Tile image, while sloped/elevated cells sample the TexID referenced by that land tile. Replacing only one side will produce visible transitions between classic and HD terrain.
 
