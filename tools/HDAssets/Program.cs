@@ -23,6 +23,9 @@ internal static class Program
                     return RunFinalize(options);
                 case "validate":
                     return RunValidate(options);
+                case "plan":
+                    PipelinePlanner.Write(Require(options, "work"));
+                    return 0;
                 default:
                     throw new ArgumentException($"Unknown command: {args[0]}");
             }
@@ -119,6 +122,8 @@ internal static class Program
                      --output <ExternalImages directory>
 
             validate --work <work directory> --output <ExternalImages directory>
+
+            plan     --work <work directory>
             """
         );
     }
