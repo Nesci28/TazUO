@@ -8,6 +8,7 @@ namespace ClassicUO.Renderer.Texmaps
     public sealed class Texmap
     {
         private readonly TextureAtlas _atlas;
+        private readonly TextureAtlas _hdAtlas;
         private readonly SpriteInfo[] _spriteInfos;
         private readonly PixelPicker _picker = new PixelPicker(true);
         private readonly TexmapsLoader _texmapsLoader;
@@ -16,6 +17,13 @@ namespace ClassicUO.Renderer.Texmaps
         {
             _texmapsLoader = texmapsLoader;
             _atlas = new TextureAtlas(device, 2048, 2048, SurfaceFormat.Color);
+            _hdAtlas = new TextureAtlas(
+                device,
+                2048,
+                2048,
+                SurfaceFormat.Color,
+                SamplerState.LinearClamp
+            );
             _spriteInfos = new SpriteInfo[texmapsLoader.File.Entries.Length];
         }
 
@@ -62,7 +70,8 @@ namespace ClassicUO.Renderer.Texmaps
                 if (!texmapInfo.Pixels.IsEmpty)
                 {
                     int sourceScale = Math.Max(1, texmapInfo.SourceScale);
-                    spriteInfo.Texture = _atlas.AddSprite(
+                    TextureAtlas atlas = sourceScale > 1 ? _hdAtlas : _atlas;
+                    spriteInfo.Texture = atlas.AddSprite(
                         texmapInfo.Pixels,
                         texmapInfo.Width,
                         texmapInfo.Height,
