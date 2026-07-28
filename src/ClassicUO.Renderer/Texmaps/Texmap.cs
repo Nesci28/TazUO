@@ -66,7 +66,8 @@ namespace ClassicUO.Renderer.Texmaps
                         texmapInfo.Pixels,
                         texmapInfo.Width,
                         texmapInfo.Height,
-                        out spriteInfo.UV
+                        out spriteInfo.UV,
+                        padding: sourceScale > 1 ? 1 : 0
                     );
                     spriteInfo.SourceScale = sourceScale;
 
