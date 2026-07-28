@@ -70,8 +70,8 @@ namespace ClassicUO.Game.UI.Controls
                         return;
                     }
 
-                    Width = gumpInfo.UV.Width;
-                    Height = gumpInfo.UV.Height;
+                    Width = gumpInfo.LogicalWidth;
+                    Height = gumpInfo.LogicalHeight;
                 }
             }
         }
@@ -102,25 +102,17 @@ namespace ClassicUO.Game.UI.Controls
 
             if (gumpInfo.Texture != null)
             {
+                float tileScale = gumpInfo.InverseSourceScale;
                 if (ScaleTiledTexture && InternalScale != 1.0)
-                {
-                    batcher.DrawTiled(
-                        gumpInfo.Texture,
-                        new Rectangle(x, y, Width, Height),
-                        gumpInfo.UV,
-                        hueVector,
-                        (float)InternalScale
-                    );
-                }
-                else
-                {
-                    batcher.DrawTiled(
-                        gumpInfo.Texture,
-                        new Rectangle(x, y, Width, Height),
-                        gumpInfo.UV,
-                        hueVector
-                    );
-                }
+                    tileScale *= (float)InternalScale;
+
+                batcher.DrawTiled(
+                    gumpInfo.Texture,
+                    new Rectangle(x, y, Width, Height),
+                    gumpInfo.UV,
+                    hueVector,
+                    tileScale
+                );
             }
 
             return base.Draw(batcher, x, y);
@@ -143,24 +135,24 @@ namespace ClassicUO.Game.UI.Controls
 
             if (width == 0)
             {
-                width = gumpInfo.UV.Width;
+                width = gumpInfo.LogicalWidth;
             }
 
             if (height == 0)
             {
-                height = gumpInfo.UV.Height;
+                height = gumpInfo.LogicalHeight;
             }
 
-            while (x > gumpInfo.UV.Width && width > gumpInfo.UV.Width)
+            while (x > gumpInfo.LogicalWidth && width > gumpInfo.LogicalWidth)
             {
-                x -= gumpInfo.UV.Width;
-                width -= gumpInfo.UV.Width;
+                x -= gumpInfo.LogicalWidth;
+                width -= gumpInfo.LogicalWidth;
             }
 
-            while (y > gumpInfo.UV.Height && height > gumpInfo.UV.Height)
+            while (y > gumpInfo.LogicalHeight && height > gumpInfo.LogicalHeight)
             {
-                y -= gumpInfo.UV.Height;
-                height -= gumpInfo.UV.Height;
+                y -= gumpInfo.LogicalHeight;
+                height -= gumpInfo.LogicalHeight;
             }
 
             if (x > width || y > height)

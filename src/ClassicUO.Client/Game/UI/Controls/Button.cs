@@ -52,8 +52,8 @@ namespace ClassicUO.Game.UI.Controls
                 return;
             }
 
-            Width = gumpInfo.UV.Width;
-            Height = gumpInfo.UV.Height;
+            Width = gumpInfo.LogicalWidth;
+            Height = gumpInfo.LogicalHeight;
             FontHue = normalHue == ushort.MaxValue ? (ushort)0 : normalHue;
             HueHover = hoverHue == ushort.MaxValue ? normalHue : hoverHue;
 
@@ -120,8 +120,8 @@ namespace ClassicUO.Game.UI.Controls
 
                 ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(value);
 
-                Width = gumpInfo.UV.Width;
-                Height = gumpInfo.UV.Height;
+                Width = gumpInfo.LogicalWidth;
+                Height = gumpInfo.LogicalHeight;
             }
         }
 
@@ -134,8 +134,8 @@ namespace ClassicUO.Game.UI.Controls
 
                 ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(value);
 
-                Width = gumpInfo.UV.Width;
-                Height = gumpInfo.UV.Height;
+                Width = gumpInfo.LogicalWidth;
+                Height = gumpInfo.LogicalHeight;
             }
         }
 
@@ -148,8 +148,8 @@ namespace ClassicUO.Game.UI.Controls
 
                 ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(value);
 
-                Width = gumpInfo.UV.Width;
-                Height = gumpInfo.UV.Height;
+                Width = gumpInfo.LogicalWidth;
+                Height = gumpInfo.LogicalHeight;
             }
         }
 

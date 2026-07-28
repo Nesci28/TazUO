@@ -16,6 +16,10 @@ namespace ClassicUO.Renderer
         // majority of pixel checks - never touches the big _data list and its cache misses.
         private readonly FastUlongLookupTable<int> _dimensions = new(shortIdBiased);
 
+        // Native scale of an HD source relative to its logical UO dimensions. Kept alongside the
+        // packed dimensions so Get() can preserve the fast lookup path added upstream.
+        private readonly FastUlongLookupTable<int> _sourceScales = new(shortIdBiased);
+
         // Per-texture, per-row jump points into the RLE stream. The stream is a flat run of spans
         // that can cross row boundaries, so a row records the data offset of the span containing
         // its first pixel, that span's start pixel, and its transparency state. Lets Get() resume
@@ -37,6 +41,15 @@ namespace ClassicUO.Renderer
             int packed = _dimensions.Get(textureId);
             int width = packed & 0xFFFF;
             int height = packed >> 16;
+
+            int sourceScale = _sourceScales.Get(textureId);
+
+            if (sourceScale > 1)
+            {
+                // Sample the centre of the logical pixel rather than the top-left HD sub-pixel.
+                x = x * sourceScale + sourceScale / 2;
+                y = y * sourceScale + sourceScale / 2;
+            }
 
             if (x < 0 || x >= width || y < 0 || y >= height)
             {
@@ -80,7 +93,8 @@ namespace ClassicUO.Renderer
         /// </summary>
         private bool GetWalk(int textureIdx, int x, int y, int width, int extraRange)
         {
-            // Skip the width/height varints at the head of the texture data.
+            // Skip the width/height/source-scale varints at the head of the texture data.
+            ReadIntegerFromData(ref textureIdx);
             ReadIntegerFromData(ref textureIdx);
             ReadIntegerFromData(ref textureIdx);
 
@@ -130,9 +144,17 @@ namespace ClassicUO.Renderer
             int packed = _dimensions.Get(textureId);
             width = packed & 0xFFFF;
             height = packed >> 16;
+
+            int sourceScale = _sourceScales.Get(textureId);
+
+            if (sourceScale > 1)
+            {
+                width /= sourceScale;
+                height /= sourceScale;
+            }
         }
 
-        public void Set(ulong textureId, int width, int height, ReadOnlySpan<uint> pixels)
+        public void Set(ulong textureId, int width, int height, ReadOnlySpan<uint> pixels, int sourceScale = 1)
         {
             if (_ids.Get(textureId).HasValue)
                 return;
@@ -140,13 +162,14 @@ namespace ClassicUO.Renderer
             int begin = _data.Count;
             WriteIntegerToData(width);
             WriteIntegerToData(height);
+            sourceScale = Math.Max(1, sourceScale);
+            WriteIntegerToData(sourceScale);
 
             RowInfo[] rows = height > 0 ? new RowInfo[height] : [];
             if (height > 0)
             {
                 rows[0] = new RowInfo(_data.Count, 0, true);
             }
-
             bool countingTransparent = true;
             int count = 0;
             int spanStart = 0;
@@ -173,6 +196,7 @@ namespace ClassicUO.Renderer
             WriteIntegerToData(count);
             _ids.Set(textureId, begin);
             _dimensions.Set(textureId, width | (height << 16));
+            _sourceScales.Set(textureId, sourceScale);
             _rows.Set(textureId, rows);
         }
 

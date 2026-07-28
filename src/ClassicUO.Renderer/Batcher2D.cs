@@ -429,7 +429,7 @@ namespace ClassicUO.Renderer
             PushSprite(texture);
         }
 
-        public void DrawShadow(Texture2D texture, Vector2 position, Rectangle sourceRect, bool flip, float depth)
+        public void DrawShadow(Texture2D texture, Vector2 position, Rectangle sourceRect, bool flip, float depth, float sourceScale = 1f)
         {
             // Skip if texture is null or disposed
             if (texture == null || texture.IsDisposed)
@@ -437,8 +437,8 @@ namespace ClassicUO.Renderer
                 return;
             }
 
-            float width = sourceRect.Width;
-            float height = sourceRect.Height * 0.5f;
+            float width = sourceRect.Width * sourceScale;
+            float height = sourceRect.Height * sourceScale * 0.5f;
             float translatedY = position.Y + height - 10;
             float ratio = height / width;
 

@@ -58,8 +58,8 @@ namespace ClassicUO.Game.UI.Controls
                     return;
                 }
 
-                Width = spriteInfo.UV.Width;
-                Height = spriteInfo.UV.Height;
+                Width = spriteInfo.LogicalWidth;
+                Height = spriteInfo.LogicalHeight;
 
                 IsPartialHue = !_is_gump && Client.Game.UO.FileManager.TileData.StaticData[value].IsPartialHue;
             }
