@@ -185,6 +185,30 @@ namespace ClassicUO.Renderer.Arts
             ArtInfo artInfo = ExternalImageLoader.Instance.LoadArtTexture(idx);
             loadedFromPNG = !artInfo.Pixels.IsEmpty;
 
+            if (loadedFromPNG && artInfo.SourceScale > 1)
+            {
+                ArtInfo original = _artLoader.GetArt(idx);
+                int expectedWidth = original.Width * artInfo.SourceScale;
+                int expectedHeight = original.Height * artInfo.SourceScale;
+
+                if (
+                    original.Pixels.IsEmpty
+                    || artInfo.Width != expectedWidth
+                    || artInfo.Height != expectedHeight
+                    || artInfo.Width > 4096
+                    || artInfo.Height > 4096
+                )
+                {
+                    Log.Warn(
+                        $"Ignoring HD art 0x{idx:X}: got {artInfo.Width}x{artInfo.Height} " +
+                        $"for @{artInfo.SourceScale}x, expected {expectedWidth}x{expectedHeight}."
+                    );
+                    ExternalImageLoader.Instance.RejectArtOverride(idx);
+                    artInfo = original;
+                    loadedFromPNG = false;
+                }
+            }
+
             if (artInfo.Pixels.IsEmpty)
             {
                 artInfo = _artLoader.GetArt(idx);
@@ -216,12 +240,14 @@ namespace ClassicUO.Renderer.Arts
 
                 if (!artInfo.Pixels.IsEmpty)
                 {
+                    int sourceScale = Math.Max(1, artInfo.SourceScale);
                     spriteInfo.Texture = _atlas.AddSprite(
                         artInfo.Pixels,
                         artInfo.Width,
                         artInfo.Height,
                         out spriteInfo.UV
                     );
+                    spriteInfo.SourceScale = sourceScale;
 
                     // Clear the pixel cache from PNG Loader since it's now in the atlas
                     if (loadedFromPNG)
@@ -232,7 +258,7 @@ namespace ClassicUO.Renderer.Arts
                     if (idx > 0x4000)
                     {
                         idx -= 0x4000;
-                        _picker.Set(idx, artInfo.Width, artInfo.Height, artInfo.Pixels);
+                        _picker.Set(idx, artInfo.Width, artInfo.Height, artInfo.Pixels, sourceScale);
 
                         int pos1 = 0;
                         int minX = artInfo.Width,
@@ -254,7 +280,12 @@ namespace ClassicUO.Renderer.Arts
                             }
                         }
 
-                        _realArtBounds[idx] = new Rectangle(minX, minY, maxX - minX, maxY - minY);
+                        _realArtBounds[idx] = new Rectangle(
+                            minX / sourceScale,
+                            minY / sourceScale,
+                            Math.Max(0, (maxX - minX) / sourceScale),
+                            Math.Max(0, (maxY - minY) / sourceScale)
+                        );
                     }
                 }
             }
