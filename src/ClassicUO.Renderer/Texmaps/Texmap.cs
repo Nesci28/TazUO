@@ -1,4 +1,6 @@
 using ClassicUO.Assets;
+using ClassicUO.Utility.Logging;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace ClassicUO.Renderer.Texmaps
@@ -26,17 +28,52 @@ namespace ClassicUO.Renderer.Texmaps
 
             if (spriteInfo.Texture == null)
             {
-                TexmapInfo texmapInfo = _texmapsLoader.GetTexmap(idx);
+                TexmapInfo texmapInfo = ExternalImageLoader.Instance.LoadTexmapTexture(idx);
+                bool loadedFromExternal = !texmapInfo.Pixels.IsEmpty;
+
+                if (loadedFromExternal)
+                {
+                    TexmapInfo original = _texmapsLoader.GetTexmap(idx);
+                    int sourceScale = Math.Max(1, texmapInfo.SourceScale);
+                    int expectedWidth = original.Width * sourceScale;
+                    int expectedHeight = original.Height * sourceScale;
+
+                    if (
+                        original.Pixels.IsEmpty
+                        || texmapInfo.Width != expectedWidth
+                        || texmapInfo.Height != expectedHeight
+                        || texmapInfo.Width > 2048
+                        || texmapInfo.Height > 2048
+                    )
+                    {
+                        Log.Warn(
+                            $"Ignoring external texmap 0x{idx:X}: got {texmapInfo.Width}x{texmapInfo.Height} " +
+                            $"for @{sourceScale}x, expected {expectedWidth}x{expectedHeight}."
+                        );
+                        ExternalImageLoader.Instance.RejectTexmapOverride(idx);
+                        texmapInfo = original;
+                        loadedFromExternal = false;
+                    }
+                }
+
+                if (texmapInfo.Pixels.IsEmpty)
+                    texmapInfo = _texmapsLoader.GetTexmap(idx);
+
                 if (!texmapInfo.Pixels.IsEmpty)
                 {
+                    int sourceScale = Math.Max(1, texmapInfo.SourceScale);
                     spriteInfo.Texture = _atlas.AddSprite(
                         texmapInfo.Pixels,
                         texmapInfo.Width,
                         texmapInfo.Height,
                         out spriteInfo.UV
                     );
+                    spriteInfo.SourceScale = sourceScale;
 
-                    _picker.Set(idx, texmapInfo.Width, texmapInfo.Height, texmapInfo.Pixels);
+                    _picker.Set(idx, texmapInfo.Width, texmapInfo.Height, texmapInfo.Pixels, sourceScale);
+
+                    if (loadedFromExternal)
+                        ExternalImageLoader.Instance.ClearTexmapPixelCache(idx);
                 }
             }
 

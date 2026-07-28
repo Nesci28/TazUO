@@ -1437,7 +1437,7 @@ namespace ClassicUO.Game.Scenes
             batcher.GraphicsDevice.Clear(ClearOptions.Target, Color.Black, 1f, 0);
 
             batcher.SetSampler(
-                ExternalImageLoader.Instance.HasHighResolutionArt
+                ExternalImageLoader.Instance.HasHighResolutionWorldImages
                     ? SamplerState.LinearClamp
                     : SamplerState.PointClamp
             );
