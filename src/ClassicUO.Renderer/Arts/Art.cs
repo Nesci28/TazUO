@@ -15,6 +15,7 @@ namespace ClassicUO.Renderer.Arts
 
         private readonly SpriteInfo[] _spriteInfos;
         private readonly TextureAtlas _atlas;
+        private readonly TextureAtlas _hdAtlas;
         private readonly PixelPicker _picker = new PixelPicker(true);
         private readonly Rectangle[] _realArtBounds;
         private readonly ArtLoader _artLoader;
@@ -25,6 +26,13 @@ namespace ClassicUO.Renderer.Arts
             _artLoader = artLoader;
             _huesLoader = huesLoader;
             _atlas = new TextureAtlas(device, 4096, 4096, SurfaceFormat.Color);
+            _hdAtlas = new TextureAtlas(
+                device,
+                4096,
+                4096,
+                SurfaceFormat.Color,
+                SamplerState.LinearClamp
+            );
             _spriteInfos = new SpriteInfo[_artLoader.File.Entries.Length];
             _realArtBounds = new Rectangle[_spriteInfos.Length];
         }
@@ -260,7 +268,8 @@ namespace ClassicUO.Renderer.Arts
                 if (!artInfo.Pixels.IsEmpty)
                 {
                     int sourceScale = Math.Max(1, artInfo.SourceScale);
-                    spriteInfo.Texture = _atlas.AddSprite(
+                    TextureAtlas atlas = sourceScale > 1 ? _hdAtlas : _atlas;
+                    spriteInfo.Texture = atlas.AddSprite(
                         artInfo.Pixels,
                         artInfo.Width,
                         artInfo.Height,

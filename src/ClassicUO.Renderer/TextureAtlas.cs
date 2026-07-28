@@ -4,6 +4,7 @@ using StbRectPackSharp;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace ClassicUO.Renderer
 {
@@ -14,19 +15,34 @@ namespace ClassicUO.Renderer
         private readonly SurfaceFormat _format;
         private readonly GraphicsDevice _device;
         private readonly List<Texture2D> _textureList;
+        private readonly SamplerState _preferredSampler;
         private Packer _packer;
+        private static readonly ConditionalWeakTable<Texture2D, SamplerState> _preferredSamplers =
+            new ConditionalWeakTable<Texture2D, SamplerState>();
 
-        public TextureAtlas(GraphicsDevice device, int width, int height, SurfaceFormat format)
+        public TextureAtlas(
+            GraphicsDevice device,
+            int width,
+            int height,
+            SurfaceFormat format,
+            SamplerState preferredSampler = null
+        )
         {
             _device = device;
             _width = width;
             _height = height;
             _format = format;
+            _preferredSampler = preferredSampler;
 
             _textureList = new List<Texture2D>();
         }
 
         public int TexturesCount => _textureList.Count;
+
+        public static bool TryGetPreferredSampler(
+            Texture2D texture,
+            out SamplerState preferredSampler
+        ) => _preferredSamplers.TryGetValue(texture, out preferredSampler);
 
         public void EnsureCapacity(int estimatedWidth, int estimatedHeight)
         {
@@ -163,6 +179,9 @@ namespace ClassicUO.Renderer
             var texture = new Texture2D(_device, _width, _height, false, _format);
             _textureList.Add(texture);
 
+            if (_preferredSampler != null)
+                _preferredSamplers.Add(texture, _preferredSampler);
+
             _packer?.Dispose();
             _packer = new Packer(_width, _height);
         }
@@ -184,6 +203,8 @@ namespace ClassicUO.Renderer
         {
             foreach (Texture2D texture in _textureList)
             {
+                _preferredSamplers.Remove(texture);
+
                 if (!texture.IsDisposed)
                 {
                     texture.Dispose();

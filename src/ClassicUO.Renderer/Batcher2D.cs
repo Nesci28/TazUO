@@ -1649,6 +1649,12 @@ namespace ClassicUO.Renderer
 
             if (texture is Texture2D tex2d)
             {
+                GraphicsDevice.SamplerStates[0] = TextureAtlas.TryGetPreferredSampler(
+                    tex2d,
+                    out SamplerState preferredSampler
+                )
+                    ? preferredSampler
+                    : _sampler;
                 _basicUOEffect.TexelSize.SetValue(new Vector2(1f / tex2d.Width, 1f / tex2d.Height));
                 _basicUOEffect.Pass.Apply();
             }

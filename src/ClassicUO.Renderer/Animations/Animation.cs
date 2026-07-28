@@ -11,6 +11,7 @@ namespace ClassicUO.Renderer.Animations
         const int MAX_ANIMATIONS_DATA_INDEX_COUNT = 8192;
 
         private readonly TextureAtlas _atlas;
+        private readonly TextureAtlas _hdAtlas;
         private readonly PixelPicker _picker = new PixelPicker(false);
         private readonly AnimationsLoader _animationLoader;
         private IndexAnimation[] _dataIndex = new IndexAnimation[MAX_ANIMATIONS_DATA_INDEX_COUNT];
@@ -24,6 +25,13 @@ namespace ClassicUO.Renderer.Animations
         {
             _animationLoader = animationLoader;
             _atlas = new TextureAtlas(device, 4096, 4096, SurfaceFormat.Color);
+            _hdAtlas = new TextureAtlas(
+                device,
+                4096,
+                4096,
+                SurfaceFormat.Color,
+                SamplerState.LinearClamp
+            );
         }
 
         private ref AnimationDirection GetSprite(int body, int action, int dir)
@@ -481,8 +489,9 @@ namespace ClassicUO.Renderer.Animations
                     spriteInfo.Center.X = frame.CenterX;
                     spriteInfo.Center.Y = frame.CenterY;
                     spriteInfo.SourceScale = sourceScale;
-                    _atlas.EnsureCapacity(uploadWidth, uploadHeight);
-                    spriteInfo.Texture = _atlas.AddSprite(
+                    TextureAtlas atlas = sourceScale > 1 ? _hdAtlas : _atlas;
+                    atlas.EnsureCapacity(uploadWidth, uploadHeight);
+                    spriteInfo.Texture = atlas.AddSprite(
                         uploadPixels,
                         uploadWidth,
                         uploadHeight,
