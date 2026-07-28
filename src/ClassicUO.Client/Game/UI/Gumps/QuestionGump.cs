@@ -22,8 +22,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(0x0816);
 
-            Width = gumpInfo.UV.Width;
-            Height = gumpInfo.UV.Height;
+            Width = gumpInfo.LogicalWidth;
+            Height = gumpInfo.LogicalHeight;
 
             Add(new Label(message, false, 0x0386, 165, font: 1) { X = 33, Y = 30 });
 

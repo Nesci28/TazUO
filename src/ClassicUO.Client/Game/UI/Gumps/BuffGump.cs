@@ -325,14 +325,19 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (gumpInfo.Texture != null)
                 {
-                    batcher.Draw(gumpInfo.Texture, new Vector2(x, y), gumpInfo.UV, hueVector);
+                    batcher.Draw(
+                        gumpInfo.Texture,
+                        new Rectangle(x, y, gumpInfo.LogicalWidth, gumpInfo.LogicalHeight),
+                        gumpInfo.UV,
+                        hueVector
+                    );
 
                     if (
                         ProfileManager.CurrentProfile != null
                         && ProfileManager.CurrentProfile.BuffBarTime
                     )
                     {
-                        _gText.Draw(batcher, x - 3, y + gumpInfo.UV.Height / 2 - 3, hueVector.Z);
+                        _gText.Draw(batcher, x - 3, y + gumpInfo.LogicalHeight / 2 - 3, hueVector.Z);
                     }
                 }
 

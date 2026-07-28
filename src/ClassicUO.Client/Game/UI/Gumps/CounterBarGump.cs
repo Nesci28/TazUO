@@ -1146,7 +1146,9 @@ namespace ClassicUO.Game.UI.Gumps
                         if (artInfo.Texture == null)
                             return base.Draw(batcher, x, y);
 
-                        Rectangle rect = _isGumpGraphic ? artInfo.UV : Client.Game.UO.Arts.GetRealArtBounds(_graphic);
+                        Rectangle rect = _isGumpGraphic
+                            ? artInfo.LogicalBounds
+                            : Client.Game.UO.Arts.GetRealArtBounds(_graphic);
 
                         Vector3 hueVector = ShaderHueTranslator.GetHueVector(_hue, _partial, 1f, _isGumpGraphic);
 
@@ -1185,24 +1187,14 @@ namespace ClassicUO.Game.UI.Gumps
                             batcher.Draw(
                                 artInfo.Texture,
                                 new Rectangle(x + point.X, y + point.Y, originalSize.X, originalSize.Y),
-                                new Rectangle(
-                                    artInfo.UV.X,
-                                    artInfo.UV.Y,
-                                    rect.Width,
-                                    rect.Height
-                                ),
+                                artInfo.UV,
                                 hueVector
                             );
                         else
                             batcher.Draw(
                                 artInfo.Texture,
                                 new Rectangle(x + point.X, y + point.Y, originalSize.X, originalSize.Y),
-                                new Rectangle(
-                                    artInfo.UV.X + rect.X,
-                                    artInfo.UV.Y + rect.Y,
-                                    rect.Width,
-                                    rect.Height
-                                ),
+                                artInfo.GetPhysicalSourceRectangle(rect),
                                 hueVector
                             );
                     }

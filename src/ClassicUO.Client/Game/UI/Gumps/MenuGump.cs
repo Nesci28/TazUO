@@ -176,8 +176,8 @@ namespace ClassicUO.Game.UI.Gumps
 
                 ref readonly SpriteInfo artInfo = ref Client.Game.UO.Arts.GetArt(_graphic);
 
-                Width      = artInfo.UV.Width;
-                Height     = artInfo.UV.Height;
+                Width      = artInfo.LogicalWidth;
+                Height     = artInfo.LogicalHeight;
                 _hue       = hue;
                 _index     = index;
                 _name      = name;
@@ -192,7 +192,12 @@ namespace ClassicUO.Game.UI.Gumps
 
                     Vector3 hueVector = ShaderHueTranslator.GetHueVector(_hue, _isPartial, 1f);
 
-                    batcher.Draw(artInfo.Texture, new Vector2(x, y), artInfo.UV, hueVector);
+                    batcher.Draw(
+                        artInfo.Texture,
+                        new Rectangle(x, y, artInfo.LogicalWidth, artInfo.LogicalHeight),
+                        artInfo.UV,
+                        hueVector
+                    );
                 }
 
                 return base.Draw(batcher, x, y);

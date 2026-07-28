@@ -81,8 +81,8 @@ namespace ClassicUO.Game.Managers
                 {
                     float scale = UIManager.ContainerScale;
 
-                    int width = (int)(gumpInfo.UV.Width * scale);
-                    int height = (int)(gumpInfo.UV.Height * scale);
+                    int width = (int)(gumpInfo.LogicalWidth * scale);
+                    int height = (int)(gumpInfo.LogicalHeight * scale);
 
                     if (ProfileManager.CurrentProfile.OverrideContainerLocation)
                     {
