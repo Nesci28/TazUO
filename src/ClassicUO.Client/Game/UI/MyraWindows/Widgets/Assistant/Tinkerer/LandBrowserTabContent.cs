@@ -78,8 +78,8 @@ public static class LandBrowserTabContent
             if (hasArt)
             {
                 var preview = new MyraLandTexture(id, zoomSize);
-                int natW = land.UV.Width;
-                int natH = land.UV.Height;
+                int natW = land.LogicalWidth;
+                int natH = land.LogicalHeight;
                 if (natW > 0 && natH > 0)
                 {
                     float scale = (float)zoomSize / Math.Max(natW, natH);
@@ -125,7 +125,7 @@ public static class LandBrowserTabContent
                 TazLang.Get("tinkerer_land_graphicid", new[] { id.ToString(), $"0x{id:X4}" }), MyraLabel.TextStyle.P));
             detailPanel.Widgets.Add(new MyraLabel(
                 hasArt
-                    ? TazLang.Get("tinkerer_land_dimensions", new[] { land.UV.Width.ToString(), land.UV.Height.ToString() })
+                    ? TazLang.Get("tinkerer_land_dimensions", new[] { land.LogicalWidth.ToString(), land.LogicalHeight.ToString() })
                     : TazLang.Get("tinkerer_land_dimensions_noart", "Dimensions: No art"),
                 MyraLabel.TextStyle.P));
 

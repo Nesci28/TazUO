@@ -37,9 +37,9 @@ internal static class OpenMenu
 
                 ref readonly SpriteInfo artInfo = ref Client.Game.UO.Arts.GetArt(graphic);
 
-                if (artInfo.UV.Width != 0 && artInfo.UV.Height != 0)
+                if (artInfo.LogicalWidth != 0 && artInfo.LogicalHeight != 0)
                 {
-                    int posY = artInfo.UV.Height;
+                    int posY = artInfo.LogicalHeight;
 
                     if (posY >= 47)
                         posY = 0;
@@ -48,7 +48,7 @@ internal static class OpenMenu
 
                     gump.AddItem(graphic, hue, name, posX, posY, i + 1);
 
-                    posX += artInfo.UV.Width;
+                    posX += artInfo.LogicalWidth;
                 }
             }
 
