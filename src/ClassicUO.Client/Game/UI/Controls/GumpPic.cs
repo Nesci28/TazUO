@@ -39,8 +39,8 @@ namespace ClassicUO.Game.UI.Controls
 
                 // Preserve any applied scaling - changing the graphic otherwise resets the size back
                 // to the texture's native dimensions (e.g. stat lock icons that swap graphic on click).
-                Width = (int)(gumpInfo.UV.Width * InternalScale);
-                Height = (int)(gumpInfo.UV.Height * InternalScale);
+                Width = (int)(gumpInfo.LogicalWidth * InternalScale);
+                Height = (int)(gumpInfo.LogicalHeight * InternalScale);
             }
         }
 
@@ -271,7 +271,7 @@ namespace ClassicUO.Game.UI.Controls
 
             ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(Graphic);
 
-            var sourceBounds = new Rectangle(gumpInfo.UV.X + _picInPicBounds.X, gumpInfo.UV.Y + _picInPicBounds.Y, _picInPicBounds.Width, _picInPicBounds.Height);
+            Rectangle sourceBounds = gumpInfo.GetPhysicalSourceRectangle(_picInPicBounds);
 
             if (gumpInfo.Texture != null)
             {

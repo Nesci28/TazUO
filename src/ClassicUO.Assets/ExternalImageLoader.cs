@@ -13,6 +13,18 @@ namespace ClassicUO.Assets
     {
         private const string IMAGES_FOLDER = "ExternalImages", GUMP_EXTERNAL_FOLDER = "gumps", ART_EXTERNAL_FOLDER = "art";
 
+        private readonly struct ExternalImageFile
+        {
+            public ExternalImageFile(string path, int sourceScale)
+            {
+                Path = path;
+                SourceScale = sourceScale;
+            }
+
+            public string Path { get; }
+            public int SourceScale { get; }
+        }
+
         private string exePath;
         private string _uoDirectory;
 
@@ -20,11 +32,15 @@ namespace ClassicUO.Assets
         private Dictionary<string, Texture2D> _zipNamedTextures = new Dictionary<string, Texture2D>();
         private Texture2D _emptyTexture;
 
-        private Dictionary<uint, string> gump_availableFilePaths = new Dictionary<uint, string>();
-        private Dictionary<uint, (uint[] pixels, int width, int height)> gump_textureCache = new Dictionary<uint, (uint[], int, int)>();
+        private Dictionary<uint, ExternalImageFile> gump_availableFiles = new Dictionary<uint, ExternalImageFile>();
+        private Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> gump_textureCache = new Dictionary<uint, (uint[], int, int, int)>();
 
-        private Dictionary<uint, string> art_availableFilePaths = new Dictionary<uint, string>();
-        private Dictionary<uint, (uint[] pixels, int width, int height)> art_textureCache = new Dictionary<uint, (uint[], int, int)>();
+        private Dictionary<uint, ExternalImageFile> art_availableFiles = new Dictionary<uint, ExternalImageFile>();
+        private Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> art_textureCache = new Dictionary<uint, (uint[], int, int, int)>();
+
+        public bool HasHighResolutionGumps { get; private set; }
+        public bool HasHighResolutionArt { get; private set; }
+        public bool HasHighResolutionImages => HasHighResolutionGumps || HasHighResolutionArt;
 
         public GraphicsDevice GraphicsDevice { set; get; }
 
@@ -81,19 +97,21 @@ namespace ClassicUO.Assets
 
         public GumpInfo LoadGumpTexture(uint graphic)
         {
-            if (!gump_availableFilePaths.TryGetValue(graphic, out string fullImagePath))
+            if (!gump_availableFiles.TryGetValue(graphic, out ExternalImageFile imageFile))
                 return new GumpInfo();
 
-            if (gump_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height) cached))
+            if (gump_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
             {
                 return new GumpInfo()
                 {
                     Pixels = cached.pixels,
                     Width = cached.width,
-                    Height = cached.height
+                    Height = cached.height,
+                    SourceScale = cached.sourceScale
                 };
             }
 
+            string fullImagePath = imageFile.Path;
             if (GraphicsDevice != null && File.Exists(fullImagePath))
             {
                 try
@@ -117,14 +135,15 @@ namespace ClassicUO.Assets
                     uint[] pixels = GetPixels(tempTexture);
                     int width = tempTexture.Width;
                     int height = tempTexture.Height;
-                    gump_textureCache.Add(graphic, (pixels, width, height));
+                    gump_textureCache.Add(graphic, (pixels, width, height, imageFile.SourceScale));
                     tempTexture.Dispose();
 
                     return new GumpInfo()
                     {
                         Pixels = pixels,
                         Width = width,
-                        Height = height
+                        Height = height,
+                        SourceScale = imageFile.SourceScale
                     };
                 }
                 catch (Exception ex)
@@ -138,19 +157,21 @@ namespace ClassicUO.Assets
 
         public ArtInfo LoadArtTexture(uint graphic)
         {
-            if (!art_availableFilePaths.TryGetValue(graphic, out string fullImagePath))
+            if (!art_availableFiles.TryGetValue(graphic, out ExternalImageFile imageFile))
                 return new ArtInfo();
 
-            if (art_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height) cached))
+            if (art_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
             {
                 return new ArtInfo()
                 {
                     Pixels = cached.pixels,
                     Width = cached.width,
-                    Height = cached.height
+                    Height = cached.height,
+                    SourceScale = cached.sourceScale
                 };
             }
 
+            string fullImagePath = imageFile.Path;
             if (GraphicsDevice != null && File.Exists(fullImagePath))
             {
                 try
@@ -174,14 +195,15 @@ namespace ClassicUO.Assets
                     uint[] pixels = GetPixels(tempTexture);
                     int width = tempTexture.Width;
                     int height = tempTexture.Height;
-                    art_textureCache.Add(graphic, (pixels, width, height));
+                    art_textureCache.Add(graphic, (pixels, width, height, imageFile.SourceScale));
                     tempTexture.Dispose();
 
                     return new ArtInfo()
                     {
                         Pixels = pixels,
                         Width = width,
-                        Height = height
+                        Height = height,
+                        SourceScale = imageFile.SourceScale
                     };
                 }
                 catch (Exception ex)
@@ -272,6 +294,19 @@ namespace ClassicUO.Assets
             return results.ToArray();
         }
 
+        private static void RegisterAvailableFile(
+            Dictionary<uint, ExternalImageFile> files,
+            uint id,
+            string path,
+            int sourceScale
+        )
+        {
+            // Prefer the highest-resolution explicitly tagged file when both legacy and HD
+            // replacements exist for the same graphic.
+            if (!files.TryGetValue(id, out ExternalImageFile current) || sourceScale > current.SourceScale)
+                files[id] = new ExternalImageFile(path, sourceScale);
+        }
+
         public void Load(string uoDirectory = null)
         {
             exePath = AppContext.BaseDirectory;
@@ -287,8 +322,11 @@ namespace ClassicUO.Assets
                 {
                     string fname = Path.GetFileName(files[i]);
                     string baseName = Path.GetFileNameWithoutExtension(fname);
-                    if (TryParseId(baseName, out uint id))
-                        gump_availableFilePaths[id] = files[i];
+                    if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                    {
+                        RegisterAvailableFile(gump_availableFiles, id, files[i], sourceScale);
+                        HasHighResolutionGumps |= sourceScale > 1;
+                    }
                 }
             }
             else
@@ -307,9 +345,10 @@ namespace ClassicUO.Assets
                     string fname = Path.GetFileName(files[i]);
                     string baseName = Path.GetFileNameWithoutExtension(fname);
 
-                    if (TryParseId(baseName, out uint gfx))
+                    if (TryParseIdAndScale(baseName, out uint gfx, out int sourceScale))
                     {
-                        art_availableFilePaths[gfx + 0x4000] = files[i];
+                        RegisterAvailableFile(art_availableFiles, gfx + 0x4000, files[i], sourceScale);
+                        HasHighResolutionArt |= sourceScale > 1;
                     }
                 }
             }
@@ -409,16 +448,15 @@ namespace ClassicUO.Assets
 
                     if (folder.Equals(GUMP_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (TryParseId(baseName, out uint id) && !gump_textureCache.ContainsKey(id))
-                            RegisterGumpFromBytes(id, bytes);
+                        if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                            RegisterGumpFromBytes(id, bytes, sourceScale);
                     }
                     else if (folder.Equals(ART_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (TryParseId(baseName, out uint fileId))
+                        if (TryParseIdAndScale(baseName, out uint fileId, out int sourceScale))
                         {
                             uint graphicId = fileId + 0x4000;
-                            if (!art_textureCache.ContainsKey(graphicId))
-                                RegisterArtFromBytes(graphicId, bytes);
+                            RegisterArtFromBytes(graphicId, bytes, sourceScale);
                         }
                     }
                 }
@@ -430,6 +468,24 @@ namespace ClassicUO.Assets
             if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
                 return uint.TryParse(value.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out result);
             return uint.TryParse(value, out result);
+        }
+
+        private static bool TryParseIdAndScale(string value, out uint result, out int sourceScale)
+        {
+            sourceScale = 1;
+
+            if (value.EndsWith("@2x", StringComparison.OrdinalIgnoreCase))
+            {
+                sourceScale = 2;
+                value = value.Substring(0, value.Length - 3);
+            }
+            else if (value.EndsWith("@4x", StringComparison.OrdinalIgnoreCase))
+            {
+                sourceScale = 4;
+                value = value.Substring(0, value.Length - 3);
+            }
+
+            return TryParseId(value, out result);
         }
 
         private static bool ShouldSkipEntry(string fullName)
@@ -510,13 +566,13 @@ namespace ClassicUO.Assets
 
                         if (folder.Equals(GUMP_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
                         {
-                            if (TryParseId(baseName, out uint id))
-                                RegisterGumpFromBytes(id, bytes);
+                            if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                                RegisterGumpFromBytes(id, bytes, sourceScale);
                         }
                         else if (folder.Equals(ART_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
                         {
-                            if (TryParseId(baseName, out uint fileId))
-                                RegisterArtFromBytes(fileId + 0x4000, bytes);
+                            if (TryParseIdAndScale(baseName, out uint fileId, out int sourceScale))
+                                RegisterArtFromBytes(fileId + 0x4000, bytes, sourceScale);
                         }
                     }
                 }
@@ -543,9 +599,10 @@ namespace ClassicUO.Assets
             catch (Exception ex) { Log.Error($"Error registering named zip texture '{name}': {ex.Message}"); }
         }
 
-        private void RegisterGumpFromBytes(uint id, byte[] bytes)
+        private void RegisterGumpFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
             if (GraphicsDevice == null) return;
+            if (gump_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
                 using var ms = new MemoryStream(bytes);
@@ -554,17 +611,19 @@ namespace ClassicUO.Assets
                 FixPNGAlpha(ref tex);
                 uint[] pixels = GetPixels(tex);
                 int width = tex.Width, height = tex.Height;
-                gump_textureCache[id] = (pixels, width, height);
+                gump_textureCache[id] = (pixels, width, height, sourceScale);
                 tex.Dispose();
 
-                gump_availableFilePaths.TryAdd(id, $"0x{id:X}");
+                RegisterAvailableFile(gump_availableFiles, id, $"0x{id:X}", sourceScale);
+                HasHighResolutionGumps |= sourceScale > 1;
             }
             catch (Exception ex) { Log.Error($"Error registering zip gump image {id}: {ex.Message}"); }
         }
 
-        private void RegisterArtFromBytes(uint id, byte[] bytes)
+        private void RegisterArtFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
             if (GraphicsDevice == null) return;
+            if (art_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
                 using var ms = new MemoryStream(bytes);
@@ -573,10 +632,11 @@ namespace ClassicUO.Assets
                 FixPNGAlpha(ref tex);
                 uint[] pixels = GetPixels(tex);
                 int width = tex.Width, height = tex.Height;
-                art_textureCache[id] = (pixels, width, height);
+                art_textureCache[id] = (pixels, width, height, sourceScale);
                 tex.Dispose();
 
-                art_availableFilePaths.TryAdd(id, $"0x{id:X}");
+                RegisterAvailableFile(art_availableFiles, id, $"0x{id:X}", sourceScale);
+                HasHighResolutionArt |= sourceScale > 1;
             }
             catch (Exception ex) { Log.Error($"Error registering zip art PNG {id}: {ex.Message}"); }
         }
@@ -584,6 +644,18 @@ namespace ClassicUO.Assets
         public void ClearArtPixelCache(uint graphic) => art_textureCache.Remove(graphic);
 
         public void ClearGumpPixelCache(uint graphic) => gump_textureCache.Remove(graphic);
+
+        public void RejectArtOverride(uint graphic)
+        {
+            art_textureCache.Remove(graphic);
+            art_availableFiles.Remove(graphic);
+        }
+
+        public void RejectGumpOverride(uint graphic)
+        {
+            gump_textureCache.Remove(graphic);
+            gump_availableFiles.Remove(graphic);
+        }
 
         public void ClearAllPixelCaches()
         {

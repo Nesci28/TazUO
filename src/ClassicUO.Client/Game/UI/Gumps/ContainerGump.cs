@@ -407,13 +407,13 @@ namespace ClassicUO.Game.UI.Gumps
                                 && ProfileManager.CurrentProfile.ScaleItemsInsideContainers
                             )
                             {
-                                textureW = (int)(spriteInfo.UV.Width * scale);
-                                textureH = (int)(spriteInfo.UV.Height * scale);
+                                textureW = (int)(spriteInfo.LogicalWidth * scale);
+                                textureH = (int)(spriteInfo.LogicalHeight * scale);
                             }
                             else
                             {
-                                textureW = spriteInfo.UV.Width;
-                                textureH = spriteInfo.UV.Height;
+                                textureW = spriteInfo.LogicalWidth;
+                                textureH = spriteInfo.LogicalHeight;
                             }
 
                             if (
@@ -698,8 +698,8 @@ namespace ClassicUO.Game.UI.Gumps
             {
                 float scale = GetScale();
 
-                boundWidth -= (int)(spriteInfo.UV.Width / scale);
-                boundHeight -= (int)(spriteInfo.UV.Height / scale);
+                boundWidth -= (int)(spriteInfo.LogicalWidth / scale);
+                boundHeight -= (int)(spriteInfo.LogicalHeight / scale);
             }
 
             if (item.X < boundX)
