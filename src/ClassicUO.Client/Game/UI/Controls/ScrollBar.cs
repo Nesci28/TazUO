@@ -34,25 +34,25 @@ namespace ClassicUO.Game.UI.Controls
             ref readonly SpriteInfo gumpInfoBackground = ref Client.Game.UO.Gumps.GetGump(BACKGROUND_0);
             ref readonly SpriteInfo gumpInfoSlider = ref Client.Game.UO.Gumps.GetGump(SLIDER);
 
-            Width = gumpInfoBackground.UV.Width;
+            Width = gumpInfoBackground.LogicalWidth;
 
             _rectDownButton = new Rectangle(
                 0,
-                Height - gumpInfoDown.UV.Height,
-                gumpInfoDown.UV.Width,
-                gumpInfoDown.UV.Height
+                Height - gumpInfoDown.LogicalHeight,
+                gumpInfoDown.LogicalWidth,
+                gumpInfoDown.LogicalHeight
             );
-            _rectUpButton = new Rectangle(0, 0, gumpInfoUp.UV.Width, gumpInfoUp.UV.Height);
+            _rectUpButton = new Rectangle(0, 0, gumpInfoUp.LogicalWidth, gumpInfoUp.LogicalHeight);
             _rectSlider = new Rectangle(
-                (gumpInfoBackground.UV.Width - gumpInfoSlider.UV.Width) >> 1,
-                gumpInfoUp.UV.Height + _sliderPosition,
-                gumpInfoSlider.UV.Width,
-                gumpInfoSlider.UV.Height
+                (gumpInfoBackground.LogicalWidth - gumpInfoSlider.LogicalWidth) >> 1,
+                gumpInfoUp.LogicalHeight + _sliderPosition,
+                gumpInfoSlider.LogicalWidth,
+                gumpInfoSlider.LogicalHeight
             );
             _emptySpace.X = 0;
-            _emptySpace.Y = gumpInfoUp.UV.Height;
-            _emptySpace.Width = gumpInfoSlider.UV.Width;
-            _emptySpace.Height = Height - (gumpInfoDown.UV.Height + gumpInfoUp.UV.Height);
+            _emptySpace.Y = gumpInfoUp.LogicalHeight;
+            _emptySpace.Width = gumpInfoSlider.LogicalWidth;
+            _emptySpace.Height = Height - (gumpInfoDown.LogicalHeight + gumpInfoUp.LogicalHeight);
         }
 
         public override bool Draw(UltimaBatcher2D batcher, int x, int y)
@@ -74,16 +74,21 @@ namespace ClassicUO.Game.UI.Controls
             // draw scrollbar background
             int middleHeight =
                 Height
-                - gumpInfoUp0.UV.Height
-                - gumpInfoDown0.UV.Height
-                - gumpInfoBackground0.UV.Height
-                - gumpInfoBackground2.UV.Height;
+                - gumpInfoUp0.LogicalHeight
+                - gumpInfoDown0.LogicalHeight
+                - gumpInfoBackground0.LogicalHeight
+                - gumpInfoBackground2.LogicalHeight;
 
             if (middleHeight > 0)
             {
                 batcher.Draw(
                     gumpInfoBackground0.Texture,
-                    new Vector2(x, y + gumpInfoUp0.UV.Height),
+                    new Rectangle(
+                        x,
+                        y + gumpInfoUp0.LogicalHeight,
+                        gumpInfoBackground0.LogicalWidth,
+                        gumpInfoBackground0.LogicalHeight
+                    ),
                     gumpInfoBackground0.UV,
                     hueVector
                 );
@@ -92,19 +97,22 @@ namespace ClassicUO.Game.UI.Controls
                     gumpInfoBackground1.Texture,
                     new Rectangle(
                         x,
-                        y + gumpInfoUp1.UV.Height + gumpInfoBackground0.UV.Height,
-                        gumpInfoBackground0.UV.Width,
+                        y + gumpInfoUp1.LogicalHeight + gumpInfoBackground0.LogicalHeight,
+                        gumpInfoBackground0.LogicalWidth,
                         middleHeight
                     ),
                     gumpInfoBackground1.UV,
-                    hueVector
+                    hueVector,
+                    gumpInfoBackground1.InverseSourceScale
                 );
 
                 batcher.Draw(
                     gumpInfoBackground2.Texture,
-                    new Vector2(
+                    new Rectangle(
                         x,
-                        y + Height - gumpInfoDown0.UV.Height - gumpInfoBackground2.UV.Height
+                        y + Height - gumpInfoDown0.LogicalHeight - gumpInfoBackground2.LogicalHeight,
+                        gumpInfoBackground2.LogicalWidth,
+                        gumpInfoBackground2.LogicalHeight
                     ),
                     gumpInfoBackground2.UV,
                     hueVector
@@ -112,29 +120,40 @@ namespace ClassicUO.Game.UI.Controls
             }
             else
             {
-                middleHeight = Height - gumpInfoUp0.UV.Height - gumpInfoDown0.UV.Height;
+                middleHeight = Height - gumpInfoUp0.LogicalHeight - gumpInfoDown0.LogicalHeight;
 
                 batcher.DrawTiled(
                     gumpInfoBackground1.Texture,
                     new Rectangle(
                         x,
-                        y + gumpInfoUp0.UV.Height,
-                        gumpInfoBackground0.UV.Width,
+                        y + gumpInfoUp0.LogicalHeight,
+                        gumpInfoBackground0.LogicalWidth,
                         middleHeight
                     ),
                     gumpInfoBackground1.UV,
-                    hueVector
+                    hueVector,
+                    gumpInfoBackground1.InverseSourceScale
                 );
             }
 
             // draw up button
             if (_btUpClicked)
             {
-                batcher.Draw(gumpInfoUp1.Texture, new Vector2(x, y), gumpInfoUp1.UV, hueVector);
+                batcher.Draw(
+                    gumpInfoUp1.Texture,
+                    new Rectangle(x, y, gumpInfoUp1.LogicalWidth, gumpInfoUp1.LogicalHeight),
+                    gumpInfoUp1.UV,
+                    hueVector
+                );
             }
             else
             {
-                batcher.Draw(gumpInfoUp0.Texture, new Vector2(x, y), gumpInfoUp0.UV, hueVector);
+                batcher.Draw(
+                    gumpInfoUp0.Texture,
+                    new Rectangle(x, y, gumpInfoUp0.LogicalWidth, gumpInfoUp0.LogicalHeight),
+                    gumpInfoUp0.UV,
+                    hueVector
+                );
             }
 
             // draw down button
@@ -142,7 +161,12 @@ namespace ClassicUO.Game.UI.Controls
             {
                 batcher.Draw(
                     gumpInfoDown1.Texture,
-                    new Vector2(x, y + Height - gumpInfoDown0.UV.Height),
+                    new Rectangle(
+                        x,
+                        y + Height - gumpInfoDown0.LogicalHeight,
+                        gumpInfoDown1.LogicalWidth,
+                        gumpInfoDown1.LogicalHeight
+                    ),
                     gumpInfoDown1.UV,
                     hueVector
                 );
@@ -151,7 +175,12 @@ namespace ClassicUO.Game.UI.Controls
             {
                 batcher.Draw(
                     gumpInfoDown0.Texture,
-                    new Vector2(x, y + Height - gumpInfoDown0.UV.Height),
+                    new Rectangle(
+                        x,
+                        y + Height - gumpInfoDown0.LogicalHeight,
+                        gumpInfoDown0.LogicalWidth,
+                        gumpInfoDown0.LogicalHeight
+                    ),
                     gumpInfoDown0.UV,
                     hueVector
                 );
@@ -162,9 +191,11 @@ namespace ClassicUO.Game.UI.Controls
             {
                 batcher.Draw(
                     gumpInfoSlider.Texture,
-                    new Vector2(
-                        x + ((gumpInfoBackground0.UV.Width - gumpInfoSlider.UV.Width) >> 1),
-                        y + gumpInfoUp0.UV.Height + _sliderPosition
+                    new Rectangle(
+                        x + ((gumpInfoBackground0.LogicalWidth - gumpInfoSlider.LogicalWidth) >> 1),
+                        y + gumpInfoUp0.LogicalHeight + _sliderPosition,
+                        gumpInfoSlider.LogicalWidth,
+                        gumpInfoSlider.LogicalHeight
                     ),
                     gumpInfoSlider.UV,
                     hueVector
@@ -181,9 +212,9 @@ namespace ClassicUO.Game.UI.Controls
             ref readonly SpriteInfo gumpInfoSlider = ref Client.Game.UO.Gumps.GetGump(SLIDER);
 
             return Height
-                - gumpInfoUp.UV.Height
-                - gumpInfoDown.UV.Height
-                - gumpInfoSlider.UV.Height;
+                - gumpInfoUp.LogicalHeight
+                - gumpInfoDown.LogicalHeight
+                - gumpInfoSlider.LogicalHeight;
         }
 
         public override void OnMouseDown(int x, int y, MouseButtonType button)
@@ -224,19 +255,19 @@ namespace ClassicUO.Game.UI.Controls
 
                 if (
                     y == 0
-                    && _clickPosition.Y < gumpInfoUp.UV.Height + (gumpInfoSlider.UV.Height >> 1)
+                    && _clickPosition.Y < gumpInfoUp.LogicalHeight + (gumpInfoSlider.LogicalHeight >> 1)
                 )
                 {
-                    _clickPosition.Y = gumpInfoUp.UV.Height + (gumpInfoSlider.UV.Height >> 1);
+                    _clickPosition.Y = gumpInfoUp.LogicalHeight + (gumpInfoSlider.LogicalHeight >> 1);
                 }
                 else if (
                     y == scrollableArea
                     && _clickPosition.Y
-                        > Height - gumpInfoDown.UV.Height - (gumpInfoSlider.UV.Height >> 1)
+                        > Height - gumpInfoDown.LogicalHeight - (gumpInfoSlider.LogicalHeight >> 1)
                 )
                 {
                     _clickPosition.Y =
-                        Height - gumpInfoDown.UV.Height - (gumpInfoSlider.UV.Height >> 1);
+                        Height - gumpInfoDown.LogicalHeight - (gumpInfoSlider.LogicalHeight >> 1);
                 }
 
                 _value = (int)

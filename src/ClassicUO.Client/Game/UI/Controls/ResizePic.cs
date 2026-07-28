@@ -14,6 +14,20 @@ namespace ClassicUO.Game.UI.Controls
     {
         private int _maxIndex;
 
+        private readonly struct GumpPart
+        {
+            public GumpPart(SpriteInfo sprite)
+            {
+                Sprite = sprite;
+            }
+
+            public readonly SpriteInfo Sprite;
+            public Texture2D Texture => Sprite.Texture;
+            public Rectangle SourceBounds => Sprite.UV;
+            public Rectangle LogicalBounds => new Rectangle(0, 0, Sprite.LogicalWidth, Sprite.LogicalHeight);
+            public float DrawScale => Sprite.InverseSourceScale;
+        }
+
         public ResizePic(ushort graphic)
         {
             CanMove = true;
@@ -45,15 +59,25 @@ namespace ClassicUO.Game.UI.Controls
             x -= Offset.X;
             y -= Offset.Y;
 
-            Texture2D texture0 = GetTexture(0, out Rectangle bounds0);
-            Texture2D texture1 = GetTexture(1, out Rectangle bounds1);
-            Texture2D texture2 = GetTexture(2, out Rectangle bounds2);
-            Texture2D texture3 = GetTexture(3, out Rectangle bounds3);
-            Texture2D texture4 = GetTexture(4, out Rectangle bounds4);
-            Texture2D texture5 = GetTexture(5, out Rectangle bounds5);
-            Texture2D texture6 = GetTexture(6, out Rectangle bounds6);
-            Texture2D texture7 = GetTexture(7, out Rectangle bounds7);
-            Texture2D texture8 = GetTexture(8, out Rectangle bounds8);
+            GumpPart part0 = GetPart(0);
+            GumpPart part1 = GetPart(1);
+            GumpPart part2 = GetPart(2);
+            GumpPart part3 = GetPart(3);
+            GumpPart part4 = GetPart(4);
+            GumpPart part5 = GetPart(5);
+            GumpPart part6 = GetPart(6);
+            GumpPart part7 = GetPart(7);
+            GumpPart part8 = GetPart(8);
+
+            Rectangle bounds0 = part0.LogicalBounds;
+            Rectangle bounds1 = part1.LogicalBounds;
+            Rectangle bounds2 = part2.LogicalBounds;
+            Rectangle bounds3 = part3.LogicalBounds;
+            Rectangle bounds4 = part4.LogicalBounds;
+            Rectangle bounds5 = part5.LogicalBounds;
+            Rectangle bounds6 = part6.LogicalBounds;
+            Rectangle bounds7 = part7.LogicalBounds;
+            Rectangle bounds8 = part8.LogicalBounds;
 
             int offsetTop = Math.Max(bounds0.Height, bounds2.Height) - bounds1.Height;
             int offsetBottom = Math.Max(bounds5.Height, bounds7.Height) - bounds6.Height;
@@ -252,133 +276,168 @@ namespace ClassicUO.Game.UI.Controls
 
         private void DrawInternal(UltimaBatcher2D batcher, int x, int y, Vector3 color)
         {
-            Texture2D texture0 = GetTexture(0, out Rectangle bounds0);
-            Texture2D texture1 = GetTexture(1, out Rectangle bounds1);
-            Texture2D texture2 = GetTexture(2, out Rectangle bounds2);
-            Texture2D texture3 = GetTexture(3, out Rectangle bounds3);
-            Texture2D texture4 = GetTexture(4, out Rectangle bounds4);
-            Texture2D texture5 = GetTexture(5, out Rectangle bounds5);
-            Texture2D texture6 = GetTexture(6, out Rectangle bounds6);
-            Texture2D texture7 = GetTexture(7, out Rectangle bounds7);
-            Texture2D texture8 = GetTexture(8, out Rectangle bounds8);
+            GumpPart part0 = GetPart(0);
+            GumpPart part1 = GetPart(1);
+            GumpPart part2 = GetPart(2);
+            GumpPart part3 = GetPart(3);
+            GumpPart part4 = GetPart(4);
+            GumpPart part5 = GetPart(5);
+            GumpPart part6 = GetPart(6);
+            GumpPart part7 = GetPart(7);
+            GumpPart part8 = GetPart(8);
+
+            Rectangle bounds0 = part0.LogicalBounds;
+            Rectangle bounds1 = part1.LogicalBounds;
+            Rectangle bounds2 = part2.LogicalBounds;
+            Rectangle bounds3 = part3.LogicalBounds;
+            Rectangle bounds4 = part4.LogicalBounds;
+            Rectangle bounds5 = part5.LogicalBounds;
+            Rectangle bounds6 = part6.LogicalBounds;
+            Rectangle bounds7 = part7.LogicalBounds;
+            Rectangle bounds8 = part8.LogicalBounds;
 
             int offsetTop = Math.Max(bounds0.Height, bounds2.Height) - bounds1.Height;
             int offsetBottom = Math.Max(bounds5.Height, bounds7.Height) - bounds6.Height;
             int offsetLeft = Math.Abs(Math.Max(bounds0.Width, bounds5.Width) - bounds2.Width);
             int offsetRight = Math.Max(bounds2.Width, bounds7.Width) - bounds4.Width;
 
-            if (texture0 != null)
+            if (part0.Texture != null)
             {
-                batcher.Draw(texture0, new Vector2(x, y), bounds0, color);
+                batcher.Draw(
+                    part0.Texture,
+                    new Rectangle(x, y, bounds0.Width, bounds0.Height),
+                    part0.SourceBounds,
+                    color
+                );
             }
 
-            if (texture1 != null)
+            if (part1.Texture != null)
             {
                 batcher.DrawTiled(
-                    texture1,
+                    part1.Texture,
                     new Rectangle(
                         x + bounds0.Width,
                         y,
                         Width - bounds0.Width - bounds2.Width,
                         bounds1.Height
                     ),
-                    bounds1,
-                    color
+                    part1.SourceBounds,
+                    color,
+                    part1.DrawScale
                 );
             }
 
-            if (texture2 != null)
+            if (part2.Texture != null)
             {
                 batcher.Draw(
-                    texture2,
-                    new Vector2(x + (Width - bounds2.Width), y + offsetTop),
-                    bounds2,
+                    part2.Texture,
+                    new Rectangle(
+                        x + (Width - bounds2.Width),
+                        y + offsetTop,
+                        bounds2.Width,
+                        bounds2.Height
+                    ),
+                    part2.SourceBounds,
                     color
                 );
             }
 
-            if (texture3 != null)
+            if (part3.Texture != null)
             {
                 batcher.DrawTiled(
-                    texture3,
+                    part3.Texture,
                     new Rectangle(
                         x,
                         y + bounds0.Height,
                         bounds3.Width,
                         Height - bounds0.Height - bounds5.Height
                     ),
-                    bounds3,
-                    color
+                    part3.SourceBounds,
+                    color,
+                    part3.DrawScale
                 );
             }
 
-            if (texture4 != null)
+            if (part4.Texture != null)
             {
                 batcher.DrawTiled(
-                    texture4,
+                    part4.Texture,
                     new Rectangle(
                         x + (Width - bounds4.Width),
                         y + bounds2.Height,
                         bounds4.Width,
                         Height - bounds2.Height - bounds7.Height
                     ),
-                    bounds4,
-                    color
+                    part4.SourceBounds,
+                    color,
+                    part4.DrawScale
                 );
             }
 
-            if (texture5 != null)
+            if (part5.Texture != null)
             {
                 batcher.Draw(
-                    texture5,
-                    new Vector2(x, y + (Height - bounds5.Height)),
-                    bounds5,
+                    part5.Texture,
+                    new Rectangle(
+                        x,
+                        y + (Height - bounds5.Height),
+                        bounds5.Width,
+                        bounds5.Height
+                    ),
+                    part5.SourceBounds,
                     color
                 );
             }
 
-            if (texture6 != null)
+            if (part6.Texture != null)
             {
                 batcher.DrawTiled(
-                    texture6,
+                    part6.Texture,
                     new Rectangle(
                         x + bounds5.Width,
                         y + (Height - bounds6.Height - offsetBottom),
                         Width - bounds5.Width - bounds7.Width,
                         bounds6.Height
                     ),
-                    bounds6,
-                    color
+                    part6.SourceBounds,
+                    color,
+                    part6.DrawScale
                 );
             }
 
-            if (texture7 != null)
+            if (part7.Texture != null)
             {
                 batcher.Draw(
-                    texture7,
-                    new Vector2(x + (Width - bounds7.Width), y + (Height - bounds7.Height)),
-                    bounds7,
+                    part7.Texture,
+                    new Rectangle(
+                        x + (Width - bounds7.Width),
+                        y + (Height - bounds7.Height),
+                        bounds7.Width,
+                        bounds7.Height
+                    ),
+                    part7.SourceBounds,
                     color
                 );
             }
 
-            if (texture8 != null)
+            if (part8.Texture != null)
             {
                 batcher.DrawTiled(
-                    texture8,
+                    part8.Texture,
                     new Rectangle(
                         x + bounds0.Width,
                         y + bounds0.Height,
                         (Width - bounds0.Width - bounds2.Width) + (offsetLeft + offsetRight),
                         Height - bounds2.Height - bounds7.Height
                     ),
-                    bounds8,
-                    color
+                    part8.SourceBounds,
+                    color,
+                    part8.DrawScale
                 );
             }
         }
 
-        private Texture2D GetTexture(int index, out Rectangle bounds)
+        private GumpPart GetPart(int index)
         {
             if (index >= 0 && index <= _maxIndex)
             {
@@ -395,12 +454,10 @@ namespace ClassicUO.Game.UI.Controls
                     (ushort)(Graphic + index)
                 );
 
-                bounds = gumpInfo.UV;
-                return gumpInfo.Texture;
+                return new GumpPart(gumpInfo);
             }
 
-            bounds = Rectangle.Empty;
-            return null;
+            return default;
         }
     }
 }
