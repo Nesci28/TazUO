@@ -1,6 +1,6 @@
-# HD External Images proof of concept
+# HD External Images and conversion pipeline
 
-This proof of concept lets selected `art`, `gump`, `land`, `texmap`, and body-animation overrides use a 2x or 4x source image while retaining the original UO asset's logical size, placement, and hit area.
+This implementation lets `art`, `gump`, `land`, `texmap`, and body-animation overrides use a 2x or 4x source image while retaining the original UO asset's logical size, placement, and hit area. The bundled conversion tool can extract those categories directly from an installed Ultima Online Classic client and generate a complete Upscayl pack.
 
 ## File naming
 
@@ -42,7 +42,25 @@ The HD canvas must be an exact multiple of the original asset canvas:
 
 Do not trim transparent borders after upscaling. TazUO compares the replacement dimensions with the original asset at first use. A mismatch is logged and the original UO asset is used instead.
 
-An HD image larger than the current 4096 x 4096 atlas page is also rejected by this POC.
+An HD image larger than the current 4096 x 4096 atlas page is also rejected.
+
+## Automated complete conversion
+
+The macOS pipeline reads UOP/MUL files directly, so UOFiddler is not required for the complete pack:
+
+```bash
+python3 tools/HDAssets/run_pipeline.py \
+  --uo "/Applications/TazUO-Launcher.osx-arm64/Ultima Online Classic" \
+  --tazuo-bin "/Applications/TazUO-Launcher.osx-arm64/TazUO" \
+  --work "/Applications/TazUO-Launcher.osx-arm64/HDAssetsWork" \
+  --output "/Applications/TazUO-Launcher.osx-arm64/TazUO/ExternalImages" \
+  --scale 2 \
+  --model high-fidelity-4x
+```
+
+The tool exports original PNGs, fills transparent RGB with nearby sprite colors, and packs the images into padded 1024-pixel sheets. The official `upscayl-ncnn` backend processes those sheets with bounded GPU tiles. The finalizer then splits them, restores the original alpha and partial-hue masks, writes the exact `@2x`/`@4x` paths, and validates every output dimension against the extraction manifest.
+
+A complete 2x pass is the practical default. It uses one quarter of the output pixels of 4x while covering the same assets; 4x is best reserved for a machine with substantially more free disk space. The detailed options and resume behavior are documented in [`tools/HDAssets/README.md`](../tools/HDAssets/README.md).
 
 ## Suggested manual demonstration
 
@@ -65,7 +83,7 @@ For an animation experiment:
 
 Current UOFiddler animation PNG export paints the transparent canvas white. TazUO reconstructs the binary alpha silhouette from the corresponding original frame at load time. It also restores which source pixels are grayscale so partial equipment hues continue to work. Frame centers are retained from the original animation data, so no sidecar metadata is required.
 
-## POC coverage
+## Coverage
 
 Implemented:
 
@@ -82,14 +100,13 @@ Implemented:
 - flat 44 x 44 land art and the 64/128 texmaps used when terrain is stretched by elevation;
 - automatic linear filtering on dedicated HD atlas pages while legacy sprites and text retain point sampling;
 - one-texel edge extrusion around HD atlas entries to prevent linear-filter bleeding from neighboring assets;
+- direct UOP/MUL bulk extraction, padded sheet generation, official Upscayl execution, mask-aware finalization, and manifest validation;
 - loose files and the existing `tuoassets.zip` registration paths;
 - automatic fallback when dimensions are invalid.
 
 Not implemented yet:
 
-- a bulk UOFiddler export/rename/upscale automation tool;
 - mipmapped HD atlas pages, streaming, or an LRU cache;
-- an offline mask-aware preprocessing and bulk-conversion pipeline.
 
 The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.
 
@@ -99,4 +116,6 @@ For a terrain set, replace both representations. Flat cells render the Land Tile
 
 ## Visual caveats
 
-For tagged HD art, land, gumps, and body animations, TazUO restores the alpha silhouette from the original asset at load time. Art, gumps, and animations also recover the grayscale/partial-hue mask; land colors remain untouched. This removes color generated outside the original silhouette and keeps hueable regions compatible with the classic hue shader. Legacy 1x replacements keep their existing behavior. A dedicated preprocessing pipeline that separates RGB, alpha, and hue masks before upscaling can still produce softer, more controlled edges for a final asset pack.
+For tagged HD art, land, gumps, and body animations, TazUO restores the alpha silhouette from the original asset at load time. Art, gumps, and animations also recover the grayscale/partial-hue mask; land colors remain untouched. Legacy 1x replacements keep their existing behavior.
+
+The automated pipeline additionally color-bleeds transparent source pixels before AI processing, preventing black or white canvas colors from contaminating visible edges. It reapplies the masks before saving, while the runtime restoration remains as a safety net for hand-made or UOFiddler-based replacements.
