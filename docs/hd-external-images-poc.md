@@ -81,6 +81,7 @@ Implemented:
 - automatic alpha-mask reconstruction for HD art, land, gumps, and animation frames, plus partial-hue-mask reconstruction where hues apply;
 - flat 44 x 44 land art and the 64/128 texmaps used when terrain is stretched by elevation;
 - automatic linear filtering while tagged HD images are active;
+- one-texel edge extrusion around HD atlas entries to prevent linear-filter bleeding from neighboring assets;
 - loose files and the existing `tuoassets.zip` registration paths;
 - automatic fallback when dimensions are invalid.
 
@@ -88,7 +89,7 @@ Not implemented yet:
 
 - a bulk UOFiddler export/rename/upscale automation tool;
 - runtime-rasterized minimap backgrounds (`0x1392`/`0x1393`, decimal 5010/5011);
-- mipmapped/padded HD atlas pages, streaming, or an LRU cache;
+- mipmapped HD atlas pages, streaming, or an LRU cache;
 - an offline mask-aware preprocessing and bulk-conversion pipeline.
 
 The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.

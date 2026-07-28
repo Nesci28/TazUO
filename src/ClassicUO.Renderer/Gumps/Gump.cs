@@ -96,7 +96,8 @@ namespace ClassicUO.Renderer.Gumps
                         gumpInfo.Pixels,
                         gumpInfo.Width,
                         gumpInfo.Height,
-                        out spriteInfo.UV
+                        out spriteInfo.UV,
+                        padding: sourceScale > 1 ? 1 : 0
                     );
                     spriteInfo.SourceScale = sourceScale;
 

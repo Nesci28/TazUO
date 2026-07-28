@@ -486,7 +486,8 @@ namespace ClassicUO.Renderer.Animations
                         uploadPixels,
                         uploadWidth,
                         uploadHeight,
-                        out spriteInfo.UV
+                        out spriteInfo.UV,
+                        padding: sourceScale > 1 ? 1 : 0
                     );
 
                     if (loadedExternalFrame)

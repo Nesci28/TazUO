@@ -264,7 +264,8 @@ namespace ClassicUO.Renderer.Arts
                         artInfo.Pixels,
                         artInfo.Width,
                         artInfo.Height,
-                        out spriteInfo.UV
+                        out spriteInfo.UV,
+                        padding: sourceScale > 1 ? 1 : 0
                     );
                     spriteInfo.SourceScale = sourceScale;
 
