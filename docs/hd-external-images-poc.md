@@ -78,7 +78,7 @@ Implemented:
 - specialized gump placement and rendering for health bars, spell controls, buffs, durability bars, menus, and viewport borders;
 - logical-to-physical source cropping in classic/modern shops, trades, paperdolls, loot grids, nearby-item views, counter bars, hue previews, and Myra art widgets;
 - mobile, monster, equipment, mount, and corpse animation frames, including shadows, outlines, sitting deformation, depth slices, centering, and pixel selection;
-- automatic animation alpha-mask and partial-hue-mask reconstruction from the original frame;
+- automatic alpha-mask reconstruction for HD art, land, gumps, and animation frames, plus partial-hue-mask reconstruction where hues apply;
 - flat 44 x 44 land art and the 64/128 texmaps used when terrain is stretched by elevation;
 - automatic linear filtering while tagged HD images are active;
 - loose files and the existing `tuoassets.zip` registration paths;
@@ -89,7 +89,7 @@ Not implemented yet:
 - a bulk UOFiddler export/rename/upscale automation tool;
 - runtime-rasterized minimap backgrounds (`0x1392`/`0x1393`, decimal 5010/5011);
 - mipmapped/padded HD atlas pages, streaming, or an LRU cache;
-- partial-hue mask restoration during image preprocessing.
+- an offline mask-aware preprocessing and bulk-conversion pipeline.
 
 The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.
 
@@ -99,4 +99,4 @@ For a terrain set, replace both representations. Flat cells render the Land Tile
 
 ## Visual caveats
 
-For body animations, TazUO restores the binary alpha and grayscale/partial-hue masks from the original frame. Static art and gumps do not yet receive that restoration, so Upscayl can still alter hueable regions or introduce alpha-edge halos in those categories. A dedicated preprocessing pipeline that separates RGB, alpha, and hue masks will give the most predictable final asset pack.
+For tagged HD art, land, gumps, and body animations, TazUO restores the alpha silhouette from the original asset at load time. Art, gumps, and animations also recover the grayscale/partial-hue mask; land colors remain untouched. This removes color generated outside the original silhouette and keeps hueable regions compatible with the classic hue shader. Legacy 1x replacements keep their existing behavior. A dedicated preprocessing pipeline that separates RGB, alpha, and hue masks before upscaling can still produce softer, more controlled edges for a final asset pack.

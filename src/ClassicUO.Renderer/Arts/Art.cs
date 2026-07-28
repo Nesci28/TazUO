@@ -213,6 +213,19 @@ namespace ClassicUO.Renderer.Arts
                     artInfo = original;
                     loadedFromPNG = false;
                 }
+                else if (artInfo.SourceScale > 1)
+                {
+                    ExternalImageMaskRestorer.RestoreFromOriginal(
+                        original.Pixels,
+                        original.Width,
+                        original.Height,
+                        artInfo.Pixels,
+                        artInfo.Width,
+                        artInfo.Height,
+                        artInfo.SourceScale,
+                        restoreGrayscaleMask: !isLand
+                    );
+                }
             }
 
             if (artInfo.Pixels.IsEmpty)
