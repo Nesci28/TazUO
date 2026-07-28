@@ -80,7 +80,7 @@ Implemented:
 - mobile, monster, equipment, mount, and corpse animation frames, including shadows, outlines, sitting deformation, depth slices, centering, and pixel selection;
 - automatic alpha-mask reconstruction for HD art, land, gumps, and animation frames, plus partial-hue-mask reconstruction where hues apply;
 - flat 44 x 44 land art and the 64/128 texmaps used when terrain is stretched by elevation;
-- automatic linear filtering while tagged HD images are active;
+- automatic linear filtering on dedicated HD atlas pages while legacy sprites and text retain point sampling;
 - one-texel edge extrusion around HD atlas entries to prevent linear-filter bleeding from neighboring assets;
 - loose files and the existing `tuoassets.zip` registration paths;
 - automatic fallback when dimensions are invalid.
