@@ -182,10 +182,13 @@ namespace ClassicUO.Renderer.Arts
 
         private ArtInfo LoadSourceArtInfo(uint idx, out bool loadedFromPNG)
         {
-            ArtInfo artInfo = ExternalImageLoader.Instance.LoadArtTexture(idx);
+            bool isLand = idx < 0x4000;
+            ArtInfo artInfo = isLand
+                ? ExternalImageLoader.Instance.LoadLandTexture(idx)
+                : ExternalImageLoader.Instance.LoadArtTexture(idx);
             loadedFromPNG = !artInfo.Pixels.IsEmpty;
 
-            if (loadedFromPNG && artInfo.SourceScale > 1)
+            if (loadedFromPNG && (isLand || artInfo.SourceScale > 1))
             {
                 ArtInfo original = _artLoader.GetArt(idx);
                 int expectedWidth = original.Width * artInfo.SourceScale;
@@ -200,10 +203,13 @@ namespace ClassicUO.Renderer.Arts
                 )
                 {
                     Log.Warn(
-                        $"Ignoring HD art 0x{idx:X}: got {artInfo.Width}x{artInfo.Height} " +
+                        $"Ignoring external {(isLand ? "land" : "art")} 0x{idx:X}: got {artInfo.Width}x{artInfo.Height} " +
                         $"for @{artInfo.SourceScale}x, expected {expectedWidth}x{expectedHeight}."
                     );
-                    ExternalImageLoader.Instance.RejectArtOverride(idx);
+                    if (isLand)
+                        ExternalImageLoader.Instance.RejectLandOverride(idx);
+                    else
+                        ExternalImageLoader.Instance.RejectArtOverride(idx);
                     artInfo = original;
                     loadedFromPNG = false;
                 }
@@ -252,7 +258,10 @@ namespace ClassicUO.Renderer.Arts
                     // Clear the pixel cache from PNG Loader since it's now in the atlas
                     if (loadedFromPNG)
                     {
-                        ExternalImageLoader.Instance.ClearArtPixelCache(idx);
+                        if (idx < 0x4000)
+                            ExternalImageLoader.Instance.ClearLandPixelCache(idx);
+                        else
+                            ExternalImageLoader.Instance.ClearArtPixelCache(idx);
                     }
 
                     if (idx > 0x4000)
