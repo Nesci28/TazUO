@@ -120,4 +120,6 @@ For a terrain set, replace both representations. Flat cells render the Land Tile
 
 For tagged HD art, land, gumps, and body animations, TazUO restores the alpha silhouette from the original asset at load time. Art, gumps, and animations also recover the grayscale/partial-hue mask; land colors remain untouched. Legacy 1x replacements keep their existing behavior.
 
+External PNG and BMP files are decoded to premultiplied RGBA pixels entirely on the CPU. Lazy requests from scripting or worker threads therefore never perform a GPU texture readback or force a Metal command-buffer flush while the main renderer has an active encoder.
+
 The automated pipeline additionally color-bleeds transparent source pixels before AI processing, preventing black or white canvas colors from contaminating visible edges. It reapplies the masks before saving, while the runtime restoration remains as a safety net for hand-made or UOFiddler-based replacements.

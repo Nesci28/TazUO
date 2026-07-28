@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
 using ClassicUO.Utility.Logging;
+using StbImageSharp;
 
 namespace ClassicUO.Assets
 {
@@ -52,6 +53,7 @@ namespace ClassicUO.Assets
         private Dictionary<ulong, ExternalImageFile> animation_availableFiles = new Dictionary<ulong, ExternalImageFile>();
         private Dictionary<ulong, (uint[] pixels, int width, int height, int sourceScale)> animation_textureCache = new Dictionary<ulong, (uint[], int, int, int)>();
         private Dictionary<ulong, byte[]> animation_zipFiles = new Dictionary<ulong, byte[]>();
+        private readonly object _imageCacheLock = new object();
         private readonly object _animationCacheLock = new object();
 
         public bool HasHighResolutionGumps { get; private set; }
@@ -100,67 +102,44 @@ namespace ClassicUO.Assets
 
         public Texture2D GetImageTexture(string fullImagePath)
         {
-            Texture2D texture = null;
+            if (GraphicsDevice == null || !File.Exists(fullImagePath))
+                return null;
 
-            if (GraphicsDevice != null && File.Exists(fullImagePath))
-            {
-                FileStream titleStream = File.OpenRead(fullImagePath);
-                texture = Texture2D.FromStream(GraphicsDevice, titleStream);
-                titleStream.Close();
-                var buffer = new Color[texture.Width * texture.Height];
-                texture.GetData(buffer);
-
-                for (int i = 0; i < buffer.Length; i++)
-                    buffer[i] = Color.FromNonPremultiplied(buffer[i].R, buffer[i].G, buffer[i].B, buffer[i].A);
-
-                texture.SetData(buffer);
-            }
-
-            return texture;
+            using FileStream imageStream = File.OpenRead(fullImagePath);
+            return CreateTexture(imageStream);
         }
 
         public GumpInfo LoadGumpTexture(uint graphic)
         {
-            if (!gump_availableFiles.TryGetValue(graphic, out ExternalImageFile imageFile))
-                return new GumpInfo();
+            ExternalImageFile imageFile;
 
-            if (gump_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
+            lock (_imageCacheLock)
             {
-                return new GumpInfo()
+                if (!gump_availableFiles.TryGetValue(graphic, out imageFile))
+                    return new GumpInfo();
+
+                if (gump_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
                 {
-                    Pixels = cached.pixels,
-                    Width = cached.width,
-                    Height = cached.height,
-                    SourceScale = cached.sourceScale
-                };
+                    return new GumpInfo()
+                    {
+                        Pixels = cached.pixels,
+                        Width = cached.width,
+                        Height = cached.height,
+                        SourceScale = cached.sourceScale
+                    };
+                }
             }
 
             string fullImagePath = imageFile.Path;
-            if (GraphicsDevice != null && File.Exists(fullImagePath))
+            if (File.Exists(fullImagePath))
             {
                 try
                 {
-                    Texture2D tempTexture;
-                    if (fullImagePath.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
-                    {
-                        tempTexture = LoadBmp(GraphicsDevice, fullImagePath);
-                    }
-                    else
-                    {
-                        using FileStream titleStream = File.OpenRead(fullImagePath);
-                        tempTexture = Texture2D.FromStream(GraphicsDevice, titleStream);
-                    }
-
-                    if (tempTexture == null)
+                    if (!TryDecodeImage(fullImagePath, null, out uint[] pixels, out int width, out int height))
                         return new GumpInfo();
 
-                    FixPNGAlpha(ref tempTexture);
-
-                    uint[] pixels = GetPixels(tempTexture);
-                    int width = tempTexture.Width;
-                    int height = tempTexture.Height;
-                    gump_textureCache.Add(graphic, (pixels, width, height, imageFile.SourceScale));
-                    tempTexture.Dispose();
+                    lock (_imageCacheLock)
+                        gump_textureCache[graphic] = (pixels, width, height, imageFile.SourceScale);
 
                     return new GumpInfo()
                     {
@@ -181,46 +160,35 @@ namespace ClassicUO.Assets
 
         public ArtInfo LoadArtTexture(uint graphic)
         {
-            if (!art_availableFiles.TryGetValue(graphic, out ExternalImageFile imageFile))
-                return new ArtInfo();
+            ExternalImageFile imageFile;
 
-            if (art_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
+            lock (_imageCacheLock)
             {
-                return new ArtInfo()
+                if (!art_availableFiles.TryGetValue(graphic, out imageFile))
+                    return new ArtInfo();
+
+                if (art_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
                 {
-                    Pixels = cached.pixels,
-                    Width = cached.width,
-                    Height = cached.height,
-                    SourceScale = cached.sourceScale
-                };
+                    return new ArtInfo()
+                    {
+                        Pixels = cached.pixels,
+                        Width = cached.width,
+                        Height = cached.height,
+                        SourceScale = cached.sourceScale
+                    };
+                }
             }
 
             string fullImagePath = imageFile.Path;
-            if (GraphicsDevice != null && File.Exists(fullImagePath))
+            if (File.Exists(fullImagePath))
             {
                 try
                 {
-                    Texture2D tempTexture;
-                    if (fullImagePath.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
-                    {
-                        tempTexture = LoadBmp(GraphicsDevice, fullImagePath);
-                    }
-                    else
-                    {
-                        using FileStream titleStream = File.OpenRead(fullImagePath);
-                        tempTexture = Texture2D.FromStream(GraphicsDevice, titleStream);
-                    }
-
-                    if (tempTexture == null)
+                    if (!TryDecodeImage(fullImagePath, null, out uint[] pixels, out int width, out int height))
                         return new ArtInfo();
 
-                    FixPNGAlpha(ref tempTexture);
-
-                    uint[] pixels = GetPixels(tempTexture);
-                    int width = tempTexture.Width;
-                    int height = tempTexture.Height;
-                    art_textureCache.Add(graphic, (pixels, width, height, imageFile.SourceScale));
-                    tempTexture.Dispose();
+                    lock (_imageCacheLock)
+                        art_textureCache[graphic] = (pixels, width, height, imageFile.SourceScale);
 
                     return new ArtInfo()
                     {
@@ -330,35 +298,14 @@ namespace ClassicUO.Assets
 
             string fullImagePath = imageFile.Path;
             if (
-                GraphicsDevice == null
-                || encodedBytes == null && !File.Exists(fullImagePath)
+                encodedBytes == null && !File.Exists(fullImagePath)
             )
                 return new ArtInfo();
 
             try
             {
-                Texture2D tempTexture;
-                if (encodedBytes != null)
-                {
-                    using var imageStream = new MemoryStream(encodedBytes, false);
-                    tempTexture = Texture2D.FromStream(GraphicsDevice, imageStream);
-                }
-                else if (fullImagePath.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
-                    tempTexture = LoadBmp(GraphicsDevice, fullImagePath);
-                else
-                {
-                    using FileStream imageStream = File.OpenRead(fullImagePath);
-                    tempTexture = Texture2D.FromStream(GraphicsDevice, imageStream);
-                }
-
-                if (tempTexture == null)
+                if (!TryDecodeImage(fullImagePath, encodedBytes, out uint[] pixels, out int width, out int height))
                     return new ArtInfo();
-
-                FixPNGAlpha(ref tempTexture);
-                uint[] pixels = GetPixels(tempTexture);
-                int width = tempTexture.Width;
-                int height = tempTexture.Height;
-                tempTexture.Dispose();
 
                 lock (_animationCacheLock)
                 {
@@ -401,43 +348,35 @@ namespace ClassicUO.Assets
             height = 0;
             sourceScale = 1;
 
-            if (!availableFiles.TryGetValue(graphic, out ExternalImageFile imageFile))
-                return false;
+            ExternalImageFile imageFile;
 
-            if (textureCache.TryGetValue(graphic, out var cached))
+            lock (_imageCacheLock)
             {
-                pixels = cached.pixels;
-                width = cached.width;
-                height = cached.height;
-                sourceScale = cached.sourceScale;
-                return true;
+                if (!availableFiles.TryGetValue(graphic, out imageFile))
+                    return false;
+
+                if (textureCache.TryGetValue(graphic, out var cached))
+                {
+                    pixels = cached.pixels;
+                    width = cached.width;
+                    height = cached.height;
+                    sourceScale = cached.sourceScale;
+                    return true;
+                }
             }
 
             string fullImagePath = imageFile.Path;
-            if (GraphicsDevice == null || !File.Exists(fullImagePath))
+            if (!File.Exists(fullImagePath))
                 return false;
 
             try
             {
-                Texture2D tempTexture;
-                if (fullImagePath.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
-                    tempTexture = LoadBmp(GraphicsDevice, fullImagePath);
-                else
-                {
-                    using FileStream imageStream = File.OpenRead(fullImagePath);
-                    tempTexture = Texture2D.FromStream(GraphicsDevice, imageStream);
-                }
-
-                if (tempTexture == null)
+                if (!TryDecodeImage(fullImagePath, null, out pixels, out width, out height))
                     return false;
 
-                FixPNGAlpha(ref tempTexture);
-                pixels = GetPixels(tempTexture);
-                width = tempTexture.Width;
-                height = tempTexture.Height;
                 sourceScale = imageFile.SourceScale;
-                textureCache[graphic] = (pixels, width, height, sourceScale);
-                tempTexture.Dispose();
+                lock (_imageCacheLock)
+                    textureCache[graphic] = (pixels, width, height, sourceScale);
                 return true;
             }
             catch (Exception ex)
@@ -447,75 +386,66 @@ namespace ClassicUO.Assets
             }
         }
 
-        private static Texture2D LoadBmp(GraphicsDevice gd, string path)
+        private Texture2D CreateTexture(Stream imageStream)
         {
-            byte[] file = File.ReadAllBytes(path);
-            if (file.Length < 54 || file[0] != 'B' || file[1] != 'M')
-                return null;
-
-            int dataOffset = BitConverter.ToInt32(file, 10);
-            int headerSize = BitConverter.ToInt32(file, 14);
-            if (headerSize < 40)
-                return null;
-
-            int width = BitConverter.ToInt32(file, 18);
-            int rawHeight = BitConverter.ToInt32(file, 22);
-            bool topDown = rawHeight < 0;
-            int height = Math.Abs(rawHeight);
-            short bpp = BitConverter.ToInt16(file, 28);
-
-            if (bpp != 24 && bpp != 32)
+            if (
+                GraphicsDevice == null
+                || !TryDecodeImage(imageStream, out uint[] pixels, out int width, out int height)
+            )
             {
-                Log.Error($"Unsupported BMP bit depth {bpp} in '{path}'");
                 return null;
             }
 
-            int bytesPerPixel = bpp / 8;
-            int rowStride = width * bytesPerPixel;
-            int rowPadding = (4 - (rowStride % 4)) % 4;
-            int rowBytes = rowStride + rowPadding;
-
-            var texture = new Texture2D(gd, width, height);
-            var pixels = new Color[width * height];
-
-            for (int y = 0; y < height; y++)
-            {
-                int srcRow = topDown ? y : (height - 1 - y);
-                int srcOffset = dataOffset + srcRow * rowBytes;
-
-                for (int x = 0; x < width; x++)
-                {
-                    int srcIdx = srcOffset + x * bytesPerPixel;
-                    byte b = file[srcIdx];
-                    byte g = file[srcIdx + 1];
-                    byte r = file[srcIdx + 2];
-                    byte a = (bytesPerPixel == 4) ? file[srcIdx + 3] : (byte)255;
-
-                    pixels[y * width + x] = new Color(r, g, b, a);
-                }
-            }
-
+            var texture = new Texture2D(GraphicsDevice, width, height);
             texture.SetData(pixels);
             return texture;
         }
 
-        private uint[] GetPixels(Texture2D texture)
+        private static bool TryDecodeImage(
+            string imagePath,
+            byte[] encodedBytes,
+            out uint[] pixels,
+            out int width,
+            out int height
+        )
         {
-            if (texture == null)
+            using Stream imageStream = encodedBytes != null
+                ? new MemoryStream(encodedBytes, false)
+                : File.OpenRead(imagePath);
+            return TryDecodeImage(imageStream, out pixels, out width, out height);
+        }
+
+        private static bool TryDecodeImage(
+            Stream imageStream,
+            out uint[] pixels,
+            out int width,
+            out int height
+        )
+        {
+            ImageResult image = ImageResult.FromStream(
+                imageStream,
+                ColorComponents.RedGreenBlueAlpha
+            );
+            width = image?.Width ?? 0;
+            height = image?.Height ?? 0;
+
+            if (image?.Data == null || width <= 0 || height <= 0)
             {
-                return new uint[0];
+                pixels = Array.Empty<uint>();
+                return false;
             }
 
-            var pixelColors = new Color[texture.Width * texture.Height];
-            texture.GetData<Color>(pixelColors);
-
-            uint[] pixels = new uint[pixelColors.Length];
-            for (int i = 0; i < pixelColors.Length; i++)
+            pixels = new uint[width * height];
+            for (int i = 0, offset = 0; i < pixels.Length; i++, offset += 4)
             {
-                pixels[i] = pixelColors[i].PackedValue;
+                uint alpha = image.Data[offset + 3];
+                uint red = (uint)(image.Data[offset] * alpha / byte.MaxValue);
+                uint green = (uint)(image.Data[offset + 1] * alpha / byte.MaxValue);
+                uint blue = (uint)(image.Data[offset + 2] * alpha / byte.MaxValue);
+                pixels[i] = red | (green << 8) | (blue << 16) | (alpha << 24);
             }
 
-            return pixels;
+            return true;
         }
 
         private static string[] FindImageFiles(string directory)
@@ -806,7 +736,7 @@ namespace ClassicUO.Assets
 
                         if (stream != null)
                         {
-                            var texture = Texture2D.FromStream(GraphicsDevice, stream);
+                            Texture2D texture = CreateTexture(stream);
 
                             if (texture == null)
                             {
@@ -814,7 +744,6 @@ namespace ClassicUO.Assets
                                 continue;
                             }
 
-                            FixPNGAlpha(ref texture);
                             EmbeddedArt.Add(fName, texture);
                             stream.Dispose();
                         }
@@ -827,17 +756,6 @@ namespace ClassicUO.Assets
             }
 
             LoadTuoAssetsZips();
-        }
-
-        private static void FixPNGAlpha(ref Texture2D texture)
-        {
-            var buffer = new Color[texture.Width * texture.Height];
-            texture.GetData(buffer);
-
-            for (int i = 0; i < buffer.Length; i++)
-                buffer[i] = Color.FromNonPremultiplied(buffer[i].R, buffer[i].G, buffer[i].B, buffer[i].A);
-
-            texture.SetData(buffer);
         }
 
         public void RegisterZipPNGs(ZipArchive archive)
@@ -987,9 +905,8 @@ namespace ClassicUO.Assets
                         try
                         {
                             using var ms = new MemoryStream(bytes);
-                            var tex = Texture2D.FromStream(GraphicsDevice, ms);
+                            Texture2D tex = CreateTexture(ms);
                             if (tex == null) continue;
-                            FixPNGAlpha(ref tex);
                             if (EmbeddedArt.TryGetValue(entry.Name, out Texture2D old)
                             && old != null && !old.IsDisposed)
                                 old.Dispose();
@@ -1058,9 +975,8 @@ namespace ClassicUO.Assets
             try
             {
                 using var ms = new MemoryStream(bytes);
-                var tex = Texture2D.FromStream(GraphicsDevice, ms);
+                Texture2D tex = CreateTexture(ms);
                 if (tex == null) return;
-                FixPNGAlpha(ref tex);
                 if (_zipNamedTextures.TryGetValue(name, out Texture2D existing) && existing != null && !existing.IsDisposed)
                     existing.Dispose();
                 _zipNamedTextures[name] = tex;
@@ -1070,18 +986,13 @@ namespace ClassicUO.Assets
 
         private void RegisterGumpFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (GraphicsDevice == null) return;
             if (gump_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
-                using var ms = new MemoryStream(bytes);
-                var tex = Texture2D.FromStream(GraphicsDevice, ms);
-                if (tex == null) return;
-                FixPNGAlpha(ref tex);
-                uint[] pixels = GetPixels(tex);
-                int width = tex.Width, height = tex.Height;
-                gump_textureCache[id] = (pixels, width, height, sourceScale);
-                tex.Dispose();
+                if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
+                    return;
+                lock (_imageCacheLock)
+                    gump_textureCache[id] = (pixels, width, height, sourceScale);
 
                 RegisterAvailableFile(gump_availableFiles, id, $"0x{id:X}", sourceScale);
                 HasHighResolutionGumps |= sourceScale > 1;
@@ -1091,18 +1002,13 @@ namespace ClassicUO.Assets
 
         private void RegisterArtFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (GraphicsDevice == null) return;
             if (art_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
-                using var ms = new MemoryStream(bytes);
-                var tex = Texture2D.FromStream(GraphicsDevice, ms);
-                if (tex == null) return;
-                FixPNGAlpha(ref tex);
-                uint[] pixels = GetPixels(tex);
-                int width = tex.Width, height = tex.Height;
-                art_textureCache[id] = (pixels, width, height, sourceScale);
-                tex.Dispose();
+                if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
+                    return;
+                lock (_imageCacheLock)
+                    art_textureCache[id] = (pixels, width, height, sourceScale);
 
                 RegisterAvailableFile(art_availableFiles, id, $"0x{id:X}", sourceScale);
                 HasHighResolutionArt |= sourceScale > 1;
@@ -1112,18 +1018,13 @@ namespace ClassicUO.Assets
 
         private void RegisterLandFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (GraphicsDevice == null) return;
             if (land_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
-                using var ms = new MemoryStream(bytes);
-                var tex = Texture2D.FromStream(GraphicsDevice, ms);
-                if (tex == null) return;
-                FixPNGAlpha(ref tex);
-                uint[] pixels = GetPixels(tex);
-                int width = tex.Width, height = tex.Height;
-                land_textureCache[id] = (pixels, width, height, sourceScale);
-                tex.Dispose();
+                if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
+                    return;
+                lock (_imageCacheLock)
+                    land_textureCache[id] = (pixels, width, height, sourceScale);
 
                 RegisterAvailableFile(land_availableFiles, id, $"0x{id:X}", sourceScale);
                 HasHighResolutionLand |= sourceScale > 1;
@@ -1133,18 +1034,13 @@ namespace ClassicUO.Assets
 
         private void RegisterTexmapFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (GraphicsDevice == null) return;
             if (texmap_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
-                using var ms = new MemoryStream(bytes);
-                var tex = Texture2D.FromStream(GraphicsDevice, ms);
-                if (tex == null) return;
-                FixPNGAlpha(ref tex);
-                uint[] pixels = GetPixels(tex);
-                int width = tex.Width, height = tex.Height;
-                texmap_textureCache[id] = (pixels, width, height, sourceScale);
-                tex.Dispose();
+                if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
+                    return;
+                lock (_imageCacheLock)
+                    texmap_textureCache[id] = (pixels, width, height, sourceScale);
 
                 RegisterAvailableFile(texmap_availableFiles, id, $"0x{id:X}", sourceScale);
                 HasHighResolutionTexmaps |= sourceScale > 1;
@@ -1174,13 +1070,29 @@ namespace ClassicUO.Assets
             RegisterAvailableAnimationFile(key, $"animation:{key}", sourceScale);
         }
 
-        public void ClearArtPixelCache(uint graphic) => art_textureCache.Remove(graphic);
+        public void ClearArtPixelCache(uint graphic)
+        {
+            lock (_imageCacheLock)
+                art_textureCache.Remove(graphic);
+        }
 
-        public void ClearGumpPixelCache(uint graphic) => gump_textureCache.Remove(graphic);
+        public void ClearGumpPixelCache(uint graphic)
+        {
+            lock (_imageCacheLock)
+                gump_textureCache.Remove(graphic);
+        }
 
-        public void ClearLandPixelCache(uint graphic) => land_textureCache.Remove(graphic);
+        public void ClearLandPixelCache(uint graphic)
+        {
+            lock (_imageCacheLock)
+                land_textureCache.Remove(graphic);
+        }
 
-        public void ClearTexmapPixelCache(uint graphic) => texmap_textureCache.Remove(graphic);
+        public void ClearTexmapPixelCache(uint graphic)
+        {
+            lock (_imageCacheLock)
+                texmap_textureCache.Remove(graphic);
+        }
 
         public void ClearAnimationFramePixelCache(
             ushort body,
@@ -1196,26 +1108,38 @@ namespace ClassicUO.Assets
 
         public void RejectArtOverride(uint graphic)
         {
-            art_textureCache.Remove(graphic);
-            art_availableFiles.Remove(graphic);
+            lock (_imageCacheLock)
+            {
+                art_textureCache.Remove(graphic);
+                art_availableFiles.Remove(graphic);
+            }
         }
 
         public void RejectGumpOverride(uint graphic)
         {
-            gump_textureCache.Remove(graphic);
-            gump_availableFiles.Remove(graphic);
+            lock (_imageCacheLock)
+            {
+                gump_textureCache.Remove(graphic);
+                gump_availableFiles.Remove(graphic);
+            }
         }
 
         public void RejectLandOverride(uint graphic)
         {
-            land_textureCache.Remove(graphic);
-            land_availableFiles.Remove(graphic);
+            lock (_imageCacheLock)
+            {
+                land_textureCache.Remove(graphic);
+                land_availableFiles.Remove(graphic);
+            }
         }
 
         public void RejectTexmapOverride(uint graphic)
         {
-            texmap_textureCache.Remove(graphic);
-            texmap_availableFiles.Remove(graphic);
+            lock (_imageCacheLock)
+            {
+                texmap_textureCache.Remove(graphic);
+                texmap_availableFiles.Remove(graphic);
+            }
         }
 
         public void RejectAnimationFrameOverride(
