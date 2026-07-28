@@ -7,9 +7,6 @@ namespace ClassicUO.Renderer.Gumps
 {
     public sealed class Gump
     {
-        private const uint SMALL_MINIMAP_GUMP = 5010;
-        private const uint LARGE_MINIMAP_GUMP = 5011;
-
         private readonly TextureAtlas _atlas;
         private readonly SpriteInfo[] _spriteInfos;
         private readonly PixelPicker _picker = new PixelPicker(true);
@@ -41,32 +38,19 @@ namespace ClassicUO.Renderer.Gumps
                     GumpInfo original = _gumpsLoader.GetGump(idx);
                     int expectedWidth = original.Width * gumpInfo.SourceScale;
                     int expectedHeight = original.Height * gumpInfo.SourceScale;
-                    bool isRuntimeRasterizedMinimap =
-                        idx == SMALL_MINIMAP_GUMP || idx == LARGE_MINIMAP_GUMP;
 
                     if (
-                        isRuntimeRasterizedMinimap
-                        || original.Pixels.IsEmpty
+                        original.Pixels.IsEmpty
                         || gumpInfo.Width != expectedWidth
                         || gumpInfo.Height != expectedHeight
                         || gumpInfo.Width > 4096
                         || gumpInfo.Height > 4096
                     )
                     {
-                        if (isRuntimeRasterizedMinimap)
-                        {
-                            Log.Warn(
-                                $"Ignoring HD gump 0x{idx:X}: the minimap writes runtime map pixels " +
-                                "into its 1x background and cannot safely use a scaled source yet."
-                            );
-                        }
-                        else
-                        {
-                            Log.Warn(
-                                $"Ignoring HD gump 0x{idx:X}: got {gumpInfo.Width}x{gumpInfo.Height} " +
-                                $"for @{gumpInfo.SourceScale}x, expected {expectedWidth}x{expectedHeight}."
-                            );
-                        }
+                        Log.Warn(
+                            $"Ignoring HD gump 0x{idx:X}: got {gumpInfo.Width}x{gumpInfo.Height} " +
+                            $"for @{gumpInfo.SourceScale}x, expected {expectedWidth}x{expectedHeight}."
+                        );
                         ExternalImageLoader.Instance.RejectGumpOverride(idx);
                         gumpInfo = original;
                         loadedFromPNG = false;

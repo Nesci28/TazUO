@@ -88,13 +88,12 @@ Implemented:
 Not implemented yet:
 
 - a bulk UOFiddler export/rename/upscale automation tool;
-- runtime-rasterized minimap backgrounds (`0x1392`/`0x1393`, decimal 5010/5011);
 - mipmapped HD atlas pages, streaming, or an LRU cache;
 - an offline mask-aware preprocessing and bulk-conversion pipeline.
 
 The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.
 
-The minimap paints live map pixels directly into two classic gump backgrounds and depends on exact 1x mask colors. Tagged HD overrides for IDs 5010 and 5011 are therefore rejected with a warning and automatically fall back to the original client gumps; ordinary 1x overrides retain their previous behavior.
+The minimap backgrounds (`0x1392`/`0x1393`, decimal 5010/5011) may be replaced in HD. Their live map pixels are rendered into a separate logical-size overlay, so the dynamic map no longer mutates the shared gump atlas.
 
 For a terrain set, replace both representations. Flat cells render the Land Tile image, while sloped/elevated cells sample the TexID referenced by that land tile. Replacing only one side will produce visible transitions between classic and HD terrain.
 
