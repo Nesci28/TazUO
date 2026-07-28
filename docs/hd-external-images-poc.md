@@ -60,6 +60,8 @@ python3 tools/HDAssets/run_pipeline.py \
 
 The tool exports original PNGs, fills transparent RGB with nearby sprite colors, and packs the images into padded 1024-pixel sheets. The official `upscayl-ncnn` backend processes those sheets with bounded GPU tiles. The finalizer then splits them, restores the original alpha and partial-hue masks, writes the exact `@2x`/`@4x` paths, and validates every output dimension against the extraction manifest.
 
+For a bounded disk footprint, finalization records a durable per-sheet completion marker and removes the large upscaled sheet only after every asset in it was written successfully. A resumed run recognizes those markers, so it neither re-upscales nor re-finalizes completed sheets.
+
 A complete 2x pass is the practical default. It uses one quarter of the output pixels of 4x while covering the same assets; 4x is best reserved for a machine with substantially more free disk space. The detailed options and resume behavior are documented in [`tools/HDAssets/README.md`](../tools/HDAssets/README.md).
 
 ## Suggested manual demonstration

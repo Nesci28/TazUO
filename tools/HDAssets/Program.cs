@@ -64,7 +64,8 @@ internal static class Program
         var finalizer = new AssetFinalizer(
             Require(options, "work"),
             Require(options, "upscaled"),
-            Require(options, "output")
+            Require(options, "output"),
+            GetBool(options, "delete-upscaled", false)
         );
         PackReport report = finalizer.Run();
         return report.MissingAssets == 0 && report.Errors == 0 ? 0 : 2;
@@ -107,6 +108,9 @@ internal static class Program
             ? int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)
             : fallback;
 
+    private static bool GetBool(Dictionary<string, string> options, string key, bool fallback) =>
+        options.TryGetValue(key, out string value) ? bool.Parse(value) : fallback;
+
     private static void PrintHelp()
     {
         Console.WriteLine(
@@ -119,7 +123,7 @@ internal static class Program
                      [--max-assets 0]
 
             finalize --work <work directory> --upscaled <Upscayl output directory>
-                     --output <ExternalImages directory>
+                     --output <ExternalImages directory> [--delete-upscaled true|false]
 
             validate --work <work directory> --output <ExternalImages directory>
 
