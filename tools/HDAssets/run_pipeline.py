@@ -308,7 +308,13 @@ def run_model_batches(
     output: Path,
     args: argparse.Namespace,
 ) -> None:
-    pending = [sheets / name for name in sheet_names if not (output / name).exists()]
+    completed = args.work / f"finalized-{args.scale}x"
+    pending = [
+        sheets / name
+        for name in sheet_names
+        if not (output / name).exists()
+        and not (completed / f"{Path(name).stem}.done").exists()
+    ]
     if not pending:
         print(f"All {len(sheet_names)} {model} sheets are already complete")
         return
@@ -331,9 +337,15 @@ def run_upscayl(binary: Path, models: Path, summary: dict, args: argparse.Namesp
     input_sheets = sorted(sheets.glob("*.png"))
     if not input_sheets:
         raise RuntimeError(f"No input sheets found in {sheets}")
-    completed_sheets = sorted(upscaled.glob("*.png"))
-    if args.skip_upscale or len(completed_sheets) == len(input_sheets):
-        print(f"Using {len(completed_sheets)} existing Upscayl sheets: {upscaled}")
+    completed_markers = args.work / f"finalized-{args.scale}x"
+    completed_count = sum(
+        1
+        for sheet in input_sheets
+        if (upscaled / sheet.name).exists()
+        or (completed_markers / f"{sheet.stem}.done").exists()
+    )
+    if args.skip_upscale or completed_count == len(input_sheets):
+        print(f"Using {completed_count} completed Upscayl sheets: {upscaled}")
         return upscaled
 
     free_gib = shutil.disk_usage(args.work).free / (1024**3)
@@ -367,6 +379,8 @@ def run_finalize(tool: Path, upscaled: Path, args: argparse.Namespace) -> None:
             str(upscaled.resolve()),
             "--output",
             str(args.output.resolve()),
+            "--delete-upscaled",
+            "true",
         ],
         check=True,
     )

@@ -21,6 +21,8 @@ python3 tools/HDAssets/run_pipeline.py \
 
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
 
+After a sheet is finalized successfully, the pipeline writes a durable completion marker and removes that large upscaled sheet. This keeps peak disk usage bounded while preserving restart safety: completed sheets are skipped by both the upscale and finalization stages.
+
 The default Upscayl tile size is 256 pixels, which keeps High Fidelity within the unified-memory budget on an Apple M4 while producing the same output. It can be changed with `--tile-size` for a GPU with more or less memory.
 
 By default, sheets containing land, art, gumps, or texmaps use High Fidelity, while animation-only sheets use Upscayl Lite. On an Apple M4 this keeps the persistent static artwork at the higher quality level while reducing an exhaustive animation pass from several days to several hours. Work is divided into 25-sheet batches, so an interrupted run resumes from the first incomplete batch.
