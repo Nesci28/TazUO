@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using StbRectPackSharp;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 namespace ClassicUO.Renderer
@@ -45,9 +46,23 @@ namespace ClassicUO.Renderer
             ReadOnlySpan<uint> pixels,
             int width,
             int height,
-            out Rectangle pr
+            out Rectangle pr,
+            int padding = 0
         )
         {
+            if (padding < 0)
+                throw new ArgumentOutOfRangeException(nameof(padding));
+
+            if (
+                padding > 0
+                && (width > _width - padding * 2 || height > _height - padding * 2)
+            )
+            {
+                padding = 0;
+            }
+
+            int packedWidth = width + padding * 2;
+            int packedHeight = height + padding * 2;
             int index = _textureList.Count - 1;
 
             if (index < 0)
@@ -56,17 +71,87 @@ namespace ClassicUO.Renderer
                 CreateNewTexture2D();
             }
 
-            while (!_packer.PackRect(width, height, out pr))
+            while (!_packer.PackRect(packedWidth, packedHeight, out Rectangle packedRectangle))
             {
                 CreateNewTexture2D();
                 index = _textureList.Count - 1;
             }
 
             Texture2D texture = _textureList[index];
+            pr = new Rectangle(
+                packedRectangle.X + padding,
+                packedRectangle.Y + padding,
+                width,
+                height
+            );
 
-            fixed (uint* src = pixels)
+            if (padding == 0)
             {
-                texture.SetDataPointerEXT(0, pr, (IntPtr)src, sizeof(uint) * width * height);
+                fixed (uint* src = pixels)
+                {
+                    texture.SetDataPointerEXT(
+                        0,
+                        packedRectangle,
+                        (IntPtr)src,
+                        sizeof(uint) * width * height
+                    );
+                }
+            }
+            else
+            {
+                int pixelCount = packedWidth * packedHeight;
+                uint[] rentedPixels = ArrayPool<uint>.Shared.Rent(pixelCount);
+
+                try
+                {
+                    Span<uint> paddedPixels = rentedPixels.AsSpan(0, pixelCount);
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        ReadOnlySpan<uint> sourceRow = pixels.Slice(y * width, width);
+                        int destinationOffset = (y + padding) * packedWidth;
+
+                        paddedPixels.Slice(destinationOffset, padding).Fill(sourceRow[0]);
+                        sourceRow.CopyTo(
+                            paddedPixels.Slice(destinationOffset + padding, width)
+                        );
+                        paddedPixels
+                            .Slice(destinationOffset + padding + width, padding)
+                            .Fill(sourceRow[width - 1]);
+                    }
+
+                    ReadOnlySpan<uint> firstRow = paddedPixels.Slice(
+                        padding * packedWidth,
+                        packedWidth
+                    );
+                    for (int y = 0; y < padding; y++)
+                    {
+                        firstRow.CopyTo(paddedPixels.Slice(y * packedWidth, packedWidth));
+                    }
+
+                    ReadOnlySpan<uint> lastRow = paddedPixels.Slice(
+                        (padding + height - 1) * packedWidth,
+                        packedWidth
+                    );
+                    for (int y = padding + height; y < packedHeight; y++)
+                    {
+                        lastRow.CopyTo(paddedPixels.Slice(y * packedWidth, packedWidth));
+                    }
+
+                    fixed (uint* src = rentedPixels)
+                    {
+                        texture.SetDataPointerEXT(
+                            0,
+                            packedRectangle,
+                            (IntPtr)src,
+                            sizeof(uint) * pixelCount
+                        );
+                    }
+                }
+                finally
+                {
+                    ArrayPool<uint>.Shared.Return(rentedPixels);
+                }
             }
 
             return texture;
