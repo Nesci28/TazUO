@@ -15,12 +15,15 @@ python3 tools/HDAssets/run_pipeline.py \
   --work "/Applications/TazUO-Launcher.osx-arm64/HDAssetsWork" \
   --output "/Applications/TazUO-Launcher.osx-arm64/TazUO/ExternalImages" \
   --scale 2 \
-  --model high-fidelity-4x
+  --model high-fidelity-4x \
+  --animation-model upscayl-lite-4x
 ```
 
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
 
 The default Upscayl tile size is 256 pixels, which keeps High Fidelity within the unified-memory budget on an Apple M4 while producing the same output. It can be changed with `--tile-size` for a GPU with more or less memory.
+
+By default, sheets containing land, art, gumps, or texmaps use High Fidelity, while animation-only sheets use Upscayl Lite. On an Apple M4 this keeps the persistent static artwork at the higher quality level while reducing an exhaustive animation pass from several days to several hours. Work is divided into 25-sheet batches, so an interrupted run resumes from the first incomplete batch.
 
 The work directory is resumable: an existing export manifest skips extraction, and a complete Upscayl sheet directory skips AI processing. Use a new work directory to change scale, sheet size, padding, categories, or model.
 

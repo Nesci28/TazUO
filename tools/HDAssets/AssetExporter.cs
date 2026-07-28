@@ -71,6 +71,7 @@ internal sealed class AssetExporter
         _sheets.Finish();
         string manifestPath = Path.Combine(_options.WorkDirectory, "manifest.json");
         _manifest.Save(manifestPath);
+        PipelinePlanner.Write(_options.WorkDirectory);
 
         Console.WriteLine($"Exported {_exported:N0} assets into {_manifest.Assets.Select(x => x.Sheet).Distinct().Count():N0} sheets.");
         foreach ((string category, int count) in _manifest.ExportedByCategory.OrderBy(x => x.Key))
