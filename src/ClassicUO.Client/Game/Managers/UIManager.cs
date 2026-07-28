@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 
+using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
 using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -645,6 +647,9 @@ namespace ClassicUO.Game.Managers
             SortControlsByInfo();
             batcher.Begin();
 
+            if (ExternalImageLoader.Instance.HasHighResolutionImages)
+                batcher.SetSampler(SamplerState.LinearClamp);
+
             for (LinkedListNode<IGui> last = Gumps.Last; last != null; last = last.Previous)
             {
                 IGui g = last.Value;
@@ -652,6 +657,7 @@ namespace ClassicUO.Game.Managers
             }
 
             batcher.End();
+            batcher.SetSampler(null);
         }
 
         public static void Add(IGui gump, bool front = true)

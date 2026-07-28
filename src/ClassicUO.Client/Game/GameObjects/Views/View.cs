@@ -149,9 +149,12 @@ namespace ClassicUO.Game.GameObjects
 
             if (artInfo.Texture != null)
             {
+                int logicalWidth = artInfo.LogicalWidth;
+                int logicalHeight = artInfo.LogicalHeight;
+                Vector2 drawScale = artInfo.DrawScale;
                 ref UOFileIndex index = ref Client.Game.UO.FileManager.Arts.File.GetValidRefEntry(graphic + ART_STATIC_OFFSET);
-                index.Width = (short)((artInfo.UV.Width >> 1) - TILE_CENTER_OFFSET);
-                index.Height = (short)(artInfo.UV.Height - TILE_HEIGHT_OFFSET);
+                index.Width = (short)((logicalWidth >> 1) - TILE_CENTER_OFFSET);
+                index.Height = (short)(logicalHeight - TILE_HEIGHT_OFFSET);
 
                 x -= index.Width;
                 y -= index.Height;
@@ -169,13 +172,13 @@ namespace ClassicUO.Game.GameObjects
                         hue,
                         0f,
                         Vector2.Zero,
-                        Vector2.One,
+                        drawScale,
                         SpriteEffects.None,
                         depth + DEPTH_WET_BASE_OFFSET
                     );
 
                     // Draw animated water layer on top
-                    Vector2 scale = GetWaterAnimationScale();
+                    Vector2 scale = GetWaterAnimationScale() * drawScale;
                     batcher.Draw(
                         artInfo.Texture,
                         pos,
@@ -197,7 +200,7 @@ namespace ClassicUO.Game.GameObjects
                         hue,
                         0f,
                         Vector2.Zero,
-                        Vector2.One,
+                        drawScale,
                         SpriteEffects.None,
                         renderDepth
                     );
@@ -217,7 +220,7 @@ namespace ClassicUO.Game.GameObjects
                         outlineNormal,
                         0f,
                         Vector2.Zero,
-                        Vector2.One,
+                        drawScale,
                         SpriteEffects.None,
                         renderDepth - 0.001f
                     );
@@ -246,7 +249,7 @@ namespace ClassicUO.Game.GameObjects
                     hue,
                     0f,
                     Vector2.Zero,
-                    1f,
+                    gumpInfo.InverseSourceScale,
                     SpriteEffects.None,
                     renderDepth
                 );
@@ -268,9 +271,11 @@ namespace ClassicUO.Game.GameObjects
 
             if (artInfo.Texture != null)
             {
+                int logicalWidth = artInfo.LogicalWidth;
+                int logicalHeight = artInfo.LogicalHeight;
                 ref UOFileIndex index = ref Client.Game.UO.FileManager.Arts.File.GetValidRefEntry(graphic + ART_STATIC_OFFSET);
-                index.Width = (short)((artInfo.UV.Width >> 1) - TILE_CENTER_OFFSET);
-                index.Height = (short)(artInfo.UV.Height - TILE_HEIGHT_OFFSET);
+                index.Width = (short)((logicalWidth >> 1) - TILE_CENTER_OFFSET);
+                index.Height = (short)(logicalHeight - TILE_HEIGHT_OFFSET);
 
                 float renderDepth = depth + DEPTH_RENDER_OFFSET;
 
@@ -279,8 +284,8 @@ namespace ClassicUO.Game.GameObjects
                     new Rectangle(
                         x - index.Width,
                         y - index.Height,
-                        artInfo.UV.Width,
-                        artInfo.UV.Height
+                        logicalWidth,
+                        logicalHeight
                     ),
                     artInfo.UV,
                     hue,
@@ -312,9 +317,12 @@ namespace ClassicUO.Game.GameObjects
 
             if (artInfo.Texture != null)
             {
+                int logicalWidth = artInfo.LogicalWidth;
+                int logicalHeight = artInfo.LogicalHeight;
+                Vector2 drawScale = artInfo.DrawScale;
                 index = ref Client.Game.UO.FileManager.Arts.File.GetValidRefEntry(graphic + ART_STATIC_OFFSET);
-                index.Width = (short)((artInfo.UV.Width >> 1) - TILE_CENTER_OFFSET);
-                index.Height = (short)(artInfo.UV.Height - TILE_HEIGHT_OFFSET);
+                index.Width = (short)((logicalWidth >> 1) - TILE_CENTER_OFFSET);
+                index.Height = (short)(logicalHeight - TILE_HEIGHT_OFFSET);
 
                 x -= index.Width;
                 y -= index.Height;
@@ -324,7 +332,7 @@ namespace ClassicUO.Game.GameObjects
 
                 if (shadow)
                 {
-                    batcher.DrawShadow(artInfo.Texture, pos, artInfo.UV, false, depth + DEPTH_SHADOW_OFFSET);
+                    batcher.DrawShadow(artInfo.Texture, pos, artInfo.UV, false, depth + DEPTH_SHADOW_OFFSET, artInfo.InverseSourceScale);
                 }
 
                 if (isWet)
@@ -337,13 +345,13 @@ namespace ClassicUO.Game.GameObjects
                         hue,
                         0f,
                         Vector2.Zero,
-                        Vector2.One,
+                        drawScale,
                         SpriteEffects.None,
                         depth + DEPTH_WET_BASE_OFFSET
                     );
 
                     // Draw animated water layer on top
-                    Vector2 scale = GetWaterAnimationScale();
+                    Vector2 scale = GetWaterAnimationScale() * drawScale;
                     batcher.Draw(
                         artInfo.Texture,
                         pos,
@@ -365,7 +373,7 @@ namespace ClassicUO.Game.GameObjects
                         hue,
                         0f,
                         Vector2.Zero,
-                        Vector2.One,
+                        drawScale,
                         SpriteEffects.None,
                         renderDepth
                     );
@@ -385,7 +393,7 @@ namespace ClassicUO.Game.GameObjects
                         outlineNormal,
                         0f,
                         Vector2.Zero,
-                        Vector2.One,
+                        drawScale,
                         SpriteEffects.None,
                         renderDepth - 0.001f
                     );

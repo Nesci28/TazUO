@@ -1436,7 +1436,11 @@ namespace ClassicUO.Game.Scenes
             batcher.GraphicsDevice.SetRenderTarget(_worldRenderTarget);
             batcher.GraphicsDevice.Clear(ClearOptions.Target, Color.Black, 1f, 0);
 
-            batcher.SetSampler(SamplerState.PointClamp);
+            batcher.SetSampler(
+                ExternalImageLoader.Instance.HasHighResolutionArt
+                    ? SamplerState.LinearClamp
+                    : SamplerState.PointClamp
+            );
 
             batcher.Begin(null, matrix);
             batcher.SetBrightlight(ProfileManager.CurrentProfile.TerrainShadowsLevel * 0.1f);

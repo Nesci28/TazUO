@@ -55,7 +55,7 @@ namespace ClassicUO.Game.UI.Controls
                 batcher.Draw(
                     artInfo.Texture,
                     new Rectangle(x + (int)(_tileX * scale), y + (int)(_tileY * scale),
-                        (int)(artInfo.UV.Width * scale), (int)(artInfo.UV.Height * scale)),
+                        (int)(artInfo.LogicalWidth * scale), (int)(artInfo.LogicalHeight * scale)),
                     artInfo.UV,
                     hueVector
                 );
