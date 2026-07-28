@@ -65,7 +65,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 Add(tb);
 
-                Rectangle barBounds = Client.Game.UO.Gumps.GetGump(0x0805).UV;
+                Rectangle barBounds = Client.Game.UO.Gumps.GetGump(0x0805).LogicalBounds;
 
                 int widthPercent = (int)(barBounds.Width * (s.Value / s.Cap));
 

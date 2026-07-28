@@ -98,7 +98,7 @@ internal class HuedTexture : IImage, IDisposable
         Rectangle actualUv = Client.Game.UO.Arts.GetRealArtBounds(graphic);
 
         Size = new Point(actualUv.Width, actualUv.Height);
-        _atlasRegion = new TextureRegion(new TextureRegion(artInfo.Texture, artInfo.UV), actualUv);
+        _atlasRegion = new TextureRegion(artInfo.Texture, artInfo.GetPhysicalSourceRectangle(actualUv));
 
         SetColorByHue(hue);
     }

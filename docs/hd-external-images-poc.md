@@ -57,6 +57,8 @@ Implemented:
 - UO `ResizePic` nine-part panels, including tiled edges, tiled centers, and pixel selection;
 - composed UI controls such as checkboxes, expandable scrolls, scrollbars, scroll flags, and horizontal sliders;
 - scaled static paperdoll previews and logical item drag centers;
+- specialized gump placement and rendering for health bars, spell controls, buffs, durability bars, menus, and viewport borders;
+- logical-to-physical source cropping in classic/modern shops, trades, paperdolls, loot grids, nearby-item views, counter bars, hue previews, and Myra art widgets;
 - flat 44 x 44 land art and the 64/128 texmaps used when terrain is stretched by elevation;
 - automatic linear filtering while tagged HD images are active;
 - loose files and the existing `tuoassets.zip` registration paths;
@@ -65,11 +67,13 @@ Implemented:
 Not implemented yet:
 
 - mobile, monster, equipment, or effect animations;
-- every specialized gump class that reads atlas dimensions directly;
+- runtime-rasterized minimap backgrounds (`0x1392`/`0x1393`, decimal 5010/5011);
 - mipmapped/padded HD atlas pages, streaming, or an LRU cache;
 - partial-hue mask restoration during image preprocessing.
 
 The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.
+
+The minimap paints live map pixels directly into two classic gump backgrounds and depends on exact 1x mask colors. Tagged HD overrides for IDs 5010 and 5011 are therefore rejected with a warning and automatically fall back to the original client gumps; ordinary 1x overrides retain their previous behavior.
 
 For a terrain set, replace both representations. Flat cells render the Land Tile image, while sloped/elevated cells sample the TexID referenced by that land tile. Replacing only one side will produce visible transitions between classic and HD terrain.
 

@@ -17,6 +17,7 @@ namespace ClassicUO.Renderer
         public readonly int EffectiveSourceScale => SourceScale > 1 ? SourceScale : 1;
         public readonly int LogicalWidth => UV.Width / EffectiveSourceScale;
         public readonly int LogicalHeight => UV.Height / EffectiveSourceScale;
+        public readonly Rectangle LogicalBounds => new Rectangle(0, 0, LogicalWidth, LogicalHeight);
         public readonly float InverseSourceScale => 1f / EffectiveSourceScale;
         public readonly Vector2 DrawScale => new Vector2(InverseSourceScale, InverseSourceScale);
 
