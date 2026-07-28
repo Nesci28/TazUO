@@ -9,14 +9,26 @@ internal sealed class AssetFinalizer
     private readonly string _workDirectory;
     private readonly string _upscaledDirectory;
     private readonly string _outputDirectory;
+    private readonly string _completedSheetsDirectory;
+    private readonly bool _deleteUpscaledSheets;
     private readonly PipelineManifest _manifest;
 
-    public AssetFinalizer(string workDirectory, string upscaledDirectory, string outputDirectory)
+    public AssetFinalizer(
+        string workDirectory,
+        string upscaledDirectory,
+        string outputDirectory,
+        bool deleteUpscaledSheets
+    )
     {
         _workDirectory = workDirectory;
         _upscaledDirectory = upscaledDirectory;
         _outputDirectory = outputDirectory;
         _manifest = PipelineManifest.Load(Path.Combine(workDirectory, "manifest.json"));
+        _completedSheetsDirectory = Path.Combine(
+            workDirectory,
+            $"finalized-{_manifest.Scale}x"
+        );
+        _deleteUpscaledSheets = deleteUpscaledSheets;
     }
 
     public PackReport Run()
@@ -27,10 +39,33 @@ internal sealed class AssetFinalizer
 
         foreach (IGrouping<string, AssetEntry> sheetGroup in _manifest.Assets.GroupBy(x => x.Sheet))
         {
+            List<AssetEntry> entries = sheetGroup.ToList();
+            string markerPath = GetCompletedMarkerPath(sheetGroup.Key);
+            if (File.Exists(markerPath) && entries.All(OutputExists))
+            {
+                foreach (AssetEntry entry in entries)
+                {
+                    RecordWritten(report, entry);
+                    completed++;
+                }
+
+                if (_deleteUpscaledSheets)
+                {
+                    string completedSheetPath = FindUpscaledSheet(sheetGroup.Key);
+                    if (completedSheetPath != null)
+                        File.Delete(completedSheetPath);
+                }
+
+                continue;
+            }
+
+            if (File.Exists(markerPath))
+                File.Delete(markerPath);
+
             string sheetPath = FindUpscaledSheet(sheetGroup.Key);
             if (sheetPath == null)
             {
-                int missingCount = sheetGroup.Count();
+                int missingCount = entries.Count;
                 report.MissingSheets++;
                 report.MissingAssets += missingCount;
                 Console.Error.WriteLine($"Missing upscaled sheet: {sheetGroup.Key} ({missingCount:N0} assets)");
@@ -40,25 +75,37 @@ internal sealed class AssetFinalizer
             using Image<Rgba32> upscaledSheet = Image.Load<Rgba32>(sheetPath);
             var sheetPixels = new Rgba32[upscaledSheet.Width * upscaledSheet.Height];
             upscaledSheet.CopyPixelDataTo(sheetPixels);
+            bool sheetSucceeded = true;
 
-            foreach (AssetEntry entry in sheetGroup)
+            foreach (AssetEntry entry in entries)
             {
                 try
                 {
                     FinalizeAsset(entry, sheetPixels, upscaledSheet.Width, upscaledSheet.Height);
                     completed++;
-                    report.Written++;
-                    report.WrittenByCategory[entry.Category] =
-                        report.WrittenByCategory.GetValueOrDefault(entry.Category) + 1;
+                    RecordWritten(report, entry);
 
                     if (completed % 1000 == 0)
                         Console.WriteLine($"  finalized assets: {completed:N0}/{_manifest.Assets.Count:N0}");
                 }
                 catch (Exception ex)
                 {
+                    sheetSucceeded = false;
                     report.Errors++;
                     Console.Error.WriteLine($"Failed {entry.OutputPath}: {ex.Message}");
                 }
+            }
+
+            if (sheetSucceeded && _deleteUpscaledSheets)
+            {
+                Directory.CreateDirectory(_completedSheetsDirectory);
+                string temporaryMarker = markerPath + ".tmp";
+                File.WriteAllText(
+                    temporaryMarker,
+                    entries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                );
+                File.Move(temporaryMarker, markerPath, true);
+                File.Delete(sheetPath);
             }
         }
 
@@ -78,6 +125,22 @@ internal sealed class AssetFinalizer
         Console.WriteLine($"Finalized {report.Written:N0}/{report.Expected:N0} assets into: {_outputDirectory}");
         Console.WriteLine($"Report: {reportPath}");
         return report;
+    }
+
+    private bool OutputExists(AssetEntry entry) =>
+        File.Exists(Path.Combine(_outputDirectory, entry.OutputPath));
+
+    private string GetCompletedMarkerPath(string sheetName) =>
+        Path.Combine(
+            _completedSheetsDirectory,
+            Path.GetFileNameWithoutExtension(sheetName) + ".done"
+        );
+
+    private static void RecordWritten(PackReport report, AssetEntry entry)
+    {
+        report.Written++;
+        report.WrittenByCategory[entry.Category] =
+            report.WrittenByCategory.GetValueOrDefault(entry.Category) + 1;
     }
 
     private void FinalizeAsset(
