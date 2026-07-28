@@ -71,6 +71,18 @@ namespace ClassicUO.Renderer.Gumps
                         gumpInfo = original;
                         loadedFromPNG = false;
                     }
+                    else
+                    {
+                        ExternalImageMaskRestorer.RestoreFromOriginal(
+                            original.Pixels,
+                            original.Width,
+                            original.Height,
+                            gumpInfo.Pixels,
+                            gumpInfo.Width,
+                            gumpInfo.Height,
+                            gumpInfo.SourceScale
+                        );
+                    }
                 }
 
                 if (gumpInfo.Pixels.IsEmpty)

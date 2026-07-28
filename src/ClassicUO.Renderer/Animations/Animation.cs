@@ -454,7 +454,7 @@ namespace ClassicUO.Renderer.Animations
                         }
                         else
                         {
-                            RestoreExternalFrameMasks(
+                            ExternalImageMaskRestorer.RestoreFromOriginal(
                                 frame.Pixels,
                                 frame.Width,
                                 frame.Height,
@@ -508,54 +508,6 @@ namespace ClassicUO.Renderer.Animations
             }
 
             return animDir.SpriteInfos.AsSpan(0, animDir.FrameCount);
-        }
-
-        private static void RestoreExternalFrameMasks(
-            ReadOnlySpan<uint> originalPixels,
-            int originalWidth,
-            int originalHeight,
-            Span<uint> externalPixels,
-            int externalWidth,
-            int externalHeight,
-            int sourceScale
-        )
-        {
-            for (int y = 0; y < externalHeight; y++)
-            {
-                int originalY = Math.Min(originalHeight - 1, y / sourceScale);
-
-                for (int x = 0; x < externalWidth; x++)
-                {
-                    int externalIndex = y * externalWidth + x;
-                    int originalX = Math.Min(originalWidth - 1, x / sourceScale);
-                    uint original = originalPixels[originalY * originalWidth + originalX];
-
-                    if (original == 0)
-                    {
-                        externalPixels[externalIndex] = 0;
-                        continue;
-                    }
-
-                    uint pixel = externalPixels[externalIndex];
-                    uint alpha = pixel & 0xFF000000;
-                    if (alpha == 0)
-                        alpha = 0xFF000000;
-
-                    byte originalR = (byte)original;
-                    byte originalG = (byte)(original >> 8);
-                    byte originalB = (byte)(original >> 16);
-
-                    if (originalR == originalG && originalR == originalB)
-                    {
-                        uint gray = (uint)(
-                            ((byte)pixel + (byte)(pixel >> 8) + (byte)(pixel >> 16)) / 3
-                        );
-                        pixel = gray | (gray << 8) | (gray << 16);
-                    }
-
-                    externalPixels[externalIndex] = (pixel & 0x00FFFFFF) | alpha;
-                }
-            }
         }
 
         public void UpdateAnimationTable(BodyConvFlags flags) => _animationLoader.ProcessBodyConvDef(flags);//if (flags != _lastFlags)//{//    if (_lastFlags != (BodyConvFlags)(-1))//    {//        /* This happens when you log out of an account then into another//         * one with different expansions activated. Just reload the anim//         * files from scratch. *///        Array.Clear(_dataIndex, 0, _dataIndex.Length);//        LoadInternal();//    }//    ProcessBodyConvDef(flags);//}//_lastFlags = flags;
