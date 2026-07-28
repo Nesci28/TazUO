@@ -1,5 +1,6 @@
 using System;
 using ClassicUO.Configuration;
+using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 
 namespace ClassicUO.Game.UI.Gumps
@@ -50,11 +51,12 @@ namespace ClassicUO.Game.UI.Gumps
 
         private void OnListViewOplReceived(object sender, OPLEventArgs e)
         {
-            if (!IsListView)
-                return;
-
-            if (SlotManager?.FindItem(e.Serial)?.RefreshListName() == true)
+            if (IsListView && SlotManager?.FindItem(e.Serial)?.RefreshListName() == true)
                 SlotManager.SetGridPositions();
+
+            Item item = World.Items.Get(e.Serial);
+            if (ContainerFilter.Enabled && ContainerFilter.HasCriteria && item?.Container == LocalSerial)
+                RequestUpdateContents();
         }
 
         private static GridContainerViewModeOverride ToViewModeOverride(int value) =>
