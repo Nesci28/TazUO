@@ -60,6 +60,24 @@ MODEL_FILES = {
             "22174924330297357434ad21ed0af7f4b820008d2a502b492754d130d4142714",
         ),
     },
+    "realesr-animevideov3-x2": {
+        "bin": (
+            "https://raw.githubusercontent.com/upscayl/custom-models/main/models/"
+            "realesr-animevideov3-x2.bin",
+            "548a36f9c3f4ab8da56cd3b13badf23968bee207b396dad14d04b830e5f2ab2d",
+        ),
+        "param": (
+            "https://raw.githubusercontent.com/upscayl/custom-models/main/models/"
+            "realesr-animevideov3-x2.param",
+            "b88ff4f00ebf019a7fdac17fdd45a7fd3665d37509efc5baf2e4da2e24420a04",
+        ),
+    },
+}
+MODEL_SCALES = {
+    "digital-art-4x": 4,
+    "high-fidelity-4x": 4,
+    "upscayl-lite-4x": 4,
+    "realesr-animevideov3-x2": 2,
 }
 
 
@@ -269,7 +287,7 @@ def run_upscayl_batch(
             "-n",
             model,
             "-z",
-            "4",
+            str(MODEL_SCALES[model]),
             "-s",
             str(args.scale),
             "-f",
@@ -368,6 +386,13 @@ def run_finalize(tool: Path, upscaled: Path, args: argparse.Namespace) -> None:
 
 def main() -> int:
     args = parse_args()
+    for model in {args.model, args.animation_model}:
+        if MODEL_SCALES[model] > args.scale:
+            continue
+        if MODEL_SCALES[model] != args.scale:
+            raise RuntimeError(
+                f"Model {model} is native {MODEL_SCALES[model]}x and cannot produce {args.scale}x."
+            )
     args.work.mkdir(parents=True, exist_ok=True)
     repo_root = Path(__file__).resolve().parents[2]
     tool = build_tool(repo_root, args)
