@@ -25,6 +25,8 @@ The default Upscayl tile size is 256 pixels, which keeps High Fidelity within th
 
 By default, sheets containing land, art, gumps, or texmaps use High Fidelity, while animation-only sheets use Upscayl Lite. On an Apple M4 this keeps the persistent static artwork at the higher quality level while reducing an exhaustive animation pass from several days to several hours. Work is divided into 25-sheet batches, so an interrupted run resumes from the first incomplete batch.
 
+For a much faster native 2x pass, use `--model realesr-animevideov3-x2 --animation-model realesr-animevideov3-x2`. This model comes from the official `upscayl/custom-models` repository and avoids computing an intermediate 4x image. It is particularly effective for outlined UO statics and animation frames. The default High Fidelity/Lite combination remains available when maximum texture reconstruction is preferred over conversion time.
+
 The work directory is resumable: an existing export manifest skips extraction, and a complete Upscayl sheet directory skips AI processing. Use a new work directory to change scale, sheet size, padding, categories, or model.
 
 For a small end-to-end sample, append `--max-assets 100`. Supported category names are `land`, `art`, `gumps`, `texmaps`, and `animations`.
