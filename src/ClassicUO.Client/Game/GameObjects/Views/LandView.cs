@@ -121,7 +121,7 @@ namespace ClassicUO.Game.GameObjects
                 if (artInfo.Texture != null)
                 {
                     var pos = new Vector2(posX, posY);
-                    Vector2 scale = Vector2.One;
+                    Vector2 scale = artInfo.DrawScale;
 
                     if (_profile.AnimatedWaterEffect && TileData.IsWet)
                     {
@@ -147,7 +147,10 @@ namespace ClassicUO.Game.GameObjects
                         }
 
                         // Calculate animated scale for water surface layer
-                        scale = new Vector2(1.1f + _cachedWaterSin * 0.1f, 1.1f + _cachedWaterCos * 0.5f * 0.1f);
+                        scale = new Vector2(
+                            1.1f + _cachedWaterSin * 0.1f,
+                            1.1f + _cachedWaterCos * 0.5f * 0.1f
+                        ) * artInfo.DrawScale;
                     }
 
                     // Draw land tile (or animated water surface layer)

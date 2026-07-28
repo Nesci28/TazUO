@@ -11,7 +11,11 @@ namespace ClassicUO.Assets
 {
     public class ExternalImageLoader
     {
-        private const string IMAGES_FOLDER = "ExternalImages", GUMP_EXTERNAL_FOLDER = "gumps", ART_EXTERNAL_FOLDER = "art";
+        private const string IMAGES_FOLDER = "ExternalImages",
+            GUMP_EXTERNAL_FOLDER = "gumps",
+            ART_EXTERNAL_FOLDER = "art",
+            LAND_EXTERNAL_FOLDER = "land",
+            TEXMAP_EXTERNAL_FOLDER = "texmaps";
 
         private readonly struct ExternalImageFile
         {
@@ -38,9 +42,18 @@ namespace ClassicUO.Assets
         private Dictionary<uint, ExternalImageFile> art_availableFiles = new Dictionary<uint, ExternalImageFile>();
         private Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> art_textureCache = new Dictionary<uint, (uint[], int, int, int)>();
 
+        private Dictionary<uint, ExternalImageFile> land_availableFiles = new Dictionary<uint, ExternalImageFile>();
+        private Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> land_textureCache = new Dictionary<uint, (uint[], int, int, int)>();
+
+        private Dictionary<uint, ExternalImageFile> texmap_availableFiles = new Dictionary<uint, ExternalImageFile>();
+        private Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> texmap_textureCache = new Dictionary<uint, (uint[], int, int, int)>();
+
         public bool HasHighResolutionGumps { get; private set; }
         public bool HasHighResolutionArt { get; private set; }
-        public bool HasHighResolutionImages => HasHighResolutionGumps || HasHighResolutionArt;
+        public bool HasHighResolutionLand { get; private set; }
+        public bool HasHighResolutionTexmaps { get; private set; }
+        public bool HasHighResolutionWorldImages => HasHighResolutionArt || HasHighResolutionLand || HasHighResolutionTexmaps;
+        public bool HasHighResolutionImages => HasHighResolutionGumps || HasHighResolutionWorldImages;
 
         public GraphicsDevice GraphicsDevice { set; get; }
 
@@ -215,6 +228,122 @@ namespace ClassicUO.Assets
             return new ArtInfo();
         }
 
+        public ArtInfo LoadLandTexture(uint graphic)
+        {
+            if (
+                TryLoadExternalImage(
+                    land_availableFiles,
+                    land_textureCache,
+                    graphic,
+                    "land",
+                    out uint[] pixels,
+                    out int width,
+                    out int height,
+                    out int sourceScale
+                )
+            )
+            {
+                return new ArtInfo
+                {
+                    Pixels = pixels,
+                    Width = width,
+                    Height = height,
+                    SourceScale = sourceScale
+                };
+            }
+
+            return new ArtInfo();
+        }
+
+        public TexmapInfo LoadTexmapTexture(uint graphic)
+        {
+            if (
+                TryLoadExternalImage(
+                    texmap_availableFiles,
+                    texmap_textureCache,
+                    graphic,
+                    "texmap",
+                    out uint[] pixels,
+                    out int width,
+                    out int height,
+                    out int sourceScale
+                )
+            )
+            {
+                return new TexmapInfo
+                {
+                    Pixels = pixels,
+                    Width = width,
+                    Height = height,
+                    SourceScale = sourceScale
+                };
+            }
+
+            return new TexmapInfo();
+        }
+
+        private bool TryLoadExternalImage(
+            Dictionary<uint, ExternalImageFile> availableFiles,
+            Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> textureCache,
+            uint graphic,
+            string category,
+            out uint[] pixels,
+            out int width,
+            out int height,
+            out int sourceScale
+        )
+        {
+            pixels = Array.Empty<uint>();
+            width = 0;
+            height = 0;
+            sourceScale = 1;
+
+            if (!availableFiles.TryGetValue(graphic, out ExternalImageFile imageFile))
+                return false;
+
+            if (textureCache.TryGetValue(graphic, out var cached))
+            {
+                pixels = cached.pixels;
+                width = cached.width;
+                height = cached.height;
+                sourceScale = cached.sourceScale;
+                return true;
+            }
+
+            string fullImagePath = imageFile.Path;
+            if (GraphicsDevice == null || !File.Exists(fullImagePath))
+                return false;
+
+            try
+            {
+                Texture2D tempTexture;
+                if (fullImagePath.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
+                    tempTexture = LoadBmp(GraphicsDevice, fullImagePath);
+                else
+                {
+                    using FileStream imageStream = File.OpenRead(fullImagePath);
+                    tempTexture = Texture2D.FromStream(GraphicsDevice, imageStream);
+                }
+
+                if (tempTexture == null)
+                    return false;
+
+                FixPNGAlpha(ref tempTexture);
+                pixels = GetPixels(tempTexture);
+                width = tempTexture.Width;
+                height = tempTexture.Height;
+                sourceScale = imageFile.SourceScale;
+                textureCache[graphic] = (pixels, width, height, sourceScale);
+                tempTexture.Dispose();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to load {category} image '{fullImagePath}': {ex.Message}");
+                return false;
+            }
+        }
+
         private static Texture2D LoadBmp(GraphicsDevice gd, string path)
         {
             byte[] file = File.ReadAllBytes(path);
@@ -356,6 +485,48 @@ namespace ClassicUO.Assets
             {
                 Directory.CreateDirectory(artPath);
             }
+
+            string landPath = Path.Combine(exePath, IMAGES_FOLDER, LAND_EXTERNAL_FOLDER);
+
+            if (Directory.Exists(landPath))
+            {
+                string[] files = FindImageFiles(landPath);
+
+                for (int i = 0; i < files.Length; i++)
+                {
+                    string baseName = Path.GetFileNameWithoutExtension(files[i]);
+                    if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                    {
+                        RegisterAvailableFile(land_availableFiles, id, files[i], sourceScale);
+                        HasHighResolutionLand |= sourceScale > 1;
+                    }
+                }
+            }
+            else
+            {
+                Directory.CreateDirectory(landPath);
+            }
+
+            string texmapPath = Path.Combine(exePath, IMAGES_FOLDER, TEXMAP_EXTERNAL_FOLDER);
+
+            if (Directory.Exists(texmapPath))
+            {
+                string[] files = FindImageFiles(texmapPath);
+
+                for (int i = 0; i < files.Length; i++)
+                {
+                    string baseName = Path.GetFileNameWithoutExtension(files[i]);
+                    if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                    {
+                        RegisterAvailableFile(texmap_availableFiles, id, files[i], sourceScale);
+                        HasHighResolutionTexmaps |= sourceScale > 1;
+                    }
+                }
+            }
+            else
+            {
+                Directory.CreateDirectory(texmapPath);
+            }
         }
 
         public void LoadResourceAssets(GumpsLoader gumps)
@@ -458,6 +629,16 @@ namespace ClassicUO.Assets
                             uint graphicId = fileId + 0x4000;
                             RegisterArtFromBytes(graphicId, bytes, sourceScale);
                         }
+                    }
+                    else if (folder.Equals(LAND_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                            RegisterLandFromBytes(id, bytes, sourceScale);
+                    }
+                    else if (folder.Equals(TEXMAP_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                            RegisterTexmapFromBytes(id, bytes, sourceScale);
                     }
                 }
             }
@@ -574,6 +755,16 @@ namespace ClassicUO.Assets
                             if (TryParseIdAndScale(baseName, out uint fileId, out int sourceScale))
                                 RegisterArtFromBytes(fileId + 0x4000, bytes, sourceScale);
                         }
+                        else if (folder.Equals(LAND_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                                RegisterLandFromBytes(id, bytes, sourceScale);
+                        }
+                        else if (folder.Equals(TEXMAP_EXTERNAL_FOLDER, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (TryParseIdAndScale(baseName, out uint id, out int sourceScale))
+                                RegisterTexmapFromBytes(id, bytes, sourceScale);
+                        }
                     }
                 }
             }
@@ -641,9 +832,55 @@ namespace ClassicUO.Assets
             catch (Exception ex) { Log.Error($"Error registering zip art PNG {id}: {ex.Message}"); }
         }
 
+        private void RegisterLandFromBytes(uint id, byte[] bytes, int sourceScale = 1)
+        {
+            if (GraphicsDevice == null) return;
+            if (land_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
+            try
+            {
+                using var ms = new MemoryStream(bytes);
+                var tex = Texture2D.FromStream(GraphicsDevice, ms);
+                if (tex == null) return;
+                FixPNGAlpha(ref tex);
+                uint[] pixels = GetPixels(tex);
+                int width = tex.Width, height = tex.Height;
+                land_textureCache[id] = (pixels, width, height, sourceScale);
+                tex.Dispose();
+
+                RegisterAvailableFile(land_availableFiles, id, $"0x{id:X}", sourceScale);
+                HasHighResolutionLand |= sourceScale > 1;
+            }
+            catch (Exception ex) { Log.Error($"Error registering zip land PNG {id}: {ex.Message}"); }
+        }
+
+        private void RegisterTexmapFromBytes(uint id, byte[] bytes, int sourceScale = 1)
+        {
+            if (GraphicsDevice == null) return;
+            if (texmap_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
+            try
+            {
+                using var ms = new MemoryStream(bytes);
+                var tex = Texture2D.FromStream(GraphicsDevice, ms);
+                if (tex == null) return;
+                FixPNGAlpha(ref tex);
+                uint[] pixels = GetPixels(tex);
+                int width = tex.Width, height = tex.Height;
+                texmap_textureCache[id] = (pixels, width, height, sourceScale);
+                tex.Dispose();
+
+                RegisterAvailableFile(texmap_availableFiles, id, $"0x{id:X}", sourceScale);
+                HasHighResolutionTexmaps |= sourceScale > 1;
+            }
+            catch (Exception ex) { Log.Error($"Error registering zip texmap PNG {id}: {ex.Message}"); }
+        }
+
         public void ClearArtPixelCache(uint graphic) => art_textureCache.Remove(graphic);
 
         public void ClearGumpPixelCache(uint graphic) => gump_textureCache.Remove(graphic);
+
+        public void ClearLandPixelCache(uint graphic) => land_textureCache.Remove(graphic);
+
+        public void ClearTexmapPixelCache(uint graphic) => texmap_textureCache.Remove(graphic);
 
         public void RejectArtOverride(uint graphic)
         {
@@ -657,10 +894,24 @@ namespace ClassicUO.Assets
             gump_availableFiles.Remove(graphic);
         }
 
+        public void RejectLandOverride(uint graphic)
+        {
+            land_textureCache.Remove(graphic);
+            land_availableFiles.Remove(graphic);
+        }
+
+        public void RejectTexmapOverride(uint graphic)
+        {
+            texmap_textureCache.Remove(graphic);
+            texmap_availableFiles.Remove(graphic);
+        }
+
         public void ClearAllPixelCaches()
         {
             art_textureCache.Clear();
             gump_textureCache.Clear();
+            land_textureCache.Clear();
+            texmap_textureCache.Clear();
         }
     }
 }
