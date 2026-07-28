@@ -514,7 +514,8 @@ namespace ClassicUO.Renderer
             Vector3 mod,
             Vector3 hue,
             bool flip,
-            float depth
+            float depth,
+            float sourceScale = 1f
         )
         {
             // Skip if texture is null or disposed
@@ -525,14 +526,17 @@ namespace ClassicUO.Renderer
 
             EnsureSize();
 
-            float h03 = sourceRect.Height * mod.X;
-            float h06 = sourceRect.Height * mod.Y;
-            float h09 = sourceRect.Height * mod.Z;
+            float sourceH03 = sourceRect.Height * mod.X;
+            float sourceH06 = sourceRect.Height * mod.Y;
+            float sourceH09 = sourceRect.Height * mod.Z;
+            float h03 = sourceH03 * sourceScale;
+            float h06 = sourceH06 * sourceScale;
+            float h09 = sourceH09 * sourceScale;
 
             float sittingOffset = flip ? -8.0f : 8.0f;
 
-            float width = sourceRect.Width;
-            float widthOffset = sourceRect.Width + sittingOffset;
+            float width = sourceRect.Width * sourceScale;
+            float widthOffset = width + sittingOffset;
 
             if (mod.X != 0.0f)
             {
@@ -622,9 +626,9 @@ namespace ClassicUO.Renderer
                 vertex.Position3.Z = depth;
 
                 float sourceX = ((sourceRect.X + 0.5f) / (float)texture.Width);
-                float sourceY = ((sourceRect.Y + 0.5f + h03) / (float)texture.Height);
+                float sourceY = ((sourceRect.Y + 0.5f + sourceH03) / (float)texture.Height);
                 float sourceW = ((sourceRect.Width - 1f) / (float)texture.Width);
-                float sourceH = ((sourceRect.Height - 1f - h03) / (float)texture.Height);
+                float sourceH = ((sourceRect.Height - 1f - sourceH03) / (float)texture.Height);
 
                 byte effects = (byte)((flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None) & (SpriteEffects)0x03);
 
@@ -686,9 +690,9 @@ namespace ClassicUO.Renderer
                 vertex.Position3.Z = depth;
 
                 float sourceX = ((sourceRect.X + 0.5f) / (float)texture.Width);
-                float sourceY = ((sourceRect.Y + 0.5f + h06) / (float)texture.Height);
+                float sourceY = ((sourceRect.Y + 0.5f + sourceH06) / (float)texture.Height);
                 float sourceW = ((sourceRect.Width - 1f) / (float)texture.Width);
-                float sourceH = ((sourceRect.Height - 1f - h06) / (float)texture.Height);
+                float sourceH = ((sourceRect.Height - 1f - sourceH06) / (float)texture.Height);
 
                 byte effects = (byte)((flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None) & (SpriteEffects)0x03);
 
