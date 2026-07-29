@@ -67,6 +67,7 @@ namespace ClassicUO.Assets
             || HasHighResolutionTexmaps
             || HasHighResolutionAnimations;
         public bool HasHighResolutionImages => HasHighResolutionGumps || HasHighResolutionWorldImages;
+        public bool UseHighResolutionAssets { get; set; } = true;
 
         public GraphicsDevice GraphicsDevice { set; get; }
 
@@ -118,6 +119,9 @@ namespace ClassicUO.Assets
                 if (!gump_availableFiles.TryGetValue(graphic, out imageFile))
                     return new GumpInfo();
 
+                if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
+                    return new GumpInfo();
+
                 if (gump_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
                 {
                     return new GumpInfo()
@@ -165,6 +169,9 @@ namespace ClassicUO.Assets
             lock (_imageCacheLock)
             {
                 if (!art_availableFiles.TryGetValue(graphic, out imageFile))
+                    return new ArtInfo();
+
+                if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
                     return new ArtInfo();
 
                 if (art_textureCache.TryGetValue(graphic, out (uint[] pixels, int width, int height, int sourceScale) cached))
@@ -277,6 +284,9 @@ namespace ClassicUO.Assets
                 if (!animation_availableFiles.TryGetValue(key, out imageFile))
                     return new ArtInfo();
 
+                if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
+                    return new ArtInfo();
+
                 animation_zipFiles.TryGetValue(key, out encodedBytes);
 
                 if (
@@ -353,6 +363,9 @@ namespace ClassicUO.Assets
             lock (_imageCacheLock)
             {
                 if (!availableFiles.TryGetValue(graphic, out imageFile))
+                    return false;
+
+                if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
                     return false;
 
                 if (textureCache.TryGetValue(graphic, out var cached))
