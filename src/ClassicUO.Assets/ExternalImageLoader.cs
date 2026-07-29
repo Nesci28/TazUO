@@ -25,10 +25,26 @@ namespace ClassicUO.Assets
             {
                 Path = path;
                 SourceScale = sourceScale;
+                Pack = null;
+                PackEntry = default;
+            }
+
+            public ExternalImageFile(HdAssetPack pack, HdAssetPackEntry packEntry)
+            {
+                Path = null;
+                SourceScale = packEntry.SourceScale;
+                Pack = pack;
+                PackEntry = packEntry;
             }
 
             public string Path { get; }
             public int SourceScale { get; }
+            public HdAssetPack Pack { get; }
+            public HdAssetPackEntry PackEntry { get; }
+            public bool IsPacked => Pack != null;
+            public string DisplayPath => IsPacked
+                ? $"{Pack.Path}:{PackEntry.Kind}/{PackEntry.Key}"
+                : Path;
         }
 
         private string exePath;
@@ -53,6 +69,11 @@ namespace ClassicUO.Assets
         private Dictionary<ulong, ExternalImageFile> animation_availableFiles = new Dictionary<ulong, ExternalImageFile>();
         private Dictionary<ulong, (uint[] pixels, int width, int height, int sourceScale)> animation_textureCache = new Dictionary<ulong, (uint[], int, int, int)>();
         private Dictionary<ulong, byte[]> animation_zipFiles = new Dictionary<ulong, byte[]>();
+        private readonly List<HdAssetPack> _hdAssetPacks = new List<HdAssetPack>();
+        private readonly HashSet<HdAssetKind> _hdAssetPackKinds = new HashSet<HdAssetKind>();
+        private readonly HashSet<(HdAssetKind kind, ulong key)> _rejectedHdPackEntries =
+            new HashSet<(HdAssetKind, ulong)>();
+        private readonly object _hdPackLock = new object();
         private readonly object _imageCacheLock = new object();
         private readonly object _animationCacheLock = new object();
 
@@ -116,7 +137,7 @@ namespace ClassicUO.Assets
 
             lock (_imageCacheLock)
             {
-                if (!gump_availableFiles.TryGetValue(graphic, out imageFile))
+                if (!TryGetAvailableImage(gump_availableFiles, HdAssetKind.Gump, graphic, out imageFile))
                     return new GumpInfo();
 
                 if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
@@ -134,29 +155,28 @@ namespace ClassicUO.Assets
                 }
             }
 
-            string fullImagePath = imageFile.Path;
-            if (File.Exists(fullImagePath))
+            string displayPath = imageFile.DisplayPath;
+            try
             {
-                try
-                {
-                    if (!TryDecodeImage(fullImagePath, null, out uint[] pixels, out int width, out int height))
-                        return new GumpInfo();
+                if (!TryGetEncodedImage(imageFile, out byte[] encodedBytes))
+                    return new GumpInfo();
+                if (!TryDecodeImage(imageFile.Path, encodedBytes, out uint[] pixels, out int width, out int height))
+                    return new GumpInfo();
 
-                    lock (_imageCacheLock)
-                        gump_textureCache[graphic] = (pixels, width, height, imageFile.SourceScale);
+                lock (_imageCacheLock)
+                    gump_textureCache[graphic] = (pixels, width, height, imageFile.SourceScale);
 
-                    return new GumpInfo()
-                    {
-                        Pixels = pixels,
-                        Width = width,
-                        Height = height,
-                        SourceScale = imageFile.SourceScale
-                    };
-                }
-                catch (Exception ex)
+                return new GumpInfo()
                 {
-                    Log.Error($"Failed to load gump image '{fullImagePath}': {ex.Message}");
-                }
+                    Pixels = pixels,
+                    Width = width,
+                    Height = height,
+                    SourceScale = imageFile.SourceScale
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to load gump image '{displayPath}': {ex.Message}");
             }
 
             return new GumpInfo();
@@ -168,7 +188,7 @@ namespace ClassicUO.Assets
 
             lock (_imageCacheLock)
             {
-                if (!art_availableFiles.TryGetValue(graphic, out imageFile))
+                if (!TryGetAvailableImage(art_availableFiles, HdAssetKind.Art, graphic, out imageFile))
                     return new ArtInfo();
 
                 if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
@@ -186,29 +206,28 @@ namespace ClassicUO.Assets
                 }
             }
 
-            string fullImagePath = imageFile.Path;
-            if (File.Exists(fullImagePath))
+            string displayPath = imageFile.DisplayPath;
+            try
             {
-                try
-                {
-                    if (!TryDecodeImage(fullImagePath, null, out uint[] pixels, out int width, out int height))
-                        return new ArtInfo();
+                if (!TryGetEncodedImage(imageFile, out byte[] encodedBytes))
+                    return new ArtInfo();
+                if (!TryDecodeImage(imageFile.Path, encodedBytes, out uint[] pixels, out int width, out int height))
+                    return new ArtInfo();
 
-                    lock (_imageCacheLock)
-                        art_textureCache[graphic] = (pixels, width, height, imageFile.SourceScale);
+                lock (_imageCacheLock)
+                    art_textureCache[graphic] = (pixels, width, height, imageFile.SourceScale);
 
-                    return new ArtInfo()
-                    {
-                        Pixels = pixels,
-                        Width = width,
-                        Height = height,
-                        SourceScale = imageFile.SourceScale
-                    };
-                }
-                catch (Exception ex)
+                return new ArtInfo()
                 {
-                    Log.Error($"Failed to load art image '{fullImagePath}': {ex.Message}");
-                }
+                    Pixels = pixels,
+                    Width = width,
+                    Height = height,
+                    SourceScale = imageFile.SourceScale
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to load art image '{displayPath}': {ex.Message}");
             }
 
             return new ArtInfo();
@@ -220,6 +239,7 @@ namespace ClassicUO.Assets
                 TryLoadExternalImage(
                     land_availableFiles,
                     land_textureCache,
+                    HdAssetKind.Land,
                     graphic,
                     "land",
                     out uint[] pixels,
@@ -247,6 +267,7 @@ namespace ClassicUO.Assets
                 TryLoadExternalImage(
                     texmap_availableFiles,
                     texmap_textureCache,
+                    HdAssetKind.Texmap,
                     graphic,
                     "texmap",
                     out uint[] pixels,
@@ -281,7 +302,7 @@ namespace ClassicUO.Assets
 
             lock (_animationCacheLock)
             {
-                if (!animation_availableFiles.TryGetValue(key, out imageFile))
+                if (!TryGetAvailableAnimationImage(key, out imageFile))
                     return new ArtInfo();
 
                 if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
@@ -306,15 +327,11 @@ namespace ClassicUO.Assets
                 }
             }
 
-            string fullImagePath = imageFile.Path;
-            if (
-                encodedBytes == null && !File.Exists(fullImagePath)
-            )
-                return new ArtInfo();
-
             try
             {
-                if (!TryDecodeImage(fullImagePath, encodedBytes, out uint[] pixels, out int width, out int height))
+                if (encodedBytes == null && !TryGetEncodedImage(imageFile, out encodedBytes))
+                    return new ArtInfo();
+                if (!TryDecodeImage(imageFile.Path, encodedBytes, out uint[] pixels, out int width, out int height))
                     return new ArtInfo();
 
                 lock (_animationCacheLock)
@@ -337,7 +354,7 @@ namespace ClassicUO.Assets
             }
             catch (Exception ex)
             {
-                Log.Error($"Failed to load animation frame image '{fullImagePath}': {ex.Message}");
+                Log.Error($"Failed to load animation frame image '{imageFile.DisplayPath}': {ex.Message}");
                 return new ArtInfo();
             }
         }
@@ -345,6 +362,7 @@ namespace ClassicUO.Assets
         private bool TryLoadExternalImage(
             Dictionary<uint, ExternalImageFile> availableFiles,
             Dictionary<uint, (uint[] pixels, int width, int height, int sourceScale)> textureCache,
+            HdAssetKind kind,
             uint graphic,
             string category,
             out uint[] pixels,
@@ -362,7 +380,7 @@ namespace ClassicUO.Assets
 
             lock (_imageCacheLock)
             {
-                if (!availableFiles.TryGetValue(graphic, out imageFile))
+                if (!TryGetAvailableImage(availableFiles, kind, graphic, out imageFile))
                     return false;
 
                 if (!UseHighResolutionAssets && imageFile.SourceScale > 1)
@@ -378,13 +396,11 @@ namespace ClassicUO.Assets
                 }
             }
 
-            string fullImagePath = imageFile.Path;
-            if (!File.Exists(fullImagePath))
-                return false;
-
             try
             {
-                if (!TryDecodeImage(fullImagePath, null, out pixels, out width, out height))
+                if (!TryGetEncodedImage(imageFile, out byte[] encodedBytes))
+                    return false;
+                if (!TryDecodeImage(imageFile.Path, encodedBytes, out pixels, out width, out height))
                     return false;
 
                 sourceScale = imageFile.SourceScale;
@@ -394,9 +410,83 @@ namespace ClassicUO.Assets
             }
             catch (Exception ex)
             {
-                Log.Error($"Failed to load {category} image '{fullImagePath}': {ex.Message}");
+                Log.Error($"Failed to load {category} image '{imageFile.DisplayPath}': {ex.Message}");
                 return false;
             }
+        }
+
+        private bool TryGetAvailableImage(
+            Dictionary<uint, ExternalImageFile> availableFiles,
+            HdAssetKind kind,
+            uint key,
+            out ExternalImageFile imageFile
+        )
+        {
+            if (availableFiles.TryGetValue(key, out imageFile))
+                return true;
+            return TryGetPackedImage(kind, key, out imageFile);
+        }
+
+        private bool TryGetAvailableAnimationImage(
+            ulong key,
+            out ExternalImageFile imageFile
+        )
+        {
+            if (animation_availableFiles.TryGetValue(key, out imageFile))
+                return true;
+            return TryGetPackedImage(HdAssetKind.Animation, key, out imageFile);
+        }
+
+        private bool TryGetPackedImage(
+            HdAssetKind kind,
+            ulong key,
+            out ExternalImageFile imageFile
+        )
+        {
+            lock (_hdPackLock)
+            {
+                if (_rejectedHdPackEntries.Contains((kind, key)))
+                {
+                    imageFile = default;
+                    return false;
+                }
+
+                imageFile = default;
+                bool found = false;
+                foreach (HdAssetPack pack in _hdAssetPacks)
+                {
+                    if (
+                        pack.TryGetEntry(kind, key, out HdAssetPackEntry entry)
+                        && (!found || entry.SourceScale > imageFile.SourceScale)
+                    )
+                    {
+                        imageFile = new ExternalImageFile(pack, entry);
+                        found = true;
+                    }
+                }
+                return found;
+            }
+        }
+
+        private void RejectPackedImage(HdAssetKind kind, ulong key)
+        {
+            lock (_hdPackLock)
+                _rejectedHdPackEntries.Add((kind, key));
+        }
+
+        private static bool TryGetEncodedImage(
+            ExternalImageFile imageFile,
+            out byte[] encodedBytes
+        )
+        {
+            if (imageFile.IsPacked)
+            {
+                encodedBytes = imageFile.Pack.Read(imageFile.PackEntry);
+                return true;
+            }
+
+            encodedBytes = null;
+            return !string.IsNullOrEmpty(imageFile.Path) && File.Exists(imageFile.Path);
         }
 
         private Texture2D CreateTexture(Stream imageStream)
@@ -474,12 +564,23 @@ namespace ClassicUO.Assets
             uint id,
             string path,
             int sourceScale
+        ) => RegisterAvailableFile(files, id, new ExternalImageFile(path, sourceScale));
+
+        private static void RegisterAvailableFile(
+            Dictionary<uint, ExternalImageFile> files,
+            uint id,
+            ExternalImageFile imageFile
         )
         {
             // Prefer the highest-resolution explicitly tagged file when both legacy and HD
             // replacements exist for the same graphic.
-            if (!files.TryGetValue(id, out ExternalImageFile current) || sourceScale > current.SourceScale)
-                files[id] = new ExternalImageFile(path, sourceScale);
+            if (
+                !files.TryGetValue(id, out ExternalImageFile current)
+                || imageFile.SourceScale > current.SourceScale
+            )
+            {
+                files[id] = imageFile;
+            }
         }
 
         private static ulong PackAnimationFrameKey(
@@ -493,20 +594,25 @@ namespace ClassicUO.Assets
             ulong key,
             string path,
             int sourceScale
+        ) => RegisterAvailableAnimationFile(key, new ExternalImageFile(path, sourceScale));
+
+        private void RegisterAvailableAnimationFile(
+            ulong key,
+            ExternalImageFile imageFile
         )
         {
             lock (_animationCacheLock)
             {
                 if (
                     !animation_availableFiles.TryGetValue(key, out ExternalImageFile current)
-                    || sourceScale > current.SourceScale
+                    || imageFile.SourceScale > current.SourceScale
                 )
                 {
-                    animation_availableFiles[key] = new ExternalImageFile(path, sourceScale);
+                    animation_availableFiles[key] = imageFile;
                 }
             }
 
-            HasHighResolutionAnimations |= sourceScale > 1;
+            HasHighResolutionAnimations |= imageFile.SourceScale > 1;
         }
 
         private static bool TryParseAnimationPathParts(
@@ -595,14 +701,94 @@ namespace ClassicUO.Assets
             return TryParseAnimationPathParts(parts, animationsIndex, out key, out sourceScale);
         }
 
+        private void LoadTuoAssetsHdPacks()
+        {
+            const string HD_PACK_NAME = "tuoassets.hdpack";
+
+            string exePack = Path.Combine(exePath, HD_PACK_NAME);
+            LoadTuoAssetsHdPack(exePack);
+
+            if (!string.IsNullOrEmpty(_uoDirectory))
+            {
+                string uoPack = Path.Combine(_uoDirectory, HD_PACK_NAME);
+                if (!string.Equals(uoPack, exePack, StringComparison.OrdinalIgnoreCase))
+                    LoadTuoAssetsHdPack(uoPack);
+            }
+        }
+
+        private void LoadTuoAssetsHdPack(string packPath)
+        {
+            if (!File.Exists(packPath))
+                return;
+
+            HdAssetPack pack = null;
+            try
+            {
+                pack = HdAssetPack.Open(packPath);
+
+                foreach (HdAssetPackEntry entry in pack.Entries)
+                {
+                    if (entry.Kind != HdAssetKind.Animation && entry.Key > uint.MaxValue)
+                    {
+                        throw new InvalidDataException(
+                            $"HD asset key is outside the supported range: {entry.Kind}/{entry.Key}."
+                        );
+                    }
+                }
+
+                _hdAssetPacks.Add(pack);
+                foreach (HdAssetPackEntry entry in pack.Entries)
+                {
+                    _hdAssetPackKinds.Add(entry.Kind);
+
+                    switch (entry.Kind)
+                    {
+                        case HdAssetKind.Gump:
+                            HasHighResolutionGumps = true;
+                            break;
+                        case HdAssetKind.Art:
+                            HasHighResolutionArt = true;
+                            break;
+                        case HdAssetKind.Land:
+                            HasHighResolutionLand = true;
+                            break;
+                        case HdAssetKind.Texmap:
+                            HasHighResolutionTexmaps = true;
+                            break;
+                        case HdAssetKind.Animation:
+                            HasHighResolutionAnimations = true;
+                            break;
+                    }
+                }
+
+                Log.Info(
+                    $"Indexed {pack.Entries.Count:N0} lazy HD assets from: {pack.Path}"
+                );
+                pack = null;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"tuoassets.hdpack: error loading '{packPath}': {ex.Message}");
+            }
+            finally
+            {
+                pack?.Dispose();
+            }
+        }
+
         public void Load(string uoDirectory = null)
         {
             exePath = AppContext.BaseDirectory;
             _uoDirectory = uoDirectory;
+            LoadTuoAssetsHdPacks();
 
             string gumpPath = Path.Combine(exePath, IMAGES_FOLDER, GUMP_EXTERNAL_FOLDER);
 
-            if (Directory.Exists(gumpPath))
+            if (_hdAssetPackKinds.Contains(HdAssetKind.Gump))
+            {
+                Directory.CreateDirectory(gumpPath);
+            }
+            else if (Directory.Exists(gumpPath))
             {
                 string[] files = FindImageFiles(gumpPath);
 
@@ -624,7 +810,11 @@ namespace ClassicUO.Assets
 
             string artPath = Path.Combine(exePath, IMAGES_FOLDER, ART_EXTERNAL_FOLDER);
 
-            if (Directory.Exists(artPath))
+            if (_hdAssetPackKinds.Contains(HdAssetKind.Art))
+            {
+                Directory.CreateDirectory(artPath);
+            }
+            else if (Directory.Exists(artPath))
             {
                 string[] files = FindImageFiles(artPath);
 
@@ -647,7 +837,11 @@ namespace ClassicUO.Assets
 
             string landPath = Path.Combine(exePath, IMAGES_FOLDER, LAND_EXTERNAL_FOLDER);
 
-            if (Directory.Exists(landPath))
+            if (_hdAssetPackKinds.Contains(HdAssetKind.Land))
+            {
+                Directory.CreateDirectory(landPath);
+            }
+            else if (Directory.Exists(landPath))
             {
                 string[] files = FindImageFiles(landPath);
 
@@ -668,7 +862,11 @@ namespace ClassicUO.Assets
 
             string texmapPath = Path.Combine(exePath, IMAGES_FOLDER, TEXMAP_EXTERNAL_FOLDER);
 
-            if (Directory.Exists(texmapPath))
+            if (_hdAssetPackKinds.Contains(HdAssetKind.Texmap))
+            {
+                Directory.CreateDirectory(texmapPath);
+            }
+            else if (Directory.Exists(texmapPath))
             {
                 string[] files = FindImageFiles(texmapPath);
 
@@ -693,7 +891,11 @@ namespace ClassicUO.Assets
                 ANIMATION_EXTERNAL_FOLDER
             );
 
-            if (Directory.Exists(animationPath))
+            if (_hdAssetPackKinds.Contains(HdAssetKind.Animation))
+            {
+                Directory.CreateDirectory(animationPath);
+            }
+            else if (Directory.Exists(animationPath))
             {
                 string[] files = FindImageFiles(animationPath);
 
@@ -999,7 +1201,7 @@ namespace ClassicUO.Assets
 
         private void RegisterGumpFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (gump_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
+            if (TryGetAvailableImage(gump_availableFiles, HdAssetKind.Gump, id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
                 if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
@@ -1015,7 +1217,7 @@ namespace ClassicUO.Assets
 
         private void RegisterArtFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (art_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
+            if (TryGetAvailableImage(art_availableFiles, HdAssetKind.Art, id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
                 if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
@@ -1031,7 +1233,7 @@ namespace ClassicUO.Assets
 
         private void RegisterLandFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (land_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
+            if (TryGetAvailableImage(land_availableFiles, HdAssetKind.Land, id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
                 if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
@@ -1047,7 +1249,7 @@ namespace ClassicUO.Assets
 
         private void RegisterTexmapFromBytes(uint id, byte[] bytes, int sourceScale = 1)
         {
-            if (texmap_availableFiles.TryGetValue(id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
+            if (TryGetAvailableImage(texmap_availableFiles, HdAssetKind.Texmap, id, out ExternalImageFile current) && sourceScale < current.SourceScale) return;
             try
             {
                 if (!TryDecodeImage(null, bytes, out uint[] pixels, out int width, out int height))
@@ -1070,7 +1272,7 @@ namespace ClassicUO.Assets
             lock (_animationCacheLock)
             {
                 if (
-                    animation_availableFiles.TryGetValue(key, out ExternalImageFile current)
+                    TryGetAvailableAnimationImage(key, out ExternalImageFile current)
                     && sourceScale < current.SourceScale
                 )
                 {
@@ -1121,38 +1323,50 @@ namespace ClassicUO.Assets
 
         public void RejectArtOverride(uint graphic)
         {
+            bool rejectedPacked;
             lock (_imageCacheLock)
             {
                 art_textureCache.Remove(graphic);
-                art_availableFiles.Remove(graphic);
+                rejectedPacked = !art_availableFiles.Remove(graphic);
             }
+            if (rejectedPacked)
+                RejectPackedImage(HdAssetKind.Art, graphic);
         }
 
         public void RejectGumpOverride(uint graphic)
         {
+            bool rejectedPacked;
             lock (_imageCacheLock)
             {
                 gump_textureCache.Remove(graphic);
-                gump_availableFiles.Remove(graphic);
+                rejectedPacked = !gump_availableFiles.Remove(graphic);
             }
+            if (rejectedPacked)
+                RejectPackedImage(HdAssetKind.Gump, graphic);
         }
 
         public void RejectLandOverride(uint graphic)
         {
+            bool rejectedPacked;
             lock (_imageCacheLock)
             {
                 land_textureCache.Remove(graphic);
-                land_availableFiles.Remove(graphic);
+                rejectedPacked = !land_availableFiles.Remove(graphic);
             }
+            if (rejectedPacked)
+                RejectPackedImage(HdAssetKind.Land, graphic);
         }
 
         public void RejectTexmapOverride(uint graphic)
         {
+            bool rejectedPacked;
             lock (_imageCacheLock)
             {
                 texmap_textureCache.Remove(graphic);
-                texmap_availableFiles.Remove(graphic);
+                rejectedPacked = !texmap_availableFiles.Remove(graphic);
             }
+            if (rejectedPacked)
+                RejectPackedImage(HdAssetKind.Texmap, graphic);
         }
 
         public void RejectAnimationFrameOverride(
@@ -1163,12 +1377,15 @@ namespace ClassicUO.Assets
         )
         {
             ulong key = PackAnimationFrameKey(body, action, direction, frame);
+            bool rejectedPacked;
             lock (_animationCacheLock)
             {
                 animation_textureCache.Remove(key);
-                animation_availableFiles.Remove(key);
+                rejectedPacked = !animation_availableFiles.Remove(key);
                 animation_zipFiles.Remove(key);
             }
+            if (rejectedPacked)
+                RejectPackedImage(HdAssetKind.Animation, key);
         }
 
         public void ClearAllPixelCaches()

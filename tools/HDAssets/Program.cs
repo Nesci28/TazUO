@@ -23,6 +23,13 @@ internal static class Program
                     return RunFinalize(options);
                 case "validate":
                     return RunValidate(options);
+                case "pack":
+                    HdPackBuilder.Run(
+                        Require(options, "work"),
+                        Require(options, "input"),
+                        Require(options, "output")
+                    );
+                    return 0;
                 case "plan":
                     PipelinePlanner.Write(Require(options, "work"));
                     return 0;
@@ -126,6 +133,9 @@ internal static class Program
                      --output <ExternalImages directory> [--delete-upscaled true|false]
 
             validate --work <work directory> --output <ExternalImages directory>
+
+            pack     --work <work directory> --input <ExternalImages directory>
+                     --output <tuoassets.hdpack path>
 
             plan     --work <work directory>
             """
