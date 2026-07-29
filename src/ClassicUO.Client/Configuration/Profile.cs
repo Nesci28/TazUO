@@ -215,6 +215,7 @@ namespace ClassicUO.Configuration
         public int VendorGumpHeight { get; set => SetProperty(ref field, value); } = 350;   //original vendor gump size
         public float DefaultScale { get; set => SetProperty(ref field, value); } = 1.0f;
         public bool Use2XAssets { get; set => SetProperty(ref field, value); } = true;
+        public byte TwoXAssetDisplayMode { get; set => SetProperty(ref field, value); }
         public bool EnableMousewheelScaleZoom { get; set => SetProperty(ref field, value); } = true;
         public bool RestoreScaleAfterUnpressCtrl { get; set => SetProperty(ref field, value); }
         public bool BandageSelfOld { get; set => SetProperty(ref field, value); } = true;
@@ -983,6 +984,7 @@ namespace ClassicUO.Configuration
                 WebMapServerPort = OldWebMapServerPort;
                 WebMapAutoStart = OldWebMapAutoStart;
                 Use2XAssets = OldUse2XAssets;
+                TwoXAssetDisplayMode = OldTwoXAssetDisplayMode;
 
                 ProfileMigrationVersion = 6;
             }

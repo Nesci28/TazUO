@@ -7,6 +7,13 @@ using System.Threading;
 
 namespace ClassicUO
 {
+    internal enum TwoXAssetDisplayMode : byte
+    {
+        SameSize = 0,
+        NativeWorld = 1,
+        HiDpi = 2
+    }
+
     internal static class CUOEnviroment
     {
         public static Thread GameThread;
@@ -16,6 +23,8 @@ namespace ClassicUO
         public static string[] Plugins;
         public static bool Debug;
         public static bool IsHighDPI;
+        public static bool Use2XAssets = true;
+        public static TwoXAssetDisplayMode AssetDisplayMode;
         public static uint CurrentRefreshRate;
         public static bool SkipLoginScreen;
         public static bool NoServerPing;
