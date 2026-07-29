@@ -12,6 +12,7 @@ using SDL3;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace ClassicUO
 {
@@ -103,6 +104,8 @@ namespace ClassicUO
 
         private void LoadUOFiles()
         {
+            Task<bool> use2XAssetsTask = Client.Settings.GetAsync(SettingsScope.Global, Constants.SqlSettings.USE_2X_ASSETS, true);
+
             TazLang.Load(Settings.GlobalSettings.UILanguage);
 
             // This provides Myra searchable combobox localization context.
@@ -187,9 +190,13 @@ namespace ClassicUO
                 Protocol |= ClientFlags.CF_SA;
             }
 
+            Task.WaitAll(use2XAssetsTask);
+            ExternalImageLoader.Instance.UseHighResolutionAssets = use2XAssetsTask.Result;
+
             Log.Trace($"Client path: '{clientPath}'");
             Log.Trace($"Client version: {clientVersion}");
             Log.Trace($"Protocol: {Protocol}");
+            Log.Trace($"Use 2x assets: {use2XAssetsTask.Result}");
 
             FileManager = new UOFileManager(clientVersion, clientPath);
 
