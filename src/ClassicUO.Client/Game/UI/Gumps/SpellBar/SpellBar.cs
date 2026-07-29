@@ -689,7 +689,7 @@ public class SpellBar : Gump
 
         private bool IsActiveSpell()
         {
-            if (slot == null || slot.Type != SpellBarSlotType.Spell || CurrentSpellID <= 0)
+            if (slot == null || slot.Type != CounterBarSlotType.Spell || CurrentSpellID <= 0)
                 return false;
 
             if (SpellVisualRangeManager.Instance.IsSpellCastOrTargetActive(CurrentSpellID))
@@ -737,7 +737,7 @@ public class SpellBar : Gump
                     icon.Hue = wanted;
             }
 
-            if (slot != null && slot.Type == SpellBarSlotType.Spell)
+            if (slot != null && slot.Type == CounterBarSlotType.Spell)
             {
                 ushort wanted = (ushort)(IsActiveSpell() ? ActiveSpellHue : 0);
                 if (icon.Hue != wanted)
