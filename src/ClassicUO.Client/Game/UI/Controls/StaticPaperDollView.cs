@@ -143,6 +143,12 @@ namespace ClassicUO.Game.UI.Controls
         }
 
         /// <summary>
+        /// Centers the scaled paperdoll inside the target bounds when its aspect ratio leaves
+        /// unused horizontal or vertical space.
+        /// </summary>
+        protected bool CenterContent { get; set; }
+
+        /// <summary>
         /// Sets the equipment dictionary.
         /// </summary>
         public void SetEquipment(Dictionary<Layer, EquipmentEntry> equipment) => _equipment = equipment ?? new Dictionary<Layer, EquipmentEntry>();
@@ -275,6 +281,17 @@ namespace ClassicUO.Game.UI.Controls
                 CalculateScaleFactor();
             }
 
+            int contentX = x;
+            int contentY = y;
+
+            if (CenterContent)
+            {
+                int scaledContentWidth = (int)(_contentWidth * _scaleFactor);
+                int scaledContentHeight = (int)(_contentHeight * _scaleFactor);
+                contentX += System.Math.Max(0, (Width - scaledContentWidth) / 2);
+                contentY += System.Math.Max(0, (Height - scaledContentHeight) / 2);
+            }
+
             if (_background)
             {
                 Vector3 hue_vec = ShaderHueTranslator.GetHueVector(1, false, 0.6f);
@@ -315,12 +332,12 @@ namespace ClassicUO.Game.UI.Controls
                 bodyHue = 0x03EA;
             }
 
-            DrawGump(batcher, bodyGumpId, bodyHue, x, y, true);
+            DrawGump(batcher, bodyGumpId, bodyHue, contentX, contentY, true);
 
             // Draw ghost overlay if applicable
             if (_bodyGraphic == 0x03DB)
             {
-                DrawGump(batcher, 0xC72B, _bodyHue, x, y, true);
+                DrawGump(batcher, 0xC72B, _bodyHue, contentX, contentY, true);
             }
 
             // Draw equipment in layer order
@@ -329,7 +346,7 @@ namespace ClassicUO.Game.UI.Controls
                 if (_equipment.TryGetValue(layer, out EquipmentEntry entry))
                 {
                     ushort gumpId = GetEquipmentGumpId(entry.AnimID);
-                    DrawGump(batcher, gumpId, entry.Hue, x, y, entry.IsPartialHue);
+                    DrawGump(batcher, gumpId, entry.Hue, contentX, contentY, entry.IsPartialHue);
                 }
             }
 
