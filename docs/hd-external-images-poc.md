@@ -78,6 +78,18 @@ python3 tools/HDAssets/run_pipeline.py \
 
 The tool exports original PNGs, fills transparent RGB with nearby sprite colors, and packs the images into padded 1024-pixel sheets. The official `upscayl-ncnn` backend processes those sheets with bounded GPU tiles. The finalizer then splits them, restores the original alpha and partial-hue masks, writes the exact `@2x`/`@4x` paths, and validates every output dimension against the extraction manifest.
 
+After validation, the pipeline writes `tuoassets.hdpack` beside `ExternalImages`. Its compact binary
+index maps each asset type and ID directly to the unchanged encoded PNG bytes. At startup TazUO
+reads only this index; image bytes and pixels are loaded on demand. Categories present in the pack
+are not recursively scanned in the loose `ExternalImages` tree, while categories absent from the
+pack continue to use loose files normally. A missing or invalid pack logs an error and falls back to
+the loose-file path.
+
+The loose files remain on disk for validation and safe pipeline resume, but they are ignored for a
+category represented by the pack. Use `--skip-hdpack` to disable pack generation or `--hdpack` to
+select its output path. Existing finalized images can also be packed directly with the HDAssets
+tool's `pack --work ... --input ... --output ...` command; no new upscale pass is required.
+
 For a bounded disk footprint, finalization records a durable per-sheet completion marker and removes the large upscaled sheet only after every asset in it was written successfully. A resumed run recognizes those markers, so it neither re-upscales nor re-finalizes completed sheets.
 
 A complete 2x pass is the practical default. It uses one quarter of the output pixels of 4x while covering the same assets; 4x is best reserved for a machine with substantially more free disk space. The detailed options and resume behavior are documented in [`tools/HDAssets/README.md`](../tools/HDAssets/README.md).
@@ -121,12 +133,13 @@ Implemented:
 - automatic linear filtering on dedicated HD atlas pages while legacy sprites and text retain point sampling;
 - one-texel edge extrusion around HD atlas entries to prevent linear-filter bleeding from neighboring assets;
 - direct UOP/MUL bulk extraction, padded sheet generation, official Upscayl execution, mask-aware finalization, and manifest validation;
-- loose files and the existing `tuoassets.zip` registration paths;
+- loose files, the existing `tuoassets.zip` registration paths, and lazy indexed
+  `tuoassets.hdpack` loading;
 - automatic fallback when dimensions are invalid.
 
 Not implemented yet:
 
-- mipmapped HD atlas pages, streaming, or an LRU cache;
+- mipmapped HD atlas pages or a GPU-atlas LRU cache;
 
 The modern `NineSliceControl`/`NineSliceGump` classes use standalone UI textures rather than UO gump IDs, so they are outside the `ExternalImages/gumps` replacement path. UO server `resizepic` entries use the HD-aware `ResizePic` path covered above.
 

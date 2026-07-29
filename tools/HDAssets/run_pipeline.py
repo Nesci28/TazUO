@@ -108,6 +108,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tazuo-bin", required=True, type=Path, help="Deployed TazUO DLL directory")
     parser.add_argument("--work", required=True, type=Path, help="Pipeline work directory")
     parser.add_argument("--output", required=True, type=Path, help="Final ExternalImages directory")
+    parser.add_argument(
+        "--hdpack",
+        type=Path,
+        help="HD pack path (default: tuoassets.hdpack beside ExternalImages)",
+    )
+    parser.add_argument(
+        "--skip-hdpack",
+        action="store_true",
+        help="Keep only the loose ExternalImages output",
+    )
     parser.add_argument("--scale", type=int, choices=(2, 4), default=2)
     parser.add_argument("--sheet-size", type=int, default=1024)
     parser.add_argument("--padding", type=int, default=16)
@@ -457,6 +467,22 @@ def run_finalize(tool: Path, upscaled: Path, args: argparse.Namespace) -> None:
         ],
         check=True,
     )
+    if not args.skip_hdpack:
+        hdpack = args.hdpack or (args.output.resolve().parent / "tuoassets.hdpack")
+        subprocess.run(
+            [
+                "dotnet",
+                str(tool),
+                "pack",
+                "--work",
+                str(args.work.resolve()),
+                "--input",
+                str(args.output.resolve()),
+                "--output",
+                str(hdpack.resolve()),
+            ],
+            check=True,
+        )
 
 
 def main() -> int:
