@@ -16,7 +16,7 @@ python3 tools/HDAssets/run_pipeline.py \
   --output "/Applications/TazUO-Launcher.osx-arm64/TazUO/ExternalImages" \
   --scale 2 \
   --model high-fidelity-4x \
-  --animation-model upscayl-lite-4x
+  --animation-model realesr-animevideov3-x4
 ```
 
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
@@ -25,9 +25,11 @@ After a sheet is finalized successfully, the pipeline writes a durable completio
 
 The default Upscayl tile size is 256 pixels, which keeps High Fidelity within the unified-memory budget on an Apple M4 while producing the same output. It can be changed with `--tile-size` for a GPU with more or less memory.
 
-By default, sheets containing land, art, gumps, or texmaps use High Fidelity, while animation-only sheets use Upscayl Lite. On an Apple M4 this keeps the persistent static artwork at the higher quality level while reducing an exhaustive animation pass from several days to several hours. Work is divided into 25-sheet batches, so an interrupted run resumes from the first incomplete batch.
+By default, land, static art, and texmaps use High Fidelity. Gumps and animation frames use the native 4x AnimeVideo model, which preserves outlined shapes more cleanly and avoids the accumulated stylization of two consecutive 2x passes. A rare sheet containing more than one category uses the fallback `--model`. Work is divided into 25-sheet batches, so an interrupted run resumes from the first incomplete batch.
 
-For a much faster native 2x pass, use `--model realesr-animevideov3-x2 --animation-model realesr-animevideov3-x2`. This model comes from the official `upscayl/custom-models` repository and avoids computing an intermediate 4x image. It is particularly effective for outlined UO statics and animation frames. The default High Fidelity/Lite combination remains available when maximum texture reconstruction is preferred over conversion time.
+Each category can be tuned independently with `--land-model`, `--art-model`, `--gump-model`, `--texmap-model`, and `--animation-model`. Unspecified land, art, or texmap models inherit `--model`.
+
+For a much faster native 2x pass, use `--model realesr-animevideov3-x2 --gump-model realesr-animevideov3-x2 --animation-model realesr-animevideov3-x2`. This model comes from the official `upscayl/custom-models` repository and avoids computing an intermediate 4x image. It is particularly effective for outlined UO statics and animation frames. The High Fidelity and Upscayl Lite models remain available when texture reconstruction or faster exhaustive processing is preferred.
 
 The work directory is resumable: an existing export manifest skips extraction, and a complete Upscayl sheet directory skips AI processing. Use a new work directory to change scale, sheet size, padding, categories, or model.
 

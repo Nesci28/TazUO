@@ -72,12 +72,33 @@ MODEL_FILES = {
             "b88ff4f00ebf019a7fdac17fdd45a7fd3665d37509efc5baf2e4da2e24420a04",
         ),
     },
+    "realesr-animevideov3-x4": {
+        "bin": (
+            "https://raw.githubusercontent.com/upscayl/custom-models/main/models/"
+            "realesr-animevideov3-x4.bin",
+            "548a36f9c3f4ab8da56cd3b13badf23968bee207b396dad14d04b830e5f2ab2d",
+        ),
+        "param": (
+            "https://raw.githubusercontent.com/upscayl/custom-models/main/models/"
+            "realesr-animevideov3-x4.param",
+            "850a248e7c14c27e5bd8cf7265113a9441036a7db63963bb8aa5169d788a435e",
+        ),
+    },
 }
 MODEL_SCALES = {
     "digital-art-4x": 4,
     "high-fidelity-4x": 4,
     "upscayl-lite-4x": 4,
     "realesr-animevideov3-x2": 2,
+    "realesr-animevideov3-x4": 4,
+}
+
+CATEGORY_MODEL_ARGUMENTS = {
+    "animations": "animation_model",
+    "art": "art_model",
+    "gumps": "gump_model",
+    "land": "land_model",
+    "texmaps": "texmap_model",
 }
 
 
@@ -96,11 +117,37 @@ def parse_args() -> argparse.Namespace:
         default="land,art,gumps,texmaps,animations",
         help="Comma-separated asset categories",
     )
-    parser.add_argument("--model", choices=tuple(MODEL_FILES), default="high-fidelity-4x")
+    parser.add_argument(
+        "--model",
+        choices=tuple(MODEL_FILES),
+        default="high-fidelity-4x",
+        help="Fallback model and model for sheets containing multiple categories",
+    )
+    parser.add_argument(
+        "--land-model",
+        choices=tuple(MODEL_FILES),
+        help="Override the model used for land sheets",
+    )
+    parser.add_argument(
+        "--art-model",
+        choices=tuple(MODEL_FILES),
+        help="Override the model used for static-art sheets",
+    )
+    parser.add_argument(
+        "--gump-model",
+        choices=tuple(MODEL_FILES),
+        default="realesr-animevideov3-x4",
+        help="Model for gump sheets (default: AnimeVideo native 4x)",
+    )
+    parser.add_argument(
+        "--texmap-model",
+        choices=tuple(MODEL_FILES),
+        help="Override the model used for texmap sheets",
+    )
     parser.add_argument(
         "--animation-model",
         choices=tuple(MODEL_FILES),
-        default="upscayl-lite-4x",
+        default="realesr-animevideov3-x4",
         help="Model for sheets containing only animation frames",
     )
     parser.add_argument("--batch-size", type=int, default=25, help="Resume granularity in sheets")
@@ -170,10 +217,29 @@ def ensure_models(args: argparse.Namespace) -> Path:
         return args.models_dir.resolve()
 
     model_dir = args.work / "tools" / "models"
-    for model in {args.model, args.animation_model}:
+    for model in selected_models(args):
         for extension, (url, digest) in MODEL_FILES[model].items():
             download(url, model_dir / f"{model}.{extension}", digest)
     return model_dir
+
+
+def selected_models(args: argparse.Namespace) -> set[str]:
+    models = {args.model}
+    for argument in CATEGORY_MODEL_ARGUMENTS.values():
+        model = getattr(args, argument)
+        if model is not None:
+            models.add(model)
+    return models
+
+
+def model_for_sheet(args: argparse.Namespace, categories: list[str]) -> str:
+    if len(categories) != 1:
+        return args.model
+
+    argument = CATEGORY_MODEL_ARGUMENTS.get(categories[0])
+    if argument is None:
+        return args.model
+    return getattr(args, argument) or args.model
 
 
 def build_tool(repo_root: Path, args: argparse.Namespace) -> Path:
@@ -350,20 +416,15 @@ def run_upscayl(binary: Path, models: Path, summary: dict, args: argparse.Namesp
 
     free_gib = shutil.disk_usage(args.work).free / (1024**3)
     print(f"Upscaling {len(input_sheets)} sheets; {free_gib:.1f} GiB free")
-    static_sheets = []
-    animation_sheets = []
+    sheets_by_model: dict[str, list[str]] = {}
     for name, categories in sorted(summary["sheets"].items()):
-        if categories == ["animations"]:
-            animation_sheets.append(name)
-        else:
-            static_sheets.append(name)
+        model = model_for_sheet(args, categories)
+        sheets_by_model.setdefault(model, []).append(name)
 
-    run_model_batches(
-        binary, models, args.model, static_sheets, sheets, upscaled, args
-    )
-    run_model_batches(
-        binary, models, args.animation_model, animation_sheets, sheets, upscaled, args
-    )
+    for model, sheet_names in sheets_by_model.items():
+        run_model_batches(
+            binary, models, model, sheet_names, sheets, upscaled, args
+        )
     return upscaled
 
 
@@ -400,7 +461,7 @@ def run_finalize(tool: Path, upscaled: Path, args: argparse.Namespace) -> None:
 
 def main() -> int:
     args = parse_args()
-    for model in {args.model, args.animation_model}:
+    for model in selected_models(args):
         if MODEL_SCALES[model] > args.scale:
             continue
         if MODEL_SCALES[model] != args.scale:
