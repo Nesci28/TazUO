@@ -1,4 +1,8 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using ClassicUO.Game;
+using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.LegionScripting;
 using ClassicUO.LegionScripting.ApiClasses;
@@ -9,8 +13,73 @@ using Xunit;
 
 namespace ClassicUO.UnitTests.Game.LegionScript;
 
+[CollectionDefinition("MainThreadQueue", DisableParallelization = true)]
+public sealed class MainThreadQueueCollectionDefinition { }
+
+[Collection("MainThreadQueue")]
 public class ApiUiGumpTests
 {
+    public class CreateGumpLabel
+    {
+        [Fact]
+        public async Task FromWorkerThread_WaitsForMainThreadAndReturnsLabel()
+        {
+            Client.UnitTestingActive = true;
+            MainThreadQueue.Reset();
+
+            using var mainThreadReady = new ManualResetEventSlim();
+            using var allowMainThreadToProcess = new ManualResetEventSlim();
+            using var stopMainThread = new ManualResetEventSlim();
+            using var workerStarted = new ManualResetEventSlim();
+            var mainThread = new Thread(() =>
+            {
+                MainThreadQueue.Load();
+                mainThreadReady.Set();
+                allowMainThreadToProcess.Wait();
+
+                while (!stopMainThread.IsSet)
+                {
+                    MainThreadQueue.ProcessQueue();
+                    Thread.Yield();
+                }
+
+                MainThreadQueue.ProcessQueue();
+            });
+
+            mainThread.Start();
+
+            try
+            {
+                mainThreadReady.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
+
+                ScriptEngine engine = Python.CreateEngine();
+                var api = new LegionAPI(new PythonCallbackChannel(engine), null);
+                Task<ApiUiLabel> createTask = Task.Run(() =>
+                {
+                    workerStarted.Set();
+                    return api.Gumps.CreateGumpLabel("Worker label");
+                });
+
+                workerStarted.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
+                await Task.Delay(100);
+                createTask.IsCompleted.Should().BeFalse();
+
+                allowMainThreadToProcess.Set();
+                ApiUiLabel result = await createTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+                result.Should().NotBeNull();
+                result.CanMove.Should().BeTrue();
+            }
+            finally
+            {
+                allowMainThreadToProcess.Set();
+                stopMainThread.Set();
+                mainThread.Join(TimeSpan.FromSeconds(1)).Should().BeTrue();
+                MainThreadQueue.Reset();
+            }
+        }
+    }
+
     public class CreateGump
     {
         [Fact]

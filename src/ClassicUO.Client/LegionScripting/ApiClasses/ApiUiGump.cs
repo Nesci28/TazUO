@@ -129,11 +129,14 @@ public class ApiUiGump(LegionAPI api)
     /// <param name="text">The text</param>
     /// <param name="hue">The hue of the text</param>
     /// <returns></returns>
-    public ApiUiLabel CreateGumpLabel(string text, ushort hue = 996) => 
-        OnMain(() => new ApiUiLabel(new Label(text, true, hue))
+    public ApiUiLabel CreateGumpLabel(string text, ushort hue = 996) =>
+        MainThreadQueue.BubblingInvokeOnMainThread(
+            () => new ApiUiLabel(new Label(text, true, hue))
             {
                 CanMove = true
-            });
+            },
+            api.CancellationToken.Token
+        );
 
     /// <summary>
     /// Get a transparent color box for gumps.
