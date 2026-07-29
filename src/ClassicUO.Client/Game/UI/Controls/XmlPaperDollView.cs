@@ -8,6 +8,10 @@ namespace ClassicUO.Game.UI.Controls
 {
     internal sealed class XmlPaperDollView : StaticPaperDollView
     {
+        // Standard human, elf and gargoyle paperdolls all use a 260x237 canvas, but their
+        // non-transparent silhouettes are centered around this shared visual anchor.
+        private static readonly Vector2 _visualCenter = new(90f, 139f);
+
         private static readonly Layer[] _equipmentLayers =
         {
             Layer.Cloak,
@@ -59,6 +63,7 @@ namespace ClassicUO.Game.UI.Controls
             _world = world;
             _updates = updates;
             CenterContent = true;
+            ContentCenter = _visualCenter;
             LocalSerial = mobile.Serial;
             WantUpdateSize = false;
             _appearanceHash = GetAppearanceHash(mobile);
