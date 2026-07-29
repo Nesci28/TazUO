@@ -1333,6 +1333,21 @@ namespace ClassicUO.Game.UI.Gumps
 
             content.BlankLine();
 
+            var use2XAssets = new CheckboxWithLabel(
+                TazLang.Get("mog_videotab_misc_use2xassets", "Use 2x assets"),
+                isChecked: profile.Use2XAssets,
+                valueChanged: b => profile.Use2XAssets = b
+            );
+            use2XAssets.SetTooltip(
+                TazLang.Get(
+                    "mog_videotab_misc_use2xassets_tooltip",
+                    "Changes take effect after restarting TazUO."
+                )
+            );
+            content.AddToRight(use2XAssets, true, page);
+
+            content.BlankLine();
+
             content.AddToRight(
                 new ComboBoxWithLabel(
                     World,
