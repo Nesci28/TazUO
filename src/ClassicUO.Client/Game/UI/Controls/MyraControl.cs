@@ -43,6 +43,18 @@ public class MyraControl : IGui
         MyraStyle.ApplyButtonDangerStyle(_rootWindow.CloseButton);
 
         _desktop.Root = _rootWindow;
+        _desktop.ViewportAdapterFetcher = () =>
+        {
+            float density = Client.Game?.RenderPixelDensity ?? 1f;
+            return new MyraViewportAdapter
+            {
+                VirtualWidth = Client.Game?.LogicalBackBufferWidth ?? 1,
+                VirtualHeight = Client.Game?.LogicalBackBufferHeight ?? 1,
+                X = 0,
+                Y = 0,
+                TransformMatrix = Matrix.CreateScale(density, density, 1f)
+            };
+        };
 
         _desktop.WidgetGotKeyboardFocus += DesktopOnWidgetGotKeyboardFocus;
         _rootWindow.TouchDown += DesktopOnTouchDown;

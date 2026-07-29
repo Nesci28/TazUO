@@ -109,6 +109,9 @@ namespace ClassicUO.Game.Scenes
 
             SDL.SDL_SetWindowMinimumSize(Client.Game.Window.Handle, 640, 480);
 
+            Camera.ContentScale = CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.NativeWorld
+                ? 2f
+                : 1f;
             Camera.Zoom = ProfileManager.CurrentProfile.DefaultScale;
             Camera.Bounds.X = Math.Max(0, ProfileManager.CurrentProfile.GameWindowPosition.X);
             Camera.Bounds.Y = Math.Max(0, ProfileManager.CurrentProfile.GameWindowPosition.Y);
@@ -1266,7 +1269,7 @@ namespace ClassicUO.Game.Scenes
             GraphicsDevice gd = batcher.GraphicsDevice;
 
             Viewport rViewport = gd.Viewport;
-            Viewport cameraViewport = Camera.GetViewport();
+            Viewport cameraViewport = Client.Game.ToPhysicalViewport(Camera.Bounds);
 
             var hue = new Vector3(0, 0, 1);
 
@@ -1354,6 +1357,7 @@ namespace ClassicUO.Game.Scenes
         private bool DrawWorldRenderTarget(UltimaBatcher2D batcher, GraphicsDevice gd, Viewport cameraViewport)
         {
             float scale = GetActiveScale();
+            float pixelDensity = Client.Game.RenderPixelDensity;
 
             int rtW = _worldRenderTarget?.Width ?? Camera.Bounds.Width;
             int rtH = _worldRenderTarget?.Height ?? Camera.Bounds.Height;
@@ -1380,24 +1384,34 @@ namespace ClassicUO.Game.Scenes
             gd.Viewport = cameraViewport;
 
             Profiler.EnterContext("PostProcess");
-            int srcW = (int)Math.Floor(vpW * scale);
-            int srcH = (int)Math.Floor(vpH * scale);
+            int srcW = Math.Min(
+                rtW,
+                Math.Max(1, (int)Math.Floor(vpW * scale * pixelDensity))
+            );
+            int srcH = Math.Min(
+                rtH,
+                Math.Max(1, (int)Math.Floor(vpH * scale * pixelDensity))
+            );
 
             // Viewport-scoped shake moves the crop taken from the render target rather than where
             // that crop is drawn: destRect stays pinned to the viewport, so the shake reveals real
             // pixels EnsureRenderTargets padded the target with instead of exposing empty texture at
-            // the edge. Clamped to the crop's own margin - zero when the target isn't padded (shake
-            // off), and never past it even at full shake intensity.
-            // Margin floored at 0: the target is capped at MAX_TEXTURE_SIZE, the crop isn't, and
-            // Math.Clamp throws when its bounds cross.
+            // the edge. The shake manager reports logical pixels, while this source rectangle is in
+            // render-target pixels, so scale the displacement to the active render density.
             Point shake = ScreenOverlayManager.Instance.ViewportShakeOffset();
+            int shakeX = (int)Math.Round(shake.X * pixelDensity);
+            int shakeY = (int)Math.Round(shake.Y * pixelDensity);
             int marginX = Math.Max(0, rtW - srcW);
             int marginY = Math.Max(0, rtH - srcH);
-            int srcX = Math.Clamp(marginX / 2 + shake.X, 0, marginX);
-            int srcY = Math.Clamp(marginY / 2 + shake.Y, 0, marginY);
-
+            int srcX = Math.Clamp(marginX / 2 + shakeX, 0, marginX);
+            int srcY = Math.Clamp(marginY / 2 + shakeY, 0, marginY);
             var srcRect = new Rectangle(srcX, srcY, srcW, srcH);
-            var destRect = new Rectangle(0, 0, vpW, vpH);
+            var destRect = new Rectangle(
+                0,
+                0,
+                Client.Game.ToPhysicalPixels(vpW),
+                Client.Game.ToPhysicalPixels(vpH)
+            );
 
             // Kept for the overlay pass at the end of the frame: the crop is what maps the viewport
             // back onto the world target, and the zoom that determines it is recomputed here.
@@ -1413,8 +1427,7 @@ namespace ClassicUO.Game.Scenes
             {
                 BindFsrParams(gd);
             }
-
-            batcher.Begin(_postFx, Matrix.Identity);
+            batcher.BeginUnscaled(_postFx, Matrix.Identity);
             try { batcher.SetSampler(_postSampler ?? SamplerState.PointClamp); } catch { batcher.SetSampler(SamplerState.PointClamp); }
             batcher.Draw(_worldRenderTarget, destRect, srcRect, new Vector3(0, 0, 1));
             batcher.End();
@@ -1699,15 +1712,23 @@ namespace ClassicUO.Game.Scenes
             // Cache PresentationParameters to avoid struct copying
             PresentationParameters pp = gd.PresentationParameters;
             float scale = GetActiveScale();
+            float pixelDensity = Client.Game.RenderPixelDensity;
 
             // Extra canvas viewport-scope shake can crop into instead of exposing the target's
             // unrendered edge. Cached on ScreenOverlayManager, refreshed only when the shake settings
             // change - this runs every frame, and re-deriving it from settings here would mean a
             // dereference chain per frame for a value that almost never moves.
             int shakeMargin = ScreenOverlayManager.Instance.ViewportShakeMarginPixels;
+            int physicalShakeMargin = (int)Math.Ceiling(shakeMargin * pixelDensity);
 
-            int rtWidth = Math.Min((int)Math.Floor(vw * scale) + shakeMargin, MAX_TEXTURE_SIZE);
-            int rtHeight = Math.Min((int)Math.Floor(vh * scale) + shakeMargin, MAX_TEXTURE_SIZE);
+            int rtWidth = Math.Min(
+                (int)Math.Floor(vw * scale * pixelDensity) + physicalShakeMargin,
+                MAX_TEXTURE_SIZE
+            );
+            int rtHeight = Math.Min(
+                (int)Math.Floor(vh * scale * pixelDensity) + physicalShakeMargin,
+                MAX_TEXTURE_SIZE
+            );
 
             // Create/recreate world render target if needed
             if (_worldRenderTarget == null
@@ -1738,13 +1759,19 @@ namespace ClassicUO.Game.Scenes
         {
             var vpCenter = new Vector2(vpW * 0.5f, vpH * 0.5f);
             Vector2 camOffset = Camera.Offset;
-            var rtCenter = new Vector2(rtW * 0.5f, rtH * 0.5f);
+            float pixelDensity = Client.Game.RenderPixelDensity;
+            var rtCenter = new Vector2(
+                rtW / pixelDensity * 0.5f,
+                rtH / pixelDensity * 0.5f
+            );
 
             Matrix.CreateTranslation(-vpCenter.X, -vpCenter.Y, 0f, out Matrix matTrans1);
             Matrix.CreateTranslation(-camOffset.X, -camOffset.Y, 0f, out Matrix matTrans2);
+            Matrix.CreateScale(Camera.ContentScale, Camera.ContentScale, 1f, out Matrix matScale);
             Matrix.CreateTranslation(rtCenter.X, rtCenter.Y, 0f, out Matrix matTrans3);
             Matrix.Multiply(ref matTrans1, ref matTrans2, out Matrix temp1);
-            Matrix.Multiply(ref temp1, ref matTrans3, out _worldRtMatrix);
+            Matrix.Multiply(ref temp1, ref matScale, out Matrix temp2);
+            Matrix.Multiply(ref temp2, ref matTrans3, out _worldRtMatrix);
         }
 
         private void UpdatePostProcessState(GraphicsDevice gd)

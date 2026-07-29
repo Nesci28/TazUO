@@ -92,7 +92,12 @@ namespace ClassicUO
             IsFixedTimeStep = false; // Settings.GlobalSettings.FixedTimeStep;
             TargetElapsedTime = TimeSpan.FromMilliseconds(1000.0 / 250.0);
             PluginHost = pluginHost;
-            bufferRect = new Rectangle(0, 0, GraphicManager.PreferredBackBufferWidth, GraphicManager.PreferredBackBufferHeight);
+            bufferRect = new Rectangle(
+                0,
+                0,
+                GraphicManager.PreferredBackBufferWidth,
+                GraphicManager.PreferredBackBufferHeight
+            );
 
             SDL.SDL_SetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "0");
             SDL.SDL_StartTextInput(Window.Handle);
@@ -106,6 +111,10 @@ namespace ClassicUO
             get;
             set => field = Math.Clamp(value, MinRenderScale, MaxRenderScale);
         } = 1f;
+
+        public float RenderPixelDensity { get; private set; } = 1f;
+        public int LogicalBackBufferWidth => Math.Max(1, bufferRect.Width);
+        public int LogicalBackBufferHeight => Math.Max(1, bufferRect.Height);
 
         public Scene Scene { get; private set; }
         public AudioManager Audio { get; private set; }
@@ -124,12 +133,26 @@ namespace ClassicUO
         {
             MainThreadQueue.Load();
 
+            RefreshRenderPixelDensity();
+
+            // FNA expects preferred backbuffer dimensions in drawable pixels when the SDL window
+            // is high-density. Keep TazUO's own buffer rectangle in logical coordinates.
+            bufferRect = new Rectangle(
+                0,
+                0,
+                Math.Max(1, Window.ClientBounds.Width),
+                Math.Max(1, Window.ClientBounds.Height)
+            );
+            GraphicManager.PreferredBackBufferWidth = ToPhysicalPixels(bufferRect.Width);
+            GraphicManager.PreferredBackBufferHeight = ToPhysicalPixels(bufferRect.Height);
+
             if (GraphicManager.GraphicsDevice.Adapter.IsProfileSupported(GraphicsProfile.HiDef))
             {
                 GraphicManager.GraphicsProfile = GraphicsProfile.HiDef;
             }
 
             GraphicManager.ApplyChanges();
+            RefreshRenderPixelDensity();
 
             SetRefreshRate(Settings.GlobalSettings.FPS);
             SupportedRefreshRate = Settings.GlobalSettings.FPS;
@@ -137,6 +160,7 @@ namespace ClassicUO
             try
             {
                 _uoSpriteBatch = new UltimaBatcher2D(GraphicsDevice);
+                _uoSpriteBatch.OutputScale = RenderPixelDensity;
             }
             catch (Exception ex) when (Client.IsShaderCompileFailure(ex))
             {
@@ -399,12 +423,52 @@ namespace ClassicUO
             ScaleChanged?.Invoke(this, RenderScale);
         }
 
+        private void RefreshRenderPixelDensity()
+        {
+            float density = 1f;
+
+            if (CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.HiDpi)
+            {
+                SDL_GetWindowSize(Window.Handle, out int logicalWidth, out int logicalHeight);
+                SDL_GetWindowSizeInPixels(Window.Handle, out int pixelWidth, out int pixelHeight);
+
+                if (logicalWidth > 0 && logicalHeight > 0 && pixelWidth > 0 && pixelHeight > 0)
+                {
+                    float densityX = pixelWidth / (float)logicalWidth;
+                    float densityY = pixelHeight / (float)logicalHeight;
+                    density = Math.Clamp(Math.Min(densityX, densityY), 1f, 4f);
+                }
+            }
+
+            if (Math.Abs(RenderPixelDensity - density) < 0.001f)
+                return;
+
+            RenderPixelDensity = density;
+            CUOEnviroment.DPIScaleFactor = density;
+
+            if (_uoSpriteBatch != null)
+                _uoSpriteBatch.OutputScale = density;
+
+            Log.Info($"Render pixel density changed to {density:0.##}x");
+        }
+
+        internal int ToPhysicalPixels(int logicalPixels) =>
+            Math.Max(1, (int)Math.Round(logicalPixels * RenderPixelDensity));
+
+        internal Viewport ToPhysicalViewport(Rectangle logicalBounds) => new(
+            (int)Math.Round(logicalBounds.X * RenderPixelDensity),
+            (int)Math.Round(logicalBounds.Y * RenderPixelDensity),
+            ToPhysicalPixels(logicalBounds.Width),
+            ToPhysicalPixels(logicalBounds.Height)
+        );
+
         public void SetWindowSize(int width, int height, bool bufferOnly = false)
         {
             bufferRect = new Rectangle(0, 0, width, height);
 
-            GraphicManager.PreferredBackBufferWidth = width;
-            GraphicManager.PreferredBackBufferHeight = height;
+            RefreshRenderPixelDensity();
+            GraphicManager.PreferredBackBufferWidth = ToPhysicalPixels(width);
+            GraphicManager.PreferredBackBufferHeight = ToPhysicalPixels(height);
 
             if (bufferOnly)
                 return;
@@ -459,7 +523,7 @@ namespace ClassicUO
                 viewport.X = -5;
                 viewport.Y = -5;
             }
-            bufferRect = new Rectangle(0, 0, GraphicManager.PreferredBackBufferWidth, GraphicManager.PreferredBackBufferHeight);
+            bufferRect = new Rectangle(0, 0, width, height);
         }
 
         /// <summary>
@@ -481,10 +545,13 @@ namespace ClassicUO
         {
             SDL_MaximizeWindow(Window.Handle);
 
-            GraphicManager.PreferredBackBufferWidth = Client.Game.Window.ClientBounds.Width;
-            GraphicManager.PreferredBackBufferHeight = Client.Game.Window.ClientBounds.Height;
+            RefreshRenderPixelDensity();
+            int width = Client.Game.Window.ClientBounds.Width;
+            int height = Client.Game.Window.ClientBounds.Height;
+            GraphicManager.PreferredBackBufferWidth = ToPhysicalPixels(width);
+            GraphicManager.PreferredBackBufferHeight = ToPhysicalPixels(height);
             GraphicManager.ApplyChanges();
-            bufferRect = new Rectangle(0, 0, Client.Game.Window.ClientBounds.Width, Client.Game.Window.ClientBounds.Height);
+            bufferRect = new Rectangle(0, 0, width, height);
         }
 
         public bool IsWindowMaximized()
@@ -652,24 +719,37 @@ namespace ClassicUO
         /// </summary>
         public void DrawWindowBackground(UltimaBatcher2D batcher)
         {
-            Rectangle bounds = _useScreenRenderTarget && _screenRenderTarget != null && !_screenRenderTarget.IsDisposed
-                ? _screenRenderTarget.Bounds
-                : bufferRect;
+            bool usesScreenTarget =
+                _useScreenRenderTarget
+                && _screenRenderTarget != null
+                && !_screenRenderTarget.IsDisposed;
 
-            GraphicsDevice.Viewport = new Viewport(bounds);
+            Rectangle physicalBounds = usesScreenTarget
+                ? _screenRenderTarget.Bounds
+                : ToPhysicalViewport(bufferRect).Bounds;
+            Rectangle logicalBounds = new(
+                0,
+                0,
+                Math.Max(1, (int)Math.Ceiling(physicalBounds.Width / RenderPixelDensity)),
+                Math.Max(1, (int)Math.Ceiling(physicalBounds.Height / RenderPixelDensity))
+            );
+
+            GraphicsDevice.Viewport = new Viewport(physicalBounds);
             batcher.Begin();
-            batcher.DrawTiled(_background, bounds, _background.Bounds, bgHueShader);
+            batcher.DrawTiled(_background, logicalBounds, _background.Bounds, bgHueShader);
             batcher.End();
         }
 
         private void EnsureScreenRenderTarget()
         {
+            PresentationParameters pp = GraphicsDevice.PresentationParameters;
+
             // When scaled down, the reachable logical area (window / RenderScale) is larger than
             // the back buffer. Size the target to cover it so gumps/UI can be placed in what would
             // otherwise be dead space on the right/bottom. At scale >= 1 the logical area fits
             // inside the back buffer, so the target stays back-buffer sized (upscaling crops).
-            int width = Math.Max(GraphicManager.PreferredBackBufferWidth, ScaleHelper.LogicalWindowWidth);
-            int height = Math.Max(GraphicManager.PreferredBackBufferHeight, ScaleHelper.LogicalWindowHeight);
+            int width = Math.Max(pp.BackBufferWidth, ToPhysicalPixels(ScaleHelper.LogicalWindowWidth));
+            int height = Math.Max(pp.BackBufferHeight, ToPhysicalPixels(ScaleHelper.LogicalWindowHeight));
 
             // Sanity check dimensions
             if (width <= 0 || height <= 0)
@@ -687,7 +767,6 @@ namespace ClassicUO
 
                 try
                 {
-                    PresentationParameters pp = GraphicsDevice.PresentationParameters;
                     _screenRenderTarget = new RenderTarget2D(
                         GraphicsDevice,
                         width,
@@ -711,6 +790,8 @@ namespace ClassicUO
         protected override void Draw(GameTime gameTime)
         {
             Profiler.EnterContext("Draw");
+
+            RefreshRenderPixelDensity();
 
             Profiler.EndFrame();
 
@@ -785,7 +866,7 @@ namespace ClassicUO
                 var srcRect = new Rectangle(0, 0, _screenRenderTarget.Width, _screenRenderTarget.Height);
                 destRect = srcRect;
 
-                _uoSpriteBatch.Begin();
+                _uoSpriteBatch.BeginUnscaled();
                 if (RenderScale != 1.0f)
                 {
                     destRect = new Rectangle(0, 0, (int)(_screenRenderTarget.Width * RenderScale), (int)(_screenRenderTarget.Height * RenderScale));
@@ -845,6 +926,8 @@ namespace ClassicUO
         {
             int width = Window.ClientBounds.Width;
             int height = Window.ClientBounds.Height;
+
+            RefreshRenderPixelDensity();
 
             if (!IsWindowMaximized())
             {
@@ -1334,8 +1417,9 @@ namespace ClassicUO
             }
             else
             {
-                width = GraphicManager.PreferredBackBufferWidth;
-                height = GraphicManager.PreferredBackBufferHeight;
+                PresentationParameters pp = GraphicsDevice.PresentationParameters;
+                width = pp.BackBufferWidth;
+                height = pp.BackBufferHeight;
                 colors = new Color[width * height];
                 GraphicsDevice.GetBackBufferData(colors);
             }

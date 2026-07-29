@@ -1348,6 +1348,30 @@ namespace ClassicUO.Game.UI.Gumps
 
             content.BlankLine();
 
+            var twoXDisplayMode = new ComboBoxWithLabel(
+                World,
+                TazLang.Get("mog_videotab_misc_2xdisplaymode", "2x display mode"),
+                150,
+                ThemeSettings.COMBO_BOX_WIDTH,
+                [
+                    TazLang.Get("mog_videotab_misc_2xmode_same", "Same size"),
+                    TazLang.Get("mog_videotab_misc_2xmode_nativeworld", "Native world"),
+                    TazLang.Get("mog_videotab_misc_2xmode_hidpi", "HiDPI")
+                ],
+                Math.Min(profile.TwoXAssetDisplayMode, (byte)TwoXAssetDisplayMode.HiDpi),
+                (selected, _) => profile.TwoXAssetDisplayMode = (byte)selected,
+                autoSortComboboxItems: false
+            );
+            twoXDisplayMode.SetTooltip(
+                TazLang.Get(
+                    "mog_videotab_misc_2xdisplaymode_tooltip",
+                    "Same size preserves the original layout. Native world renders the world at 200%. HiDPI keeps the layout while targeting physical display pixels. Changes require a restart."
+                )
+            );
+            content.AddToRight(twoXDisplayMode, true, page);
+
+            content.BlankLine();
+
             content.AddToRight(
                 new ComboBoxWithLabel(
                     World,
