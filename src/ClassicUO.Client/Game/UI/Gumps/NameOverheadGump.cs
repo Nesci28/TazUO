@@ -1073,7 +1073,7 @@ namespace ClassicUO.Game.UI.Gumps
             float borderAlpha = profile.NamePlateBorderOpacity / 100f;
             Vector3 borderHue = ShaderHueTranslator.GetHueVector(0, false, borderAlpha);
 
-            DrawRoundedRectangle(batcher, _borderColor, bounds, borderHue, radius);
+            DrawRoundedRectangleBorder(batcher, _borderColor, bounds, borderHue, radius);
 
             Rectangle innerBounds = new Rectangle(bounds.X + 1, bounds.Y + 1, Math.Max(0, bounds.Width - 2), Math.Max(0, bounds.Height - 2));
 
@@ -1369,6 +1369,64 @@ namespace ClassicUO.Game.UI.Gumps
                 if (width > 0)
                 {
                     batcher.Draw(texture, new Rectangle(bounds.X + inset, bounds.Y + row, width, 1), hueVector);
+                }
+            }
+        }
+
+        private static void DrawRoundedRectangleBorder(UltimaBatcher2D batcher, Texture2D texture, Rectangle bounds, Vector3 hueVector, int radius)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return;
+            }
+
+            radius = Math.Clamp(radius, 0, Math.Min(bounds.Width, bounds.Height) >> 1);
+
+            if (bounds.Width <= 2 || bounds.Height <= 2)
+            {
+                DrawRoundedRectangle(batcher, texture, bounds, hueVector, radius);
+                return;
+            }
+
+            int[] outerInsets = GetRoundedRectangleInsets(bounds.Height, radius);
+            int innerRadius = Math.Max(0, radius - 1);
+            int[] innerInsets = GetRoundedRectangleInsets(bounds.Height - 2, innerRadius);
+
+            for (int row = 0; row < bounds.Height; row++)
+            {
+                int outerInset = outerInsets[row];
+                int outerLeft = bounds.X + outerInset;
+                int outerRight = bounds.Right - outerInset;
+
+                if (outerRight <= outerLeft)
+                {
+                    continue;
+                }
+
+                if (row == 0 || row == bounds.Height - 1)
+                {
+                    batcher.Draw(texture, new Rectangle(outerLeft, bounds.Y + row, outerRight - outerLeft, 1), hueVector);
+                    continue;
+                }
+
+                int innerInset = innerInsets[row - 1];
+                int innerLeft = Math.Clamp(bounds.X + 1 + innerInset, outerLeft, outerRight);
+                int innerRight = Math.Clamp(bounds.Right - 1 - innerInset, outerLeft, outerRight);
+
+                if (innerRight <= innerLeft)
+                {
+                    batcher.Draw(texture, new Rectangle(outerLeft, bounds.Y + row, outerRight - outerLeft, 1), hueVector);
+                    continue;
+                }
+
+                if (innerLeft > outerLeft)
+                {
+                    batcher.Draw(texture, new Rectangle(outerLeft, bounds.Y + row, innerLeft - outerLeft, 1), hueVector);
+                }
+
+                if (outerRight > innerRight)
+                {
+                    batcher.Draw(texture, new Rectangle(innerRight, bounds.Y + row, outerRight - innerRight, 1), hueVector);
                 }
             }
         }
