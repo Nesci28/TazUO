@@ -58,6 +58,7 @@ namespace ClassicUO.Game.UI.Controls
         {
             _world = world;
             _updates = updates;
+            CenterContent = true;
             LocalSerial = mobile.Serial;
             WantUpdateSize = false;
             _appearanceHash = GetAppearanceHash(mobile);
