@@ -523,6 +523,18 @@ public static class VideoTab
                     search: new SearchMetadata(TazLang.Get("mog_videotab_misc_postprocessingeffecttype"), Keywords: [TazLang.Get("mog_kw_type")])
                 )
             ).WithSearch(new SearchMetadata(TazLang.Get("mog_videotab_misc_label"), [TazLang.Get("mog_kw_postprocessing")], [TazLang.Get("mog_kw_post"), TazLang.Get("mog_kw_process")])),
+            Option.Checkbox(
+                TazLang.Get("mog_videotab_misc_use2xassets", "Use 2x assets"),
+                new Accessor<bool>(() => profile.Use2XAssets),
+                tooltip: TazLang.Get(
+                    "mog_videotab_misc_use2xassets_tooltip",
+                    "Changes take effect after restarting TazUO."
+                ),
+                search: new SearchMetadata(
+                    TazLang.Get("mog_videotab_misc_use2xassets", "Use 2x assets"),
+                    Keywords: [TazLang.Get("mog_kw_postprocessing"), "2x", "assets"]
+                )
+            ),
             OptionsUi.CheckBoxGroup(
                 new PropertyBinder(new Accessor<bool>(() => ProfileManager.GlobalSettings.UseCircleOfTransparency), TazLang.Get("mog_general_enablecot")),
                 Option.Slider(
