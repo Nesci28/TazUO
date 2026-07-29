@@ -149,6 +149,12 @@ namespace ClassicUO.Game.UI.Controls
         protected bool CenterContent { get; set; }
 
         /// <summary>
+        /// Optional center point of the visibly occupied content, expressed in source logical
+        /// coordinates. When unset, the full source rectangle is centered.
+        /// </summary>
+        protected Vector2? ContentCenter { get; set; }
+
+        /// <summary>
         /// Sets the equipment dictionary.
         /// </summary>
         public void SetEquipment(Dictionary<Layer, EquipmentEntry> equipment) => _equipment = equipment ?? new Dictionary<Layer, EquipmentEntry>();
@@ -286,10 +292,9 @@ namespace ClassicUO.Game.UI.Controls
 
             if (CenterContent)
             {
-                int scaledContentWidth = (int)(_contentWidth * _scaleFactor);
-                int scaledContentHeight = (int)(_contentHeight * _scaleFactor);
-                contentX += System.Math.Max(0, (Width - scaledContentWidth) / 2);
-                contentY += System.Math.Max(0, (Height - scaledContentHeight) / 2);
+                Vector2 center = ContentCenter ?? new Vector2(_contentWidth / 2f, _contentHeight / 2f);
+                contentX += (int)System.MathF.Round(Width / 2f - center.X * _scaleFactor);
+                contentY += (int)System.MathF.Round(Height / 2f - center.Y * _scaleFactor);
             }
 
             if (_background)
