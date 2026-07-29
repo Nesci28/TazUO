@@ -535,6 +535,24 @@ public static class VideoTab
                     Keywords: [TazLang.Get("mog_kw_postprocessing"), "2x", "assets"]
                 )
             ),
+            Option.ComboBox(
+                TazLang.Get("mog_videotab_misc_2xdisplaymode", "2x display mode"),
+                Math.Min(profile.TwoXAssetDisplayMode, (byte)TwoXAssetDisplayMode.HiDpi),
+                [
+                    TazLang.Get("mog_videotab_misc_2xmode_same", "Same size"),
+                    TazLang.Get("mog_videotab_misc_2xmode_nativeworld", "Native world"),
+                    TazLang.Get("mog_videotab_misc_2xmode_hidpi", "HiDPI")
+                ],
+                selected => profile.TwoXAssetDisplayMode = (byte)selected,
+                tooltip: TazLang.Get(
+                    "mog_videotab_misc_2xdisplaymode_tooltip",
+                    "Same size preserves the original layout. Native world renders the world at 200%. HiDPI keeps the layout while targeting physical display pixels. Changes require a restart."
+                ),
+                search: new SearchMetadata(
+                    TazLang.Get("mog_videotab_misc_2xdisplaymode", "2x display mode"),
+                    Keywords: ["2x", "native", "HiDPI"]
+                )
+            ),
             OptionsUi.CheckBoxGroup(
                 new PropertyBinder(new Accessor<bool>(() => ProfileManager.GlobalSettings.UseCircleOfTransparency), TazLang.Get("mog_general_enablecot")),
                 Option.Slider(

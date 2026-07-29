@@ -32,6 +32,24 @@ Animation folders and filenames also accept decimal or hexadecimal numbers. A fr
 
 Files without an `@2x` or `@4x` suffix retain the existing one-to-one replacement behaviour.
 
+## In-game display modes
+
+The **Use 2x assets** option is under Video → Post-processing and is applied on the next client
+start. Its display-mode selector provides three behaviours:
+
+- **Same size** keeps original UO logical dimensions and field of view. HD pixels are filtered into
+  the original on-screen footprint.
+- **Native world** renders world content at 200% while leaving the UI at its normal size. At the
+  default 100% camera zoom, a tagged `@2x` world sprite is sampled close to one source pixel per
+  output pixel. The visible world width and height are each roughly halved.
+- **HiDPI** asks FNA/SDL for a high-pixel-density window before graphics initialization. TazUO then
+  renders world targets, classic gumps, Myra windows, text, and the cursor using the physical-to-
+  logical window pixel ratio. On a 2x Retina display this retains the normal layout and field of
+  view while mapping `@2x` assets close to their native pixel dimensions.
+
+If the display reports a 1x pixel density, HiDPI safely behaves like Same size. Native world does
+not require a Retina/HiDPI display.
+
 ## Required dimensions
 
 The HD canvas must be an exact multiple of the original asset canvas:

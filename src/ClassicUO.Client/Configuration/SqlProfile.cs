@@ -114,6 +114,10 @@ public sealed partial class Profile
         public partial bool OldUse2XAssets { get; set; }
 
         [JsonIgnore]
+        [SqlSetting(SettingsScope.Global, Constants.SqlSettings.TWO_X_ASSET_DISPLAY_MODE, (byte)0)]
+        public partial byte OldTwoXAssetDisplayMode { get; set; }
+
+        [JsonIgnore]
         [SqlSetting(SettingsScope.Global, "counter_bar__show_hotkeys", false)]
         public partial bool OldCounterBarShowHotkeys { get; set; }
 

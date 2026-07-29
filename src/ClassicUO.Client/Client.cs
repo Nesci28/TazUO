@@ -12,7 +12,6 @@ using SDL3;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace ClassicUO
 {
@@ -104,8 +103,6 @@ namespace ClassicUO
 
         private void LoadUOFiles()
         {
-            Task<bool> use2XAssetsTask = Client.Settings.GetAsync(SettingsScope.Global, Constants.SqlSettings.USE_2X_ASSETS, true);
-
             TazLang.Load(Settings.GlobalSettings.UILanguage);
 
             // This provides Myra searchable combobox localization context.
@@ -190,13 +187,13 @@ namespace ClassicUO
                 Protocol |= ClientFlags.CF_SA;
             }
 
-            Task.WaitAll(use2XAssetsTask);
-            ExternalImageLoader.Instance.UseHighResolutionAssets = use2XAssetsTask.Result;
+            ExternalImageLoader.Instance.UseHighResolutionAssets = CUOEnviroment.Use2XAssets;
 
             Log.Trace($"Client path: '{clientPath}'");
             Log.Trace($"Client version: {clientVersion}");
             Log.Trace($"Protocol: {Protocol}");
-            Log.Trace($"Use 2x assets: {use2XAssetsTask.Result}");
+            Log.Trace($"Use 2x assets: {CUOEnviroment.Use2XAssets}");
+            Log.Trace($"2x asset display mode: {CUOEnviroment.AssetDisplayMode}");
 
             FileManager = new UOFileManager(clientVersion, clientPath);
 
@@ -246,6 +243,8 @@ namespace ClassicUO
             // Initialize SQLSettingsManager
             Settings = new SQLSettingsManager();
             Log.Trace("SQLSettingsManager initialized");
+
+            ConfigureTwoXAssetDisplayMode();
 
             using (Game = new GameController(pluginHost))
             {
@@ -302,6 +301,45 @@ namespace ClassicUO
             }
 
             Log.Trace("Exiting game...");
+        }
+
+        private static void ConfigureTwoXAssetDisplayMode()
+        {
+            try
+            {
+                bool use2XAssets = Settings
+                    .GetAsync(SettingsScope.Global, Constants.SqlSettings.USE_2X_ASSETS, true)
+                    .GetAwaiter()
+                    .GetResult();
+                int rawMode = Settings
+                    .GetAsync(
+                        SettingsScope.Global,
+                        Constants.SqlSettings.TWO_X_ASSET_DISPLAY_MODE,
+                        (int)TwoXAssetDisplayMode.SameSize
+                    )
+                    .GetAwaiter()
+                    .GetResult();
+
+                CUOEnviroment.Use2XAssets = use2XAssets;
+                CUOEnviroment.AssetDisplayMode = use2XAssets
+                    && rawMode >= (int)TwoXAssetDisplayMode.SameSize
+                    && rawMode <= (int)TwoXAssetDisplayMode.HiDpi
+                    ? (TwoXAssetDisplayMode)rawMode
+                    : TwoXAssetDisplayMode.SameSize;
+
+                // FNA must receive this before GameController creates the SDL window.
+                if (CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.HiDpi)
+                {
+                    Environment.SetEnvironmentVariable("FNA_GRAPHICS_ENABLE_HIGHDPI", "1");
+                    CUOEnviroment.IsHighDPI = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                CUOEnviroment.Use2XAssets = true;
+                CUOEnviroment.AssetDisplayMode = TwoXAssetDisplayMode.SameSize;
+                Log.Error($"Failed to load 2x asset display mode; using Same size: {ex.Message}");
+            }
         }
 
         public static void ShowErrorMessage(string msg) => SDL.SDL_ShowSimpleMessageBox(SDL.SDL_MessageBoxFlags.SDL_MESSAGEBOX_ERROR, "ERROR", msg, IntPtr.Zero);
