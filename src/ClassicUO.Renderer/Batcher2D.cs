@@ -66,6 +66,7 @@ namespace ClassicUO.Renderer
         private float _projectionZNear = short.MinValue;
         private float _projectionZFar = short.MaxValue;
         private Matrix _transformMatrix;
+        private float _outputScale = 1f;
         private readonly DynamicVertexBuffer _vertexBuffer;
         private readonly BasicUOEffect _basicUOEffect;
         private Texture2D[] _textureInfo;
@@ -122,6 +123,16 @@ namespace ClassicUO.Renderer
         };
 
         public GraphicsDevice GraphicsDevice { get; }
+
+        /// <summary>
+        /// Maps logical client coordinates to physical output pixels. HiDPI mode sets this to the
+        /// SDL window pixel-density ratio; ordinary rendering keeps it at 1.
+        /// </summary>
+        public float OutputScale
+        {
+            get => _outputScale;
+            set => _outputScale = Math.Max(1f, value);
+        }
 
         public int TextureSwitches, FlushesDone;
 
@@ -1405,11 +1416,19 @@ namespace ClassicUO.Renderer
         }
 
 
-        public void Begin() => Begin(null, Matrix.Identity);
+        public void Begin() => BeginInternal(null, Matrix.Identity, true);
 
-        public void Begin(Effect effect) => Begin(effect, Matrix.Identity);
+        public void Begin(Effect effect) => BeginInternal(effect, Matrix.Identity, true);
 
         public void Begin(Effect customEffect, Matrix transform_matrix)
+            => BeginInternal(customEffect, transform_matrix, true);
+
+        public void BeginUnscaled() => BeginInternal(null, Matrix.Identity, false);
+
+        public void BeginUnscaled(Effect customEffect, Matrix transformMatrix)
+            => BeginInternal(customEffect, transformMatrix, false);
+
+        private void BeginInternal(Effect customEffect, Matrix transformMatrix, bool applyOutputScale)
         {
             EnsureNotStarted();
             _started = true;
@@ -1417,7 +1436,13 @@ namespace ClassicUO.Renderer
             FlushesDone = 0;
 
             _customEffect = customEffect;
-            _transformMatrix = transform_matrix;
+            _transformMatrix = transformMatrix;
+
+            if (applyOutputScale && _outputScale != 1f)
+            {
+                Matrix.CreateScale(_outputScale, _outputScale, 1f, out Matrix outputScaleMatrix);
+                Matrix.Multiply(ref _transformMatrix, ref outputScaleMatrix, out _transformMatrix);
+            }
         }
 
         public void End()
