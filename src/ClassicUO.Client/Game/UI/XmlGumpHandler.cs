@@ -8,6 +8,7 @@ using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml;
@@ -136,6 +137,11 @@ namespace ClassicUO.Game.UI
                             HandleImage(gump, child);
                             break;
                         }
+                        if (child.Name.ToLower().Equals("player_paperdoll"))
+                        {
+                            HandlePlayerPaperDoll(world, gump, child);
+                            break;
+                        }
                         if (child.Name.ToLower().Equals("image_progress_bar"))
                         {
                             HandleImageProgressBar(world, gump, child);
@@ -179,6 +185,84 @@ namespace ClassicUO.Game.UI
                         break;
                 }
             }
+        }
+
+        private static void HandlePlayerPaperDoll(World world, XmlGump gump, XmlNode node)
+        {
+            if (world.Player == null)
+            {
+                return;
+            }
+
+            PlayerPaperDollSettings settings = ParsePlayerPaperDollSettings(node);
+            var paperDoll = new XmlPaperDollView(
+                world,
+                world.Player,
+                settings.Width,
+                settings.Height,
+                settings.Updates,
+                settings.Background
+            );
+
+            ApplyBasicAttributes(paperDoll, node);
+            paperDoll.TargetSize = new Vector2(settings.Width, settings.Height);
+            paperDoll.Alpha = settings.Alpha;
+            gump.Add(paperDoll);
+        }
+
+        internal static PlayerPaperDollSettings ParsePlayerPaperDollSettings(XmlNode node)
+        {
+            int width = PlayerPaperDollSettings.DefaultWidth;
+            int height = PlayerPaperDollSettings.DefaultHeight;
+            bool updates = true;
+            bool background = false;
+            float alpha = 1f;
+
+            foreach (XmlAttribute attr in node.Attributes)
+            {
+                switch (attr.Name.ToLower())
+                {
+                    case "width":
+                        if (int.TryParse(attr.Value, out int parsedWidth) && parsedWidth > 0)
+                        {
+                            width = parsedWidth;
+                        }
+                        break;
+                    case "height":
+                        if (int.TryParse(attr.Value, out int parsedHeight) && parsedHeight > 0)
+                        {
+                            height = parsedHeight;
+                        }
+                        break;
+                    case "updates":
+                        if (bool.TryParse(attr.Value, out bool parsedUpdates))
+                        {
+                            updates = parsedUpdates;
+                        }
+                        break;
+                    case "background":
+                        if (bool.TryParse(attr.Value, out bool parsedBackground))
+                        {
+                            background = parsedBackground;
+                        }
+                        break;
+                    case "alpha":
+                        if (
+                            float.TryParse(
+                                attr.Value,
+                                NumberStyles.Float,
+                                CultureInfo.InvariantCulture,
+                                out float parsedAlpha
+                            )
+                        )
+                        {
+                            alpha = Math.Clamp(parsedAlpha, 0f, 1f);
+                        }
+                        break;
+                }
+            }
+
+            return new PlayerPaperDollSettings(width, height, updates, background, alpha);
         }
 
         private static void HandleImageHPBar(World world, XmlGump gump, XmlNode node)
@@ -810,6 +894,27 @@ namespace ClassicUO.Game.UI
             public string Value { get; }
             public string MaxValue { get; }
         }
+    }
+
+    internal readonly struct PlayerPaperDollSettings
+    {
+        public const int DefaultWidth = 190;
+        public const int DefaultHeight = 250;
+
+        public PlayerPaperDollSettings(int width, int height, bool updates, bool background, float alpha)
+        {
+            Width = width;
+            Height = height;
+            Updates = updates;
+            Background = background;
+            Alpha = alpha;
+        }
+
+        public int Width { get; }
+        public int Height { get; }
+        public bool Updates { get; }
+        public bool Background { get; }
+        public float Alpha { get; }
     }
 
     public class XmlGump : Gump
