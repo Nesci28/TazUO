@@ -6,6 +6,12 @@ It exports land art, static art, gumps, texmaps, and animation frames; packs opa
 
 The pipeline builds only the small `HDAssets` utility against already-deployed TazUO DLLs. It does not build the TazUO client.
 
+After validating the loose output, the pipeline also creates `tuoassets.hdpack` beside the
+`ExternalImages` directory. This is an indexed, uncompressed container: the PNG payloads are
+copied without recompression, and TazUO reads and decodes an image only when that graphic is first
+requested. The single-file index avoids recursively enumerating the complete loose pack during
+client startup.
+
 ## macOS example
 
 ```bash
@@ -18,6 +24,26 @@ python3 tools/HDAssets/run_pipeline.py \
   --model high-fidelity-4x \
   --animation-model realesr-animevideov3-x4
 ```
+
+Pass `--hdpack /custom/path/tuoassets.hdpack` to choose another destination, or
+`--skip-hdpack` to retain the previous loose-files-only workflow. The loose output is deliberately
+kept because it makes validation and interrupted pipeline resumes safe. When the generated pack is
+beside the TazUO executable, the client uses it for every category it contains and skips scanning
+the corresponding loose category directory.
+
+An already finalized pack can be converted without running Upscayl again:
+
+```bash
+dotnet HDAssets.dll pack \
+  --work "/Applications/TazUO-Launcher.osx-arm64/HDAssetsWork" \
+  --input "/Applications/TazUO-Launcher.osx-arm64/TazUO/ExternalImages" \
+  --output "/Applications/TazUO-Launcher.osx-arm64/TazUO/tuoassets.hdpack"
+```
+
+The pack is written atomically and includes a CRC-32 for every encoded image. Its size is normally
+close to the combined PNG size, since PNG data is already compressed. `tuoassets.zip` remains
+supported for legacy and named UI assets, but a large copy of it can still add eager startup work;
+remove the redundant ZIP when the same ID-based HD assets are in `tuoassets.hdpack`.
 
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
 
