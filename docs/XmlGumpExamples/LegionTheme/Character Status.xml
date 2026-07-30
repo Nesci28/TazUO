@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<gump x="480" y="300" saveposition="true" acceptmouseinput="true" locked="false">
+  <nine_slice texture="LegionXmlWindow.png" x="0" y="0" width="650" height="336" border="10" />
+  <text x="194" y="8" width="262" size="17" hue="1153" align="center">CHARACTER STATUS</text>
+  <text x="225" y="29" width="200" size="10" hue="1152" align="center" updates="true">{charname}</text>
+  <embedded_image texture="LegionXmlTitleGem.png" x="313" y="42" />
+
+  <nine_slice texture="LegionXmlPanel.png" x="14" y="52" width="220" height="128" border="7" />
+  <nine_slice texture="LegionXmlPanel.png" x="242" y="52" width="188" height="128" border="7" />
+  <nine_slice texture="LegionXmlPanel.png" x="438" y="52" width="198" height="128" border="7" />
+  <nine_slice texture="LegionXmlPanel.png" x="14" y="188" width="244" height="134" border="7" />
+  <nine_slice texture="LegionXmlPanel.png" x="266" y="188" width="178" height="134" border="7" />
+  <nine_slice texture="LegionXmlPanel.png" x="452" y="188" width="184" height="134" border="7" />
+
+  <text x="24" y="58" width="200" size="10" hue="1153" align="center">VITALS</text>
+  <text x="252" y="58" width="168" size="10" hue="1153" align="center">ATTRIBUTES</text>
+  <text x="448" y="58" width="178" size="10" hue="1153" align="center">LOAD &amp; WEALTH</text>
+  <text x="24" y="194" width="224" size="10" hue="1153" align="center">RESISTANCES</text>
+  <text x="276" y="194" width="158" size="10" hue="1153" align="center">COMBAT</text>
+  <text x="462" y="194" width="164" size="10" hue="1153" align="center">CASTING</text>
+
+  <text x="27" y="84" width="40" size="9" hue="33">HP</text>
+  <hp_bar_color x="75" y="84" width="145" height="13" direction="right" hue_background="1965" hue_normal="33" hue_poisoned="62" />
+  <simple_border x="74" y="83" width="147" height="15" hue="1715" />
+  <text x="78" y="83" width="138" size="8" hue="1153" align="right" updates="true">{hp} / {maxhp}</text>
+
+  <text x="27" y="113" width="40" size="9" hue="53">STAM</text>
+  <color_progress_bar x="75" y="113" width="145" height="13" direction="right" background_hue="1965" foreground_hue="53" value="{stam}" max_value="{maxstam}" updates="true" />
+  <simple_border x="74" y="112" width="147" height="15" hue="1715" />
+  <text x="78" y="112" width="138" size="8" hue="1153" align="right" updates="true">{stam} / {maxstam}</text>
+
+  <text x="27" y="142" width="40" size="9" hue="99">MANA</text>
+  <color_progress_bar x="75" y="142" width="145" height="13" direction="right" background_hue="1965" foreground_hue="99" value="{mana}" max_value="{maxmana}" updates="true" />
+  <simple_border x="74" y="141" width="147" height="15" hue="1715" />
+  <text x="78" y="141" width="138" size="8" hue="1153" align="right" updates="true">{mana} / {maxmana}</text>
+
+  <text x="255" y="83" width="82" size="9" hue="1152">Strength</text>
+  <text x="340" y="83" width="74" size="9" hue="1153" align="right" updates="true">{str}</text>
+  <text x="255" y="105" width="82" size="9" hue="1152">Dexterity</text>
+  <text x="340" y="105" width="74" size="9" hue="1153" align="right" updates="true">{dex}</text>
+  <text x="255" y="127" width="82" size="9" hue="1152">Intelligence</text>
+  <text x="340" y="127" width="74" size="9" hue="1153" align="right" updates="true">{int}</text>
+  <text x="255" y="149" width="82" size="9" hue="1152">Stat cap</text>
+  <text x="340" y="149" width="74" size="9" hue="1153" align="right" updates="true">{maxstats}</text>
+
+  <text x="451" y="83" width="86" size="9" hue="1152">Weight</text>
+  <text x="539" y="83" width="81" size="9" hue="1153" align="right" updates="true">{weight} / {maxweight}</text>
+  <text x="451" y="105" width="86" size="9" hue="1152">Followers</text>
+  <text x="539" y="105" width="81" size="9" hue="1153" align="right" updates="true">{pets} / {petsmax}</text>
+  <text x="451" y="127" width="86" size="9" hue="1152">Luck</text>
+  <text x="539" y="127" width="81" size="9" hue="1153" align="right" updates="true">{luck}</text>
+  <text x="451" y="149" width="86" size="9" hue="1152">Gold</text>
+  <text x="539" y="149" width="81" size="9" hue="1153" align="right" updates="true">{gold}</text>
+
+  <text x="27" y="219" width="52" size="8" hue="1152">Physical</text>
+  <color_progress_bar x="84" y="220" width="112" height="10" direction="right" background_hue="1965" foreground_hue="1108" value="{phyres}" max_value="{phyresmax}" updates="true" />
+  <text x="199" y="218" width="45" size="8" hue="1153" align="right" updates="true">{phyres}/{phyresmax}</text>
+  <text x="27" y="239" width="52" size="8" hue="1152">Fire</text>
+  <color_progress_bar x="84" y="240" width="112" height="10" direction="right" background_hue="1965" foreground_hue="33" value="{fireres}" max_value="{fireresmax}" updates="true" />
+  <text x="199" y="238" width="45" size="8" hue="1153" align="right" updates="true">{fireres}/{fireresmax}</text>
+  <text x="27" y="259" width="52" size="8" hue="1152">Cold</text>
+  <color_progress_bar x="84" y="260" width="112" height="10" direction="right" background_hue="1965" foreground_hue="99" value="{coldres}" max_value="{coldresmax}" updates="true" />
+  <text x="199" y="258" width="45" size="8" hue="1153" align="right" updates="true">{coldres}/{coldresmax}</text>
+  <text x="27" y="279" width="52" size="8" hue="1152">Poison</text>
+  <color_progress_bar x="84" y="280" width="112" height="10" direction="right" background_hue="1965" foreground_hue="62" value="{poisonres}" max_value="{poisonresmax}" updates="true" />
+  <text x="199" y="278" width="45" size="8" hue="1153" align="right" updates="true">{poisonres}/{poisonresmax}</text>
+  <text x="27" y="299" width="52" size="8" hue="1152">Energy</text>
+  <color_progress_bar x="84" y="300" width="112" height="10" direction="right" background_hue="1965" foreground_hue="1165" value="{energyres}" max_value="{energyresmax}" updates="true" />
+  <text x="199" y="298" width="45" size="8" hue="1153" align="right" updates="true">{energyres}/{energyresmax}</text>
+
+  <text x="279" y="219" width="79" size="8" hue="1152">Damage</text>
+  <text x="359" y="219" width="68" size="8" hue="1153" align="right" updates="true">{damagemin}-{damagemax}</text>
+  <text x="279" y="239" width="79" size="8" hue="1152">Damage inc.</text>
+  <text x="359" y="239" width="68" size="8" hue="1153" align="right" updates="true">{di}%</text>
+  <text x="279" y="259" width="79" size="8" hue="1152">HCI</text>
+  <text x="359" y="259" width="68" size="8" hue="1153" align="right" updates="true">{hci}% / 45</text>
+  <text x="279" y="279" width="79" size="8" hue="1152">DCI</text>
+  <text x="359" y="279" width="68" size="8" hue="1153" align="right" updates="true">{defchance}% / {defchancemax}</text>
+  <text x="279" y="299" width="79" size="8" hue="1152">Swing speed</text>
+  <text x="359" y="299" width="68" size="8" hue="1153" align="right" updates="true">{ssi}%</text>
+
+  <text x="465" y="219" width="83" size="8" hue="1152">Spell damage</text>
+  <text x="549" y="219" width="70" size="8" hue="1153" align="right" updates="true">{sdi}%</text>
+  <text x="465" y="239" width="83" size="8" hue="1152">FC / FCR</text>
+  <text x="549" y="239" width="70" size="8" hue="1153" align="right" updates="true">{fc} / {fcr}</text>
+  <text x="465" y="259" width="83" size="8" hue="1152">Lower mana</text>
+  <text x="549" y="259" width="70" size="8" hue="1153" align="right" updates="true">{lmc}%</text>
+  <text x="465" y="279" width="83" size="8" hue="1152">Lower reagent</text>
+  <text x="549" y="279" width="70" size="8" hue="1153" align="right" updates="true">{lrc}%</text>
+  <text x="465" y="299" width="83" size="8" hue="1152">Defense cap</text>
+  <text x="549" y="299" width="70" size="8" hue="1153" align="right" updates="true">{defchancemax}%</text>
+</gump>
