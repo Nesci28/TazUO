@@ -51,6 +51,15 @@ precedence; keeping `hue` provides a fallback for older clients.
 </text>
 ```
 
+Set `fontsizeoffset` on the root `gump` to increase or decrease every TrueType label without
+rewriting each `text` element. The final font size is clamped to at least one pixel.
+
+```xml
+<gump x="50" y="50" fontsizeoffset="2">
+    <text x="12" y="8" size="9">Rendered at size 11</text>
+</gump>
+```
+
 ## Player paperdoll
 
 Use `player_paperdoll` to render a scaled preview of the current player's body and visible
