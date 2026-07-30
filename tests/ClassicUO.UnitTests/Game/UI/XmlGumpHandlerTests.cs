@@ -116,6 +116,19 @@ public class XmlGumpHandlerTests
         Assert.False(update.ShouldApply("99/100"));
     }
 
+    [Fact]
+    public void FormatNetworkText_ReplacesConnectionPlaceholders()
+    {
+        string text = XmlGumpHandler.FormatNetworkText(
+            "Ping: {ping} ms; In: {bytesreceived}; Out: {bytessent}",
+            42,
+            1024,
+            2048
+        );
+
+        Assert.Equal("Ping: 42 ms; In: 1 KB; Out: 2 KB", text);
+    }
+
     [Theory]
     [InlineData("LegionXmlWindow.png")]
     [InlineData("LegionXmlPanel.png")]
