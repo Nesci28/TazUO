@@ -13,6 +13,8 @@ public class GameCursorItemPropertyTests
 {
     private const uint VendorItemSerial = 0x40000001;
     private const uint SecondVendorItemSerial = 0x40000002;
+    private const uint PlayerSerial = 0x00000001;
+    private const uint OtherMobileSerial = 0x00000002;
     private const ushort EarringsGraphic = 0x1087;
     private const string RawVendorTooltip = "Solaria's Secret Poisons\nninjitsu +10\nhit chance increase 10%";
 
@@ -222,6 +224,50 @@ public class GameCursorItemPropertyTests
         {
             ClassicUO.Input.Keyboard.OnKeyUp(keyUp);
         }
+    }
+
+    [Fact]
+    public void ResolvesItemFromAnotherCharactersPaperDoll()
+    {
+        var paperDoll = new PaperDollGump(null)
+        {
+            LocalSerial = OtherMobileSerial
+        };
+        var equippedItem = new TestControl { LocalSerial = VendorItemSerial };
+        paperDoll.Add(equippedItem);
+
+        bool resolved = GameCursor.TryResolveOtherPaperDollItem(
+            equippedItem,
+            PlayerSerial,
+            out uint paperDollSerial,
+            out uint itemSerial
+        );
+
+        resolved.Should().BeTrue();
+        paperDollSerial.Should().Be(OtherMobileSerial);
+        itemSerial.Should().Be(VendorItemSerial);
+    }
+
+    [Fact]
+    public void DoesNotResolveItemFromPlayersOwnPaperDoll()
+    {
+        var paperDoll = new PaperDollGump(null)
+        {
+            LocalSerial = PlayerSerial
+        };
+        var equippedItem = new TestControl { LocalSerial = VendorItemSerial };
+        paperDoll.Add(equippedItem);
+
+        bool resolved = GameCursor.TryResolveOtherPaperDollItem(
+            equippedItem,
+            PlayerSerial,
+            out uint paperDollSerial,
+            out uint itemSerial
+        );
+
+        resolved.Should().BeFalse();
+        paperDollSerial.Should().Be(0);
+        itemSerial.Should().Be(0);
     }
 
     private static ButtonTileArt CreateButtonTileArt(ushort graphic)
