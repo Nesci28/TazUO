@@ -71,6 +71,12 @@ namespace ClassicUO.Game.UI
                                     gump.AcceptMouseInput = b;
                                 }
                                 break;
+                            case "fontsizeoffset":
+                                if (int.TryParse(attr.Value, out int fontSizeOffset))
+                                {
+                                    gump.FontSizeOffset = Math.Clamp(fontSizeOffset, -8, 24);
+                                }
+                                break;
                         }
                     }
 
@@ -894,6 +900,8 @@ namespace ClassicUO.Game.UI
             }
             TextBox t;
 
+            fontSize = Math.Max(1, fontSize + gump.FontSizeOffset);
+
             TextBox.RTLOptions textboxOptions = new()
             {
                 Width = width > 0 ? width : null,
@@ -911,7 +919,7 @@ namespace ClassicUO.Game.UI
 
             if (needsUpdates)
             {
-                gump.TextBoxUpdates.Add(new Tuple<TextBox, Tuple<string, int>>(t, new Tuple<string, int>(textNode.InnerText, width)));
+                gump.TextBoxUpdates.Add(new XmlTextUpdateInfo(t, textNode.InnerText, text));
             }
         }
 
@@ -1046,6 +1054,31 @@ namespace ClassicUO.Game.UI
             public string Value { get; }
             public string MaxValue { get; }
         }
+
+        public sealed class XmlTextUpdateInfo
+        {
+            public XmlTextUpdateInfo(TextBox control, string template, string initialText)
+            {
+                Control = control;
+                Template = template;
+                LastText = initialText;
+            }
+
+            public TextBox Control { get; }
+            public string Template { get; }
+            public string LastText { get; private set; }
+
+            internal bool ShouldApply(string text)
+            {
+                if (LastText == text)
+                {
+                    return false;
+                }
+
+                LastText = text;
+                return true;
+            }
+        }
     }
 
     internal readonly struct PlayerPaperDollSettings
@@ -1103,11 +1136,12 @@ namespace ClassicUO.Game.UI
         /// The frequency of UI updates for Xml Gumps for text/progress bar changes. This affects all xml gumps, it is not set individually.
         /// </summary>
         public static uint UpdateFrequency { get; set; } = 250;
-        public List<Tuple<TextBox, Tuple<string, int>>> TextBoxUpdates { get; set; } = new List<Tuple<TextBox, Tuple<string, int>>>();
+        public List<XmlTextUpdateInfo> TextBoxUpdates { get; set; } = new List<XmlTextUpdateInfo>();
         public List<XmlProgressBarInfo> ProgressBarUpdates { get; set; } = new List<XmlProgressBarInfo>();
         public List<XmlProgressBarInfo> VerticalProgressBarUpdates { get; set; } = new List<XmlProgressBarInfo>();
         public bool SavePosition { get; set; }
         public string FilePath { get; set; }
+        public int FontSizeOffset { get; set; }
 
         private uint nextUpdate = 0;
         private bool savingFile = false;
@@ -1123,21 +1157,17 @@ namespace ClassicUO.Game.UI
 
             if (Time.Ticks >= nextUpdate)
             {
-                foreach (Tuple<TextBox, Tuple<string, int>> t in TextBoxUpdates)
+                foreach (XmlTextUpdateInfo update in TextBoxUpdates)
                 {
-                    if (t.Item1 != null && !t.Item1.IsDisposed)
+                    if (update.Control != null && !update.Control.IsDisposed)
                     {
-                        string newString = XmlGumpHandler.FormatText(World, t.Item2.Item1);
-                        if (t.Item1.Text != newString)
+                        string newString = XmlGumpHandler.FormatText(World, update.Template);
+                        if (update.ShouldApply(newString))
                         {
-                            if (t.Item2.Item2 < 1)
-                            {
-                                t.Item1.Text = newString;
-                            }
-                            else
-                            {
-                                t.Item1.Text = newString;
-                            }
+                            update.Control.Text = newString;
+                            // TextBox applies its stroke during Update. Rebuild now so a changed
+                            // value never renders for one frame without its configured outline.
+                            update.Control.Update();
                         }
                     }
                 }
