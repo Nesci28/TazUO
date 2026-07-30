@@ -5,6 +5,8 @@
   <text x="140" y="4" width="240" size="15" hue="2414" color="#E5C58D" stroke="true" align="center">CHARACTER STATUS</text>
   <text x="190" y="24" width="140" size="9" hue="996" color="#F4F1E8" stroke="true" align="center" updates="true">{charname}</text>
   <embedded_image texture="LegionXmlTitleGem.png" x="248" y="34" />
+  <text x="390" y="5" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">Ping: {ping} ms</text>
+  <text x="390" y="21" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">In: {bytesreceived}  Out: {bytessent}</text>
 
   <!-- Primary status blocks. The resistance panel spans both rows like the classic gump. -->
   <nine_slice texture="LegionXmlPanel.png" x="10" y="42" width="165" height="82" border="7" />

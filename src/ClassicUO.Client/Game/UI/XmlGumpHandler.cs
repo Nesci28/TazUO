@@ -4,6 +4,7 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Network;
 using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
 using System;
@@ -1035,6 +1036,28 @@ namespace ClassicUO.Game.UI
             text = text.Replace("{gold}", world.Player.Gold.ToString());
             text = text.Replace("{pets}", world.Player.Followers.ToString());
             text = text.Replace("{petsmax}", world.Player.FollowersMax.ToString());
+
+            NetStatistics statistics = AsyncNetClient.Socket?.Statistics;
+            text = FormatNetworkText(
+                text,
+                statistics?.Ping ?? 0,
+                statistics?.DeltaBytesReceived ?? 0,
+                statistics?.DeltaBytesSent ?? 0
+            );
+
+            return text;
+        }
+
+        internal static string FormatNetworkText(
+            string text,
+            uint ping,
+            uint bytesReceived,
+            uint bytesSent
+        )
+        {
+            text = text.Replace("{ping}", ping.ToString());
+            text = text.Replace("{bytesreceived}", NetStatistics.GetSizeAdaptive(bytesReceived));
+            text = text.Replace("{bytessent}", NetStatistics.GetSizeAdaptive(bytesSent));
 
             return text;
         }

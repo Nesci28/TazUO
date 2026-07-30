@@ -9,7 +9,7 @@ gump with the current profile.
 
 - `Player HUD.xml` is a compact paperdoll portrait with live HP, stamina, and mana bars.
 - `Character Status.xml` is a native live status dashboard with attributes, load, resistances,
-  damage, HCI, DCI and its reported cap, SSI, and casting modifiers.
+  damage, HCI, DCI and its reported cap, SSI, casting modifiers, and connection statistics.
 
 The XML files do not require loose PNGs. `LegionXmlWindow.png`, `LegionXmlPanel.png`,
 `LegionXmlInset.png`, `LegionXmlPortraitFrame.png`, and `LegionXmlTitleGem.png` are embedded in
