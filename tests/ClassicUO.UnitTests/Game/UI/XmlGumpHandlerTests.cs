@@ -1,6 +1,7 @@
 using System.Xml;
 using ClassicUO.Assets;
 using ClassicUO.Game.UI;
+using Microsoft.Xna.Framework;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game.UI;
@@ -81,6 +82,28 @@ public class XmlGumpHandlerTests
         Assert.Equal(8, settings.Border);
         Assert.Equal((ushort)0, settings.Hue);
         Assert.Equal(0f, settings.Alpha);
+    }
+
+    [Fact]
+    public void ParseXmlTextStyleSettings_ParsesDirectColorAndStroke()
+    {
+        XmlNode node = LoadNode("<text color=\"#E5C58D\" stroke=\"true\">Label</text>");
+
+        XmlTextStyleSettings settings = XmlGumpHandler.ParseXmlTextStyleSettings(node);
+
+        Assert.Equal(new Color(229, 197, 141), settings.Color);
+        Assert.True(settings.Stroke);
+    }
+
+    [Fact]
+    public void ParseXmlTextStyleSettings_IgnoresInvalidColorAndUsesStrokeDefault()
+    {
+        XmlNode node = LoadNode("<text color=\"not-a-color\">Label</text>");
+
+        XmlTextStyleSettings settings = XmlGumpHandler.ParseXmlTextStyleSettings(node);
+
+        Assert.Null(settings.Color);
+        Assert.False(settings.Stroke);
     }
 
     [Theory]
