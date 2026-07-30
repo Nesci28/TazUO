@@ -184,9 +184,9 @@ namespace ClassicUO.Game.Managers
         }
 
         /// <summary>
-        /// Builds property data for an item represented only by an OPL serial and equipment layer.
-        /// Server-sent gumps such as Vendor Search use this form: the result has OPL data and item
-        /// art, but deliberately has no entry in <see cref="World.Items"/>.
+        /// Builds property data from an OPL serial and explicit equipment layer. Server-sent gumps
+        /// such as Vendor Search use this without a <see cref="World.Items"/> entry; paperdoll
+        /// comparisons use it to preserve the item's network equipment layer.
         /// </summary>
         public ItemPropertiesData(World world, uint serial, byte itemLayer, Item compareTo = null)
         {

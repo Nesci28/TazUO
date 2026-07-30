@@ -32,8 +32,8 @@ namespace ClassicUO.Game.UI.Gumps
         }
 
         /// <summary>
-        /// Creates a tooltip for an item represented by OPL data but not by a world item. This is
-        /// the representation used by Vendor Search and other server-sent item gumps.
+        /// Creates a tooltip from an item serial and explicit equipment layer. This supports both
+        /// OPL-only Vendor Search results and real items whose network layer must be preserved.
         /// </summary>
         public CustomToolTip(World world, uint serial, byte layer, int x, int y, Control hoverReference, string prepend = "", string append = "", Item compareTo = null) : base(world, 0, 0)
         {
