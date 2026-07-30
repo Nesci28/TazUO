@@ -343,9 +343,9 @@ namespace ClassicUO.Game.Managers
         }
 
         /// <summary>
-        /// Processes an item that exists only as OPL data, such as a Vendor Search result, and
-        /// optionally compares it with a real equipped item. The explicit layer preserves
-        /// layer-specific tooltip overrides without adding a fabricated item to the world.
+        /// Processes an item from its OPL serial and explicit equipment layer, optionally comparing
+        /// it with a real equipped item. The explicit layer preserves layer-specific tooltip
+        /// overrides without requiring an item lookup or adding a fabricated item to the world.
         /// </summary>
         public static string ProcessTooltipText(World world, uint serial, byte itemLayer, out int borderHue, Item compareTo = null)
         {

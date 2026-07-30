@@ -11,7 +11,8 @@ using ClassicUO.Input;
 namespace ClassicUO.Game.UI.Gumps;
 
 /// <summary>
-/// Creates the side-by-side item comparison shared by grid containers and server-sent item gumps.
+/// Creates the side-by-side item comparison shared by grid containers, paperdolls, and server-sent
+/// item gumps.
 /// </summary>
 internal static class ItemComparisonTooltips
 {

@@ -643,7 +643,15 @@ namespace ClassicUO.Game
                 return false;
             }
 
-            if (hoveredControl.RootParent is not Gump { IsFromServer: true })
+            bool isServerGump = hoveredControl.RootParent is Gump { IsFromServer: true };
+            bool isOtherPaperDoll = TryResolveOtherPaperDollItem(
+                hoveredControl,
+                _world.Player?.Serial ?? 0,
+                out uint paperDollSerial,
+                out uint paperDollItemSerial
+            );
+
+            if (!isServerGump && !isOtherPaperDoll)
             {
                 _lastItemComparisonFailure = null;
                 return false;
@@ -656,14 +664,93 @@ namespace ClassicUO.Game
             }
 
             _compareItemHotkey ??= HotKeys.Get(HotKeyRegistrar.GridCompareId);
-            // Vendor Search is expected to support Ctrl+hover even when the shared grid hotkey
-            // registry has not been initialized yet or a profile failed to restore that binding.
+            // Vendor Search and inspected paperdolls support Ctrl+hover even when the shared grid
+            // hotkey registry has not been initialized or a profile failed to restore the binding.
             if (!IsItemComparisonPressed(_compareItemHotkey))
             {
                 _lastItemComparisonFailure = null;
                 return false;
             }
 
+            return isOtherPaperDoll
+                ? TryShowPaperDollItemComparison(
+                    hoveredControl,
+                    paperDollSerial,
+                    paperDollItemSerial
+                )
+                : TryShowServerGumpItemComparison(hoveredControl);
+        }
+
+        private bool TryShowPaperDollItemComparison(
+            Control hoveredControl,
+            uint paperDollSerial,
+            uint itemSerial
+        )
+        {
+            Item candidate = _world.Items.Get(itemSerial);
+
+            if (
+                candidate == null
+                || candidate.IsDestroyed
+                || candidate.Container != paperDollSerial
+            )
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            // Hovering a real item normally requests its OPL. Keep doing that when Ctrl is already
+            // held before entering the paperdoll so the comparison appears as soon as it arrives.
+            if (!_world.OPL.TryGetNameAndData(itemSerial, out _, out _))
+            {
+                _world.OPL.Contains(itemSerial);
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            Layer layer = candidate.Layer;
+            if (layer == Layer.Invalid)
+                layer = (Layer)candidate.ItemData.Layer;
+
+            if (layer == Layer.Invalid)
+            {
+                ReportItemComparisonFailure(
+                    itemSerial,
+                    $"item 0x{itemSerial:X8} has no equipment layer",
+                    "Paperdoll"
+                );
+                return false;
+            }
+
+            // Backpacks are containers rather than interchangeable equipment in the comparison UI.
+            if (layer == Layer.Backpack)
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            MultipleToolTipGump tooltip = ItemComparisonTooltips.Create(
+                _world,
+                itemSerial,
+                (byte)layer,
+                hoveredControl
+            );
+
+            if (tooltip == null)
+            {
+                ReportItemComparisonFailure(
+                    itemSerial,
+                    $"you have no equipped item on layer {layer}",
+                    "Paperdoll"
+                );
+                return false;
+            }
+
+            return ShowItemComparison(tooltip);
+        }
+
+        private bool TryShowServerGumpItemComparison(Control hoveredControl)
+        {
             bool itemPropertyResolved = TryResolveItemProperty(
                 hoveredControl,
                 out uint serial,
@@ -691,7 +778,8 @@ namespace ClassicUO.Game
                     serial,
                     serial == 0
                         ? $"item serial could not be resolved (control {controlType}{controlDetails}, tooltip {tooltipType})"
-                        : $"item art could not be resolved (serial 0x{serial:X8}, control {controlType})"
+                        : $"item art could not be resolved (serial 0x{serial:X8}, control {controlType})",
+                    "Vendor"
                 );
                 return false;
             }
@@ -701,14 +789,18 @@ namespace ClassicUO.Game
                 && !_world.OPL.TryGetNameAndData(serial, out _, out _)
             )
             {
-                ReportItemComparisonFailure(serial, "item properties are not loaded");
+                ReportItemComparisonFailure(serial, "item properties are not loaded", "Vendor");
                 return false;
             }
 
             byte layer = Client.Game.UO.FileManager.TileData.StaticData[graphic].Layer;
             if (layer == 0)
             {
-                ReportItemComparisonFailure(serial, $"graphic 0x{graphic:X4} has no equipment layer");
+                ReportItemComparisonFailure(
+                    serial,
+                    $"graphic 0x{graphic:X4} has no equipment layer",
+                    "Vendor"
+                );
                 return false;
             }
 
@@ -718,10 +810,19 @@ namespace ClassicUO.Game
 
             if (tooltip == null)
             {
-                ReportItemComparisonFailure(serial, $"no equipped item was found on layer {(Layer)layer}");
+                ReportItemComparisonFailure(
+                    serial,
+                    $"no equipped item was found on layer {(Layer)layer}",
+                    "Vendor"
+                );
                 return false;
             }
 
+            return ShowItemComparison(tooltip);
+        }
+
+        private bool ShowItemComparison(MultipleToolTipGump tooltip)
+        {
             _lastItemComparisonFailure = null;
             _tooltip.Clear();
             _comparisonTooltip = tooltip;
@@ -729,14 +830,44 @@ namespace ClassicUO.Game
             return true;
         }
 
-        private void ReportItemComparisonFailure(uint serial, string reason)
+        private void ReportItemComparisonFailure(uint serial, string reason, string source)
         {
-            string failure = $"{serial:X8}:{reason}";
+            string failure = $"{source}:{serial:X8}:{reason}";
             if (_lastItemComparisonFailure == failure)
                 return;
 
             _lastItemComparisonFailure = failure;
-            GameActions.PrintUserWarn(_world, $"Vendor comparison unavailable: {reason}.");
+            GameActions.PrintUserWarn(_world, $"{source} comparison unavailable: {reason}.");
+        }
+
+        /// <summary>
+        /// Resolves a real equipped item hovered in another mobile's paperdoll. The owning
+        /// paperdoll is returned as well so callers can reject stale or unrelated world items.
+        /// </summary>
+        internal static bool TryResolveOtherPaperDollItem(
+            Control hoveredControl,
+            uint playerSerial,
+            out uint paperDollSerial,
+            out uint itemSerial
+        )
+        {
+            paperDollSerial = 0;
+            itemSerial = 0;
+
+            if (
+                playerSerial == 0
+                || hoveredControl?.RootParent is not PaperDollGump paperDoll
+                || paperDoll.LocalSerial == playerSerial
+                || !SerialHelper.IsMobile(paperDoll.LocalSerial)
+                || !SerialHelper.IsItem(hoveredControl.LocalSerial)
+            )
+            {
+                return false;
+            }
+
+            paperDollSerial = paperDoll.LocalSerial;
+            itemSerial = hoveredControl.LocalSerial;
+            return true;
         }
 
         /// <summary>
