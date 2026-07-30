@@ -1,4 +1,5 @@
 using System.Xml;
+using ClassicUO.Assets;
 using ClassicUO.Game.UI;
 using Xunit;
 
@@ -50,6 +51,49 @@ public class XmlGumpHandlerTests
         Assert.True(settings.Updates);
         Assert.False(settings.Background);
         Assert.Equal(1f, settings.Alpha);
+    }
+
+    [Fact]
+    public void ParseEmbeddedTextureSettings_ParsesSupportedAttributes()
+    {
+        XmlNode node = LoadNode(
+            "<nine_slice texture=\"LegionXmlWindow.png\" border=\"10\" hue=\"67\" alpha=\"0.75\" />"
+        );
+
+        EmbeddedTextureSettings settings = XmlGumpHandler.ParseEmbeddedTextureSettings(node, 8);
+
+        Assert.Equal("LegionXmlWindow.png", settings.Texture);
+        Assert.Equal(10, settings.Border);
+        Assert.Equal((ushort)67, settings.Hue);
+        Assert.Equal(0.75f, settings.Alpha);
+    }
+
+    [Fact]
+    public void ParseEmbeddedTextureSettings_UsesSafeDefaultsAndClampsAlpha()
+    {
+        XmlNode node = LoadNode(
+            "<embedded_image name=\"LegionXmlPortraitFrame.png\" border=\"0\" hue=\"invalid\" alpha=\"-2\" />"
+        );
+
+        EmbeddedTextureSettings settings = XmlGumpHandler.ParseEmbeddedTextureSettings(node, 8);
+
+        Assert.Equal("LegionXmlPortraitFrame.png", settings.Texture);
+        Assert.Equal(8, settings.Border);
+        Assert.Equal((ushort)0, settings.Hue);
+        Assert.Equal(0f, settings.Alpha);
+    }
+
+    [Theory]
+    [InlineData("LegionXmlWindow.png")]
+    [InlineData("LegionXmlPanel.png")]
+    [InlineData("LegionXmlInset.png")]
+    [InlineData("LegionXmlPortraitFrame.png")]
+    [InlineData("LegionXmlTitleGem.png")]
+    public void LegionXmlThemeAssets_AreEmbedded(string fileName)
+    {
+        string resourceName = "ClassicUO.Assets.gumpartassets." + fileName;
+
+        Assert.Contains(resourceName, typeof(ExternalImageLoader).Assembly.GetManifestResourceNames());
     }
 
     private static XmlNode LoadNode(string xml)

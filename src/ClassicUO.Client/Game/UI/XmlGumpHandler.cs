@@ -137,6 +137,16 @@ namespace ClassicUO.Game.UI
                             HandleImage(gump, child);
                             break;
                         }
+                        if (child.Name.ToLower().Equals("embedded_image"))
+                        {
+                            HandleEmbeddedImage(gump, child);
+                            break;
+                        }
+                        if (child.Name.ToLower().Equals("nine_slice"))
+                        {
+                            HandleNineSlice(gump, child);
+                            break;
+                        }
                         if (child.Name.ToLower().Equals("player_paperdoll"))
                         {
                             HandlePlayerPaperDoll(world, gump, child);
@@ -185,6 +195,101 @@ namespace ClassicUO.Game.UI
                         break;
                 }
             }
+        }
+
+        private static void HandleEmbeddedImage(XmlGump gump, XmlNode node)
+        {
+            EmbeddedTextureSettings settings = ParseEmbeddedTextureSettings(node);
+
+            if (
+                string.IsNullOrWhiteSpace(settings.Texture)
+                || !ExternalImageLoader.Instance.TryGetEmbeddedTexture(settings.Texture, out var texture)
+                || texture == null
+                || texture.IsDisposed
+            )
+            {
+                return;
+            }
+
+            var image = new EmbeddedGumpPic(0, 0, texture, settings.Hue)
+            {
+                Alpha = settings.Alpha,
+                AcceptMouseInput = false,
+                CanMove = false
+            };
+            gump.Add(ApplyBasicAttributes(image, node));
+        }
+
+        private static void HandleNineSlice(XmlGump gump, XmlNode node)
+        {
+            EmbeddedTextureSettings settings = ParseEmbeddedTextureSettings(node, 8);
+
+            if (
+                string.IsNullOrWhiteSpace(settings.Texture)
+                || !ExternalImageLoader.Instance.TryGetEmbeddedTexture(settings.Texture, out var texture)
+                || texture == null
+                || texture.IsDisposed
+            )
+            {
+                return;
+            }
+
+            int maximumBorder = Math.Max(1, Math.Min(texture.Width, texture.Height) / 2);
+            int border = Math.Clamp(settings.Border, 1, maximumBorder);
+            var panel = new NineSliceControl(texture.Width, texture.Height, texture, border)
+            {
+                Alpha = settings.Alpha,
+                Hue = settings.Hue,
+                AcceptMouseInput = false,
+                CanMove = false
+            };
+            gump.Add(ApplyBasicAttributes(panel, node));
+        }
+
+        internal static EmbeddedTextureSettings ParseEmbeddedTextureSettings(
+            XmlNode node,
+            int defaultBorder = 0
+        )
+        {
+            string texture = string.Empty;
+            int border = defaultBorder;
+            ushort hue = 0;
+            float alpha = 1f;
+
+            foreach (XmlAttribute attr in node.Attributes)
+            {
+                switch (attr.Name.ToLower())
+                {
+                    case "texture":
+                    case "name":
+                        texture = attr.Value.Trim();
+                        break;
+                    case "border":
+                        if (int.TryParse(attr.Value, out int parsedBorder) && parsedBorder > 0)
+                        {
+                            border = parsedBorder;
+                        }
+                        break;
+                    case "hue":
+                        ushort.TryParse(attr.Value, out hue);
+                        break;
+                    case "alpha":
+                        if (
+                            float.TryParse(
+                                attr.Value,
+                                NumberStyles.Float,
+                                CultureInfo.InvariantCulture,
+                                out float parsedAlpha
+                            )
+                        )
+                        {
+                            alpha = Math.Clamp(parsedAlpha, 0f, 1f);
+                        }
+                        break;
+                }
+            }
+
+            return new EmbeddedTextureSettings(texture, border, hue, alpha);
         }
 
         private static void HandlePlayerPaperDoll(World world, XmlGump gump, XmlNode node)
@@ -914,6 +1019,22 @@ namespace ClassicUO.Game.UI
         public int Height { get; }
         public bool Updates { get; }
         public bool Background { get; }
+        public float Alpha { get; }
+    }
+
+    internal readonly struct EmbeddedTextureSettings
+    {
+        public EmbeddedTextureSettings(string texture, int border, ushort hue, float alpha)
+        {
+            Texture = texture;
+            Border = border;
+            Hue = hue;
+            Alpha = alpha;
+        }
+
+        public string Texture { get; }
+        public int Border { get; }
+        public ushort Hue { get; }
         public float Alpha { get; }
     }
 
