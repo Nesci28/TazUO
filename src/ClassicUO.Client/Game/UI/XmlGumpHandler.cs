@@ -844,6 +844,7 @@ namespace ClassicUO.Game.UI
             string font = TrueTypeLoader.EMBEDDED_FONT;
             int x = 0, y = 0, fontSize = 16, width = 0, hue = 997;
             bool needsUpdates = false;
+            XmlTextStyleSettings style = ParseXmlTextStyleSettings(textNode);
             FontStashSharp.RichText.TextHorizontalAlignment align = FontStashSharp.RichText.TextHorizontalAlignment.Left;
 
             foreach (XmlAttribute attr in textNode.Attributes)
@@ -868,6 +869,10 @@ namespace ClassicUO.Game.UI
                     case "hue":
                         int.TryParse(attr.Value, out hue);
                         break;
+                    case "color":
+                    case "stroke":
+                        // Parsed together below so hue-only XML remains backward compatible.
+                        break;
                     case "updates":
                         bool.TryParse(attr.Value, out needsUpdates);
                         break;
@@ -889,8 +894,17 @@ namespace ClassicUO.Game.UI
             }
             TextBox t;
 
-            TextBox.RTLOptions textboxOptions = new (){Width = width > 0 ? width : null, Align = align};
-            gump.Add(t = TextBox.GetOne(FormatText(world, textNode.InnerText), font, fontSize, hue, textboxOptions));
+            TextBox.RTLOptions textboxOptions = new()
+            {
+                Width = width > 0 ? width : null,
+                Align = align,
+                StrokeEffect = style.Stroke
+            };
+            string text = FormatText(world, textNode.InnerText);
+            t = style.Color.HasValue
+                ? TextBox.GetOne(text, font, fontSize, style.Color.Value, textboxOptions)
+                : TextBox.GetOne(text, font, fontSize, hue, textboxOptions);
+            gump.Add(t);
             t.X = x;
             t.Y = y;
             t.AcceptMouseInput = false;
@@ -899,6 +913,39 @@ namespace ClassicUO.Game.UI
             {
                 gump.TextBoxUpdates.Add(new Tuple<TextBox, Tuple<string, int>>(t, new Tuple<string, int>(textNode.InnerText, width)));
             }
+        }
+
+        internal static XmlTextStyleSettings ParseXmlTextStyleSettings(XmlNode textNode)
+        {
+            Color? color = null;
+            bool stroke = false;
+
+            foreach (XmlAttribute attr in textNode.Attributes)
+            {
+                switch (attr.Name.ToLowerInvariant())
+                {
+                    case "color":
+                        string hex = attr.Value.Trim();
+                        if (hex.StartsWith("#", StringComparison.Ordinal))
+                        {
+                            hex = hex.Substring(1);
+                        }
+
+                        if (
+                            hex.Length == 6
+                            && int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb)
+                        )
+                        {
+                            color = new Color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+                        }
+                        break;
+                    case "stroke":
+                        bool.TryParse(attr.Value, out stroke);
+                        break;
+                }
+            }
+
+            return new XmlTextStyleSettings(color, stroke);
         }
 
         private static Control ApplyBasicAttributes(Control c, XmlNode node)
@@ -1036,6 +1083,18 @@ namespace ClassicUO.Game.UI
         public int Border { get; }
         public ushort Hue { get; }
         public float Alpha { get; }
+    }
+
+    internal readonly struct XmlTextStyleSettings
+    {
+        public XmlTextStyleSettings(Color? color, bool stroke)
+        {
+            Color = color;
+            Stroke = stroke;
+        }
+
+        public Color? Color { get; }
+        public bool Stroke { get; }
     }
 
     public class XmlGump : Gump
