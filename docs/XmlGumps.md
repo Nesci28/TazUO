@@ -3,6 +3,41 @@
 XML gumps are loaded from `Data/XmlGumps`. They can be opened from the **Xml Gumps** top-bar
 menu and optionally reopened automatically with the current profile.
 
+## Embedded theme images
+
+Use `embedded_image` for a fixed image bundled with TazUO. Width and height are optional; when
+omitted, the image uses its natural dimensions.
+
+```xml
+<embedded_image texture="LegionXmlPortraitFrame.png" x="5" y="7" alpha="1" />
+```
+
+Use `nine_slice` to resize a bundled frame without stretching its corners. The `border` value is
+the number of source pixels preserved on each edge.
+
+```xml
+<nine_slice
+    texture="LegionXmlWindow.png"
+    x="0"
+    y="0"
+    width="250"
+    height="98"
+    border="10" />
+```
+
+Both tags accept `x`, `y`, `width`, `height`, `hue`, and `alpha`. The bundled Legion XML theme
+contains these reusable assets:
+
+| Texture | Border | Purpose |
+| --- | ---: | --- |
+| `LegionXmlWindow.png` | `10` | Dark teal and gold outer window frame. |
+| `LegionXmlPanel.png` | `7` | Raised section panel. |
+| `LegionXmlInset.png` | `5` | Recessed portrait, row, or bar well. |
+| `LegionXmlPortraitFrame.png` | n/a | Gold circular paperdoll portrait bezel. |
+| `LegionXmlTitleGem.png` | n/a | Small title-divider ornament. |
+
+Complete themed examples are available in `docs/XmlGumpExamples/LegionTheme`.
+
 ## Player paperdoll
 
 Use `player_paperdoll` to render a scaled preview of the current player's body and visible
