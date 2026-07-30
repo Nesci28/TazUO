@@ -38,6 +38,19 @@ contains these reusable assets:
 
 Complete themed examples are available in `docs/XmlGumpExamples/LegionTheme`.
 
+## Clean TrueType text
+
+The `text` tag accepts either the existing numeric `hue` or a direct six-digit HTML `color`.
+Set `stroke="true"` to use the player's configured text outline, matching scripted labels made by
+`CreateGumpTTFLabel(..., applyStroke=True)`. When both `color` and `hue` are present, `color` takes
+precedence; keeping `hue` provides a fallback for older clients.
+
+```xml
+<text x="12" y="8" width="120" size="9" hue="2414" color="#E5C58D" stroke="true">
+    Clean outlined label
+</text>
+```
+
 ## Player paperdoll
 
 Use `player_paperdoll` to render a scaled preview of the current player's body and visible
