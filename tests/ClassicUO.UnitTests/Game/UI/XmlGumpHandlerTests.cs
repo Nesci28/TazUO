@@ -106,6 +106,16 @@ public class XmlGumpHandlerTests
         Assert.False(settings.Stroke);
     }
 
+    [Fact]
+    public void XmlTextUpdateInfo_OnlyAppliesWhenFormattedTextChanges()
+    {
+        var update = new XmlGumpHandler.XmlTextUpdateInfo(null, "{hp}/{maxhp}", "100/100");
+
+        Assert.False(update.ShouldApply("100/100"));
+        Assert.True(update.ShouldApply("99/100"));
+        Assert.False(update.ShouldApply("99/100"));
+    }
+
     [Theory]
     [InlineData("LegionXmlWindow.png")]
     [InlineData("LegionXmlPanel.png")]
