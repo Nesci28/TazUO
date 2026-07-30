@@ -60,6 +60,18 @@ rewriting each `text` element. The final font size is clamped to at least one pi
 </gump>
 ```
 
+## Connection statistics
+
+Live connection values can be displayed in a `text` element with `updates="true"`:
+
+```xml
+<text x="390" y="5" updates="true">Ping: {ping} ms</text>
+<text x="390" y="21" updates="true">In: {bytesreceived}  Out: {bytessent}</text>
+```
+
+`{ping}` is the current round-trip time in milliseconds. `{bytesreceived}` and `{bytessent}` are
+the recent incoming and outgoing byte counts, formatted adaptively as B, KB, MB, or GB.
+
 ## Player paperdoll
 
 Use `player_paperdoll` to render a scaled preview of the current player's body and visible
