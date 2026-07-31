@@ -60,6 +60,18 @@ rewriting each `text` element. The final font size is clamped to at least one pi
 </gump>
 ```
 
+For compact dashboards, set `nativefont="true"` on the root to render `text` elements with the
+same crisp native UO label used by Legion scripts. Native labels honor `hue`, `width`, `align`, and
+`updates`; TrueType-only `size`, `color`, and `stroke` settings are ignored. A specific title can
+remain TrueType with `native="false"`:
+
+```xml
+<gump x="50" y="50" nativefont="true">
+    <text x="0" y="4" width="240" size="18" align="center" native="false">TITLE</text>
+    <text x="12" y="34" hue="2414">Crisp compact label</text>
+</gump>
+```
+
 ## Connection statistics
 
 Live connection values can be displayed in a `text` element with `updates="true"`:
