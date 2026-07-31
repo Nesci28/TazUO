@@ -5,8 +5,9 @@
   <text x="140" y="4" width="240" size="16" hue="2414" color="#E5C58D" stroke="true" align="center" native="false">CHARACTER STATUS</text>
   <text x="190" y="24" width="140" size="9" hue="996" color="#F4F1E8" stroke="true" align="center" updates="true">{charname}</text>
   <embedded_image texture="LegionXmlTitleGem.png" x="248" y="34" />
-  <text x="390" y="5" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">Ping: {ping} ms</text>
-  <text x="390" y="21" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">In: {bytesreceived}  Out: {bytessent}</text>
+  <text x="390" y="1" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">Ping: {ping} ms</text>
+  <text x="390" y="14" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">In: {bytesreceived}</text>
+  <text x="390" y="27" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">Out: {bytessent}</text>
 
   <!-- Primary status blocks. The resistance panel spans both rows like the classic gump. -->
   <nine_slice texture="LegionXmlPanel.png" x="10" y="42" width="165" height="82" border="7" />
@@ -42,71 +43,71 @@
   <!-- Attributes -->
   <colorbox x="185" y="62" width="83" height="16" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="185" y="94" width="83" height="16" hue="897" alpha="0.12" acceptmouseinput="false" />
-  <text x="187" y="64" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Strength</text>
-  <text x="243" y="64" width="25" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{str}</text>
-  <text x="187" y="80" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Dexterity</text>
-  <text x="243" y="80" width="25" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{dex}</text>
-  <text x="187" y="96" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Intelligence</text>
-  <text x="243" y="96" width="25" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{int}</text>
-  <text x="187" y="112" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Stat cap</text>
-  <text x="243" y="112" width="25" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{maxstats}</text>
+  <text x="187" y="64" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">Str</text>
+  <text x="233" y="64" width="35" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{str}</text>
+  <text x="187" y="80" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">Dex</text>
+  <text x="233" y="80" width="35" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{dex}</text>
+  <text x="187" y="96" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">Int</text>
+  <text x="233" y="96" width="35" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{int}</text>
+  <text x="187" y="112" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">Cap</text>
+  <text x="233" y="112" width="35" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{maxstats}</text>
 
   <!-- Load and wealth -->
   <colorbox x="284" y="62" width="88" height="16" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="284" y="94" width="88" height="16" hue="897" alpha="0.12" acceptmouseinput="false" />
-  <text x="286" y="64" width="43" size="8" hue="2414" color="#E5C58D" stroke="true">Weight</text>
-  <text x="330" y="64" width="40" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{weight}/{maxweight}</text>
-  <text x="286" y="80" width="43" size="8" hue="2414" color="#E5C58D" stroke="true">Followers</text>
-  <text x="330" y="80" width="40" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{pets}/{petsmax}</text>
-  <text x="286" y="96" width="43" size="8" hue="2414" color="#E5C58D" stroke="true">Luck</text>
-  <text x="330" y="96" width="40" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{luck}</text>
-  <text x="286" y="112" width="43" size="8" hue="2414" color="#E5C58D" stroke="true">Gold</text>
-  <text x="330" y="112" width="40" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{gold}</text>
+  <text x="286" y="64" width="31" size="8" hue="2414" color="#E5C58D" stroke="true">Wt</text>
+  <text x="318" y="64" width="52" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{weight}/{maxweight}</text>
+  <text x="286" y="80" width="31" size="8" hue="2414" color="#E5C58D" stroke="true">Pets</text>
+  <text x="318" y="80" width="52" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{pets}/{petsmax}</text>
+  <text x="286" y="96" width="31" size="8" hue="2414" color="#E5C58D" stroke="true">Luck</text>
+  <text x="318" y="96" width="52" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{luck}</text>
+  <text x="286" y="112" width="31" size="8" hue="2414" color="#E5C58D" stroke="true">Gold</text>
+  <text x="318" y="112" width="52" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{gold}</text>
 
   <!-- Resistances -->
   <colorbox x="388" y="62" width="116" height="27" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="388" y="120" width="116" height="27" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="388" y="178" width="116" height="27" hue="897" alpha="0.12" acceptmouseinput="false" />
-  <text x="390" y="68" width="39" size="8" hue="2414" color="#E5C58D" stroke="true">Physical</text>
-  <color_progress_bar x="431" y="70" width="40" height="9" direction="right" background_hue="1965" foreground_hue="1108" value="{phyres}" max_value="{phyresmax}" updates="true" />
-  <text x="473" y="67" width="29" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{phyres}/{phyresmax}</text>
-  <text x="390" y="97" width="39" size="8" hue="2414" color="#E5C58D" stroke="true">Fire</text>
-  <color_progress_bar x="431" y="99" width="40" height="9" direction="right" background_hue="1965" foreground_hue="33" value="{fireres}" max_value="{fireresmax}" updates="true" />
-  <text x="473" y="96" width="29" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{fireres}/{fireresmax}</text>
-  <text x="390" y="126" width="39" size="8" hue="2414" color="#E5C58D" stroke="true">Cold</text>
-  <color_progress_bar x="431" y="128" width="40" height="9" direction="right" background_hue="1965" foreground_hue="99" value="{coldres}" max_value="{coldresmax}" updates="true" />
-  <text x="473" y="125" width="29" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{coldres}/{coldresmax}</text>
-  <text x="390" y="155" width="39" size="8" hue="2414" color="#E5C58D" stroke="true">Poison</text>
-  <color_progress_bar x="431" y="157" width="40" height="9" direction="right" background_hue="1965" foreground_hue="62" value="{poisonres}" max_value="{poisonresmax}" updates="true" />
-  <text x="473" y="154" width="29" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{poisonres}/{poisonresmax}</text>
-  <text x="390" y="184" width="39" size="8" hue="2414" color="#E5C58D" stroke="true">Energy</text>
-  <color_progress_bar x="431" y="186" width="40" height="9" direction="right" background_hue="1965" foreground_hue="1165" value="{energyres}" max_value="{energyresmax}" updates="true" />
-  <text x="473" y="183" width="29" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{energyres}/{energyresmax}</text>
+  <text x="390" y="68" width="32" size="8" hue="2414" color="#E5C58D" stroke="true">Phys</text>
+  <color_progress_bar x="424" y="70" width="37" height="9" direction="right" background_hue="1965" foreground_hue="1108" value="{phyres}" max_value="{phyresmax}" updates="true" />
+  <text x="463" y="67" width="39" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{phyres}/{phyresmax}</text>
+  <text x="390" y="97" width="32" size="8" hue="2414" color="#E5C58D" stroke="true">Fire</text>
+  <color_progress_bar x="424" y="99" width="37" height="9" direction="right" background_hue="1965" foreground_hue="33" value="{fireres}" max_value="{fireresmax}" updates="true" />
+  <text x="463" y="96" width="39" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{fireres}/{fireresmax}</text>
+  <text x="390" y="126" width="32" size="8" hue="2414" color="#E5C58D" stroke="true">Cold</text>
+  <color_progress_bar x="424" y="128" width="37" height="9" direction="right" background_hue="1965" foreground_hue="99" value="{coldres}" max_value="{coldresmax}" updates="true" />
+  <text x="463" y="125" width="39" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{coldres}/{coldresmax}</text>
+  <text x="390" y="155" width="32" size="8" hue="2414" color="#E5C58D" stroke="true">Pois</text>
+  <color_progress_bar x="424" y="157" width="37" height="9" direction="right" background_hue="1965" foreground_hue="62" value="{poisonres}" max_value="{poisonresmax}" updates="true" />
+  <text x="463" y="154" width="39" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{poisonres}/{poisonresmax}</text>
+  <text x="390" y="184" width="32" size="8" hue="2414" color="#E5C58D" stroke="true">Ener</text>
+  <color_progress_bar x="424" y="186" width="37" height="9" direction="right" background_hue="1965" foreground_hue="1165" value="{energyres}" max_value="{energyresmax}" updates="true" />
+  <text x="463" y="183" width="39" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{energyres}/{energyresmax}</text>
 
   <!-- Combat: two readable columns -->
   <colorbox x="16" y="151" width="102" height="20" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="122" y="151" width="106" height="20" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="16" y="193" width="102" height="20" hue="897" alpha="0.12" acceptmouseinput="false" />
-  <text x="19" y="154" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Damage</text>
-  <text x="75" y="154" width="38" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{damagemin}-{damagemax}</text>
-  <text x="125" y="154" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Damage inc.</text>
-  <text x="181" y="154" width="41" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{di}%</text>
-  <text x="19" y="175" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">HCI</text>
-  <text x="75" y="175" width="38" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{hci}%/45</text>
-  <text x="125" y="175" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">DCI</text>
-  <text x="181" y="175" width="41" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{defchance}%/{defchancemax}</text>
-  <text x="19" y="196" width="55" size="8" hue="2414" color="#E5C58D" stroke="true">Swing speed</text>
-  <text x="75" y="196" width="38" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{ssi}%</text>
+  <text x="19" y="154" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">Damage</text>
+  <text x="65" y="154" width="48" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{damagemin}-{damagemax}</text>
+  <text x="125" y="154" width="35" size="8" hue="2414" color="#E5C58D" stroke="true">DI</text>
+  <text x="161" y="154" width="61" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{di}%</text>
+  <text x="19" y="175" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">HCI</text>
+  <text x="65" y="175" width="48" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{hci}%</text>
+  <text x="125" y="175" width="35" size="8" hue="2414" color="#E5C58D" stroke="true">DCI</text>
+  <text x="161" y="175" width="61" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{defchance}%</text>
+  <text x="19" y="196" width="45" size="8" hue="2414" color="#E5C58D" stroke="true">SSI</text>
+  <text x="65" y="196" width="48" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{ssi}%</text>
 
   <!-- Casting -->
   <colorbox x="244" y="149" width="128" height="16" hue="897" alpha="0.12" acceptmouseinput="false" />
   <colorbox x="244" y="183" width="128" height="16" hue="897" alpha="0.12" acceptmouseinput="false" />
-  <text x="247" y="151" width="70" size="8" hue="2414" color="#E5C58D" stroke="true">Spell damage</text>
-  <text x="318" y="151" width="50" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{sdi}%</text>
-  <text x="247" y="168" width="70" size="8" hue="2414" color="#E5C58D" stroke="true">FC / FCR</text>
-  <text x="318" y="168" width="50" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{fc}/{fcr}</text>
-  <text x="247" y="185" width="70" size="8" hue="2414" color="#E5C58D" stroke="true">Lower mana</text>
-  <text x="318" y="185" width="50" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{lmc}%</text>
-  <text x="247" y="202" width="70" size="8" hue="2414" color="#E5C58D" stroke="true">Lower reagent</text>
-  <text x="318" y="202" width="50" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{lrc}%</text>
+  <text x="247" y="151" width="48" size="8" hue="2414" color="#E5C58D" stroke="true">SDI</text>
+  <text x="296" y="151" width="72" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{sdi}%</text>
+  <text x="247" y="168" width="48" size="8" hue="2414" color="#E5C58D" stroke="true">FC/FCR</text>
+  <text x="296" y="168" width="72" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{fc}/{fcr}</text>
+  <text x="247" y="185" width="48" size="8" hue="2414" color="#E5C58D" stroke="true">LMC</text>
+  <text x="296" y="185" width="72" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{lmc}%</text>
+  <text x="247" y="202" width="48" size="8" hue="2414" color="#E5C58D" stroke="true">LRC</text>
+  <text x="296" y="202" width="72" size="8" hue="996" color="#F4F1E8" stroke="true" align="right" updates="true">{lrc}%</text>
 </gump>
