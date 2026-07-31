@@ -84,12 +84,6 @@ namespace ClassicUO.Game.UI
                                     gump.UseNativeFont = nativeFont;
                                 }
                                 break;
-                            case "nativefontsizeoffset":
-                                if (int.TryParse(attr.Value, out int nativeFontSizeOffset))
-                                {
-                                    gump.NativeFontSizeOffset = Math.Clamp(nativeFontSizeOffset, -8, 24);
-                                }
-                                break;
                         }
                     }
 
@@ -932,22 +926,6 @@ namespace ClassicUO.Game.UI
                     AcceptMouseInput = false
                 };
 
-                if (gump.NativeFontSizeOffset != 0 && label.Height > 0)
-                {
-                    int originalWidth = label.Width;
-                    int targetHeight = Math.Max(1, label.Height + gump.NativeFontSizeOffset);
-                    label.ApplyScale(targetHeight / (double)label.Height, scalePosition: false);
-
-                    if (nativeAlign == TEXT_ALIGN_TYPE.TS_RIGHT)
-                    {
-                        label.X += originalWidth - label.Width;
-                    }
-                    else if (nativeAlign == TEXT_ALIGN_TYPE.TS_CENTER)
-                    {
-                        label.X += (originalWidth - label.Width) / 2;
-                    }
-                }
-
                 gump.Add(label);
 
                 if (needsUpdates)
@@ -1238,7 +1216,6 @@ namespace ClassicUO.Game.UI
         public string FilePath { get; set; }
         public int FontSizeOffset { get; set; }
         public bool UseNativeFont { get; set; }
-        public int NativeFontSizeOffset { get; set; }
 
         private uint nextUpdate = 0;
         private bool savingFile = false;
