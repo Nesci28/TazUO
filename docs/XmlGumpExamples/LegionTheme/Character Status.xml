@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gump x="480" y="300" saveposition="true" acceptmouseinput="true" locked="false" fontsizeoffset="2" nativefont="true">
+<gump x="480" y="300" saveposition="true" acceptmouseinput="true" locked="false" fontsizeoffset="1" nativefont="true">
   <!-- Readable classic-status layout using the Legion dark teal and gold theme. -->
   <nine_slice texture="LegionXmlWindow.png" x="0" y="0" width="520" height="228" border="10" />
   <text x="140" y="4" width="240" size="16" hue="2414" color="#E5C58D" stroke="true" align="center" native="false">CHARACTER STATUS</text>

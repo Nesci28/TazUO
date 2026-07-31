@@ -919,18 +919,23 @@ namespace ClassicUO.Game.UI
             {
                 byte nativeFont = byte.TryParse(font, out byte parsedFont) ? parsedFont : byte.MaxValue;
                 ushort nativeHue = (ushort)Math.Clamp(hue, ushort.MinValue, ushort.MaxValue);
-                var label = new Label(text, true, nativeHue, width, nativeFont, align: nativeAlign)
+                // Script gump labels are rendered without a max width. Do the same here so width is
+                // an alignment region rather than a word-wrap boundary that can stack into the next row.
+                var label = new Label(text, true, nativeHue, font: nativeFont)
                 {
                     X = x,
                     Y = y,
                     AcceptMouseInput = false
                 };
+                label.X = GetNativeTextX(x, width, label.Width, nativeAlign);
 
                 gump.Add(label);
 
                 if (needsUpdates)
                 {
-                    gump.TextBoxUpdates.Add(new XmlTextUpdateInfo(label, textNode.InnerText, text));
+                    gump.TextBoxUpdates.Add(
+                        new XmlTextUpdateInfo(label, textNode.InnerText, text, x, width, nativeAlign)
+                    );
                 }
 
                 return;
@@ -956,6 +961,26 @@ namespace ClassicUO.Game.UI
             {
                 gump.TextBoxUpdates.Add(new XmlTextUpdateInfo(t, textNode.InnerText, text));
             }
+        }
+
+        internal static int GetNativeTextX(
+            int x,
+            int width,
+            int labelWidth,
+            TEXT_ALIGN_TYPE align
+        )
+        {
+            if (width <= 0 || labelWidth >= width)
+            {
+                return x;
+            }
+
+            return align switch
+            {
+                TEXT_ALIGN_TYPE.TS_CENTER => x + (width - labelWidth) / 2,
+                TEXT_ALIGN_TYPE.TS_RIGHT => x + width - labelWidth,
+                _ => x
+            };
         }
 
         internal static XmlTextStyleSettings ParseXmlTextStyleSettings(XmlNode textNode)
@@ -1114,16 +1139,29 @@ namespace ClassicUO.Game.UI
 
         public sealed class XmlTextUpdateInfo
         {
-            public XmlTextUpdateInfo(Control control, string template, string initialText)
+            public XmlTextUpdateInfo(
+                Control control,
+                string template,
+                string initialText,
+                int x = 0,
+                int width = 0,
+                TEXT_ALIGN_TYPE align = TEXT_ALIGN_TYPE.TS_LEFT
+            )
             {
                 Control = control;
                 Template = template;
                 LastText = initialText;
+                X = x;
+                Width = width;
+                Align = align;
             }
 
             public Control Control { get; }
             public string Template { get; }
             public string LastText { get; private set; }
+            private int X { get; }
+            private int Width { get; }
+            private TEXT_ALIGN_TYPE Align { get; }
 
             internal void Apply(string text)
             {
@@ -1137,6 +1175,7 @@ namespace ClassicUO.Game.UI
                         break;
                     case Label label:
                         label.Text = text;
+                        label.X = GetNativeTextX(X, Width, label.Width, Align);
                         break;
                 }
             }
