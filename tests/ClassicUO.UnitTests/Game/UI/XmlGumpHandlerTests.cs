@@ -116,6 +116,23 @@ public class XmlGumpHandlerTests
         Assert.False(update.ShouldApply("99/100"));
     }
 
+    [Theory]
+    [InlineData(10, 100, 20, TEXT_ALIGN_TYPE.TS_LEFT, 10)]
+    [InlineData(10, 100, 20, TEXT_ALIGN_TYPE.TS_CENTER, 50)]
+    [InlineData(10, 100, 20, TEXT_ALIGN_TYPE.TS_RIGHT, 90)]
+    [InlineData(10, 20, 30, TEXT_ALIGN_TYPE.TS_RIGHT, 10)]
+    [InlineData(10, 0, 20, TEXT_ALIGN_TYPE.TS_CENTER, 10)]
+    public void GetNativeTextX_AlignsWithoutWrapping(
+        int x,
+        int width,
+        int labelWidth,
+        TEXT_ALIGN_TYPE align,
+        int expected
+    )
+    {
+        Assert.Equal(expected, XmlGumpHandler.GetNativeTextX(x, width, labelWidth, align));
+    }
+
     [Fact]
     public void FormatNetworkText_ReplacesConnectionPlaceholders()
     {
