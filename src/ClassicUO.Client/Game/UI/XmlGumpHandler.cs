@@ -78,6 +78,12 @@ namespace ClassicUO.Game.UI
                                     gump.FontSizeOffset = Math.Clamp(fontSizeOffset, -8, 24);
                                 }
                                 break;
+                            case "nativefont":
+                                if (bool.TryParse(attr.Value, out bool nativeFont))
+                                {
+                                    gump.UseNativeFont = nativeFont;
+                                }
+                                break;
                         }
                     }
 
@@ -851,8 +857,10 @@ namespace ClassicUO.Game.UI
             string font = TrueTypeLoader.EMBEDDED_FONT;
             int x = 0, y = 0, fontSize = 16, width = 0, hue = 997;
             bool needsUpdates = false;
+            bool useNativeFont = gump.UseNativeFont;
             XmlTextStyleSettings style = ParseXmlTextStyleSettings(textNode);
             FontStashSharp.RichText.TextHorizontalAlignment align = FontStashSharp.RichText.TextHorizontalAlignment.Left;
+            TEXT_ALIGN_TYPE nativeAlign = TEXT_ALIGN_TYPE.TS_LEFT;
 
             foreach (XmlAttribute attr in textNode.Attributes)
             {
@@ -883,23 +891,49 @@ namespace ClassicUO.Game.UI
                     case "updates":
                         bool.TryParse(attr.Value, out needsUpdates);
                         break;
+                    case "native":
+                        bool.TryParse(attr.Value, out useNativeFont);
+                        break;
                     case "align":
                         switch (attr.Value.ToLower())
                         {
                             case "left":
                                 align = FontStashSharp.RichText.TextHorizontalAlignment.Left;
+                                nativeAlign = TEXT_ALIGN_TYPE.TS_LEFT;
                                 break;
                             case "center":
                                 align = FontStashSharp.RichText.TextHorizontalAlignment.Center;
+                                nativeAlign = TEXT_ALIGN_TYPE.TS_CENTER;
                                 break;
                             case "right":
                                 align = FontStashSharp.RichText.TextHorizontalAlignment.Right;
+                                nativeAlign = TEXT_ALIGN_TYPE.TS_RIGHT;
                                 break;
                         }
                         break;
                 }
             }
-            TextBox t;
+
+            string text = FormatText(world, textNode.InnerText);
+            if (useNativeFont)
+            {
+                byte nativeFont = byte.TryParse(font, out byte parsedFont) ? parsedFont : byte.MaxValue;
+                ushort nativeHue = (ushort)Math.Clamp(hue, ushort.MinValue, ushort.MaxValue);
+                var label = new Label(text, true, nativeHue, width, nativeFont, align: nativeAlign)
+                {
+                    X = x,
+                    Y = y,
+                    AcceptMouseInput = false
+                };
+                gump.Add(label);
+
+                if (needsUpdates)
+                {
+                    gump.TextBoxUpdates.Add(new XmlTextUpdateInfo(label, textNode.InnerText, text));
+                }
+
+                return;
+            }
 
             fontSize = Math.Max(1, fontSize + gump.FontSizeOffset);
 
@@ -909,8 +943,7 @@ namespace ClassicUO.Game.UI
                 Align = align,
                 StrokeEffect = style.Stroke
             };
-            string text = FormatText(world, textNode.InnerText);
-            t = style.Color.HasValue
+            TextBox t = style.Color.HasValue
                 ? TextBox.GetOne(text, font, fontSize, style.Color.Value, textboxOptions)
                 : TextBox.GetOne(text, font, fontSize, hue, textboxOptions);
             gump.Add(t);
@@ -1080,16 +1113,32 @@ namespace ClassicUO.Game.UI
 
         public sealed class XmlTextUpdateInfo
         {
-            public XmlTextUpdateInfo(TextBox control, string template, string initialText)
+            public XmlTextUpdateInfo(Control control, string template, string initialText)
             {
                 Control = control;
                 Template = template;
                 LastText = initialText;
             }
 
-            public TextBox Control { get; }
+            public Control Control { get; }
             public string Template { get; }
             public string LastText { get; private set; }
+
+            internal void Apply(string text)
+            {
+                switch (Control)
+                {
+                    case TextBox textBox:
+                        textBox.Text = text;
+                        // TextBox applies its stroke during Update. Rebuild now so a changed
+                        // value never renders for one frame without its configured outline.
+                        textBox.Update();
+                        break;
+                    case Label label:
+                        label.Text = text;
+                        break;
+                }
+            }
 
             internal bool ShouldApply(string text)
             {
@@ -1165,6 +1214,7 @@ namespace ClassicUO.Game.UI
         public bool SavePosition { get; set; }
         public string FilePath { get; set; }
         public int FontSizeOffset { get; set; }
+        public bool UseNativeFont { get; set; }
 
         private uint nextUpdate = 0;
         private bool savingFile = false;
@@ -1187,10 +1237,7 @@ namespace ClassicUO.Game.UI
                         string newString = XmlGumpHandler.FormatText(World, update.Template);
                         if (update.ShouldApply(newString))
                         {
-                            update.Control.Text = newString;
-                            // TextBox applies its stroke during Update. Rebuild now so a changed
-                            // value never renders for one frame without its configured outline.
-                            update.Control.Update();
+                            update.Apply(newString);
                         }
                     }
                 }
