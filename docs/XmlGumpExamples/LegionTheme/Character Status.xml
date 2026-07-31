@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<gump x="480" y="300" saveposition="true" acceptmouseinput="true" locked="false" fontsizeoffset="2">
+<gump x="480" y="300" saveposition="true" acceptmouseinput="true" locked="false" fontsizeoffset="2" nativefont="true">
   <!-- Readable classic-status layout using the Legion dark teal and gold theme. -->
   <nine_slice texture="LegionXmlWindow.png" x="0" y="0" width="520" height="228" border="10" />
-  <text x="140" y="4" width="240" size="15" hue="2414" color="#E5C58D" stroke="true" align="center">CHARACTER STATUS</text>
+  <text x="140" y="4" width="240" size="16" hue="2414" color="#E5C58D" stroke="true" align="center" native="false">CHARACTER STATUS</text>
   <text x="190" y="24" width="140" size="9" hue="996" color="#F4F1E8" stroke="true" align="center" updates="true">{charname}</text>
   <embedded_image texture="LegionXmlTitleGem.png" x="248" y="34" />
   <text x="390" y="5" width="115" size="8" hue="68" color="#44FF44" stroke="true" updates="true">Ping: {ping} ms</text>
