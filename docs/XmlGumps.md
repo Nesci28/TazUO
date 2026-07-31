@@ -62,8 +62,9 @@ rewriting each `text` element. The final font size is clamped to at least one pi
 
 For compact dashboards, set `nativefont="true"` on the root to render `text` elements with the
 same crisp native UO label used by Legion scripts. Native labels honor `hue`, `width`, `align`, and
-`updates`; TrueType-only `size`, `color`, and `stroke` settings are ignored. A specific title can
-remain TrueType with `native="false"`:
+`updates`; `width` defines the alignment region and does not word-wrap the label. TrueType-only
+`size`, `color`, and `stroke` settings are ignored. A specific title can remain TrueType with
+`native="false"`:
 
 ```xml
 <gump x="50" y="50" nativefont="true">
