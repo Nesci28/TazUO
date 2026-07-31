@@ -65,6 +65,7 @@ namespace ClassicUO.Configuration
         Dark = 1,
         Light = 2,
         UOCom = 3,
+        Legion = 4,
         BritanniaParchment = 6,
         ShadowIron = 7,
         RunebookBlue = 8,
