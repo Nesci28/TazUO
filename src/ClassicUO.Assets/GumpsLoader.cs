@@ -203,5 +203,6 @@ namespace ClassicUO.Assets
         public int Width;
         public int Height;
         public int SourceScale;
+        public bool IsTrusted;
     }
 }

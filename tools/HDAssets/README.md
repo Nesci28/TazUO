@@ -45,6 +45,13 @@ close to the combined PNG size, since PNG data is already compressed. `tuoassets
 supported for legacy and named UI assets, but a large copy of it can still add eager startup work;
 remove the redundant ZIP when the same ID-based HD assets are in `tuoassets.hdpack`.
 
+`tuoassets.hdpack` is treated as a trusted local container. TazUO still validates its signature,
+version, sorted index, offsets, and entry lengths when opening it, but it does not recalculate each
+stored CRC or compare every image with the original UO dimensions and masks at first use. The
+pipeline has already performed those checks and restored the masks before packing. This avoids two
+extra full passes over each image. Loose `ExternalImages` and `tuoassets.zip` replacements remain
+untrusted and retain the runtime validation and mask-restoration path.
+
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
 
 After a sheet is finalized successfully, the pipeline writes a durable completion marker and removes that large upscaled sheet. This keeps peak disk usage bounded while preserving restart safety: completed sheets are skipped by both the upscale and finalization stages.

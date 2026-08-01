@@ -39,7 +39,7 @@ namespace ClassicUO.Renderer.Texmaps
                 TexmapInfo texmapInfo = ExternalImageLoader.Instance.LoadTexmapTexture(idx);
                 bool loadedFromExternal = !texmapInfo.Pixels.IsEmpty;
 
-                if (loadedFromExternal)
+                if (loadedFromExternal && !texmapInfo.IsTrusted)
                 {
                     TexmapInfo original = _texmapsLoader.GetTexmap(idx);
                     int sourceScale = Math.Max(1, texmapInfo.SourceScale);

@@ -111,7 +111,6 @@ namespace ClassicUO.Assets
     internal sealed class HdAssetPack : IDisposable
     {
         private readonly FileStream _stream;
-        private readonly object _streamLock = new object();
 
         private HdAssetPack(string path, FileStream stream, List<HdAssetPackEntry> entries)
         {
@@ -221,22 +220,21 @@ namespace ClassicUO.Assets
         public byte[] Read(HdAssetPackEntry entry)
         {
             var bytes = new byte[entry.Length];
-            lock (_streamLock)
+            int totalRead = 0;
+            while (totalRead < bytes.Length)
             {
-                _stream.Position = entry.Offset;
-                int totalRead = 0;
-                while (totalRead < bytes.Length)
-                {
-                    int read = _stream.Read(bytes, totalRead, bytes.Length - totalRead);
-                    if (read == 0)
-                        throw new EndOfStreamException($"HD asset pack entry is truncated: {Path}");
-                    totalRead += read;
-                }
+                int read = RandomAccess.Read(
+                    _stream.SafeFileHandle,
+                    bytes.AsSpan(totalRead),
+                    entry.Offset + totalRead
+                );
+                if (read == 0)
+                    throw new EndOfStreamException($"HD asset pack entry is truncated: {Path}");
+                totalRead += read;
             }
 
-            uint crc32 = HdAssetPackCrc32.Compute(bytes);
-            if (crc32 != entry.Crc32)
-                throw new InvalidDataException($"HD asset pack entry checksum failed: {Path}");
+            // Local hdpack files are trusted. PNG decoding already reads the payload once, so
+            // recalculating the stored CRC here would only add another full pass per asset.
             return bytes;
         }
 
