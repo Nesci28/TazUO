@@ -90,6 +90,13 @@ category represented by the pack. Use `--skip-hdpack` to disable pack generation
 select its output path. Existing finalized images can also be packed directly with the HDAssets
 tool's `pack --work ... --input ... --output ...` command; no new upscale pass is required.
 
+The hdpack path is optimized for a locally generated, trusted pack. The runtime validates the
+container header, sorted index, offsets, and entry bounds, then trusts the pipeline's dimension and
+mask validation. It therefore skips per-image CRC recalculation, original-asset comparison, and
+runtime mask reconstruction. Independent offset-based reads allow multiple worker threads to read
+different entries concurrently. Loose files and ZIP replacements continue through the defensive
+validation path.
+
 For a bounded disk footprint, finalization records a durable per-sheet completion marker and removes the large upscaled sheet only after every asset in it was written successfully. A resumed run recognizes those markers, so it neither re-upscales nor re-finalizes completed sheets.
 
 A complete 2x pass is the practical default. It uses one quarter of the output pixels of 4x while covering the same assets; 4x is best reserved for a machine with substantially more free disk space. The detailed options and resume behavior are documented in [`tools/HDAssets/README.md`](../tools/HDAssets/README.md).

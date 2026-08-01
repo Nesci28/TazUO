@@ -196,7 +196,11 @@ namespace ClassicUO.Renderer.Arts
                 : ExternalImageLoader.Instance.LoadArtTexture(idx);
             loadedFromPNG = !artInfo.Pixels.IsEmpty;
 
-            if (loadedFromPNG && (isLand || artInfo.SourceScale > 1))
+            if (
+                loadedFromPNG
+                && !artInfo.IsTrusted
+                && (isLand || artInfo.SourceScale > 1)
+            )
             {
                 ArtInfo original = _artLoader.GetArt(idx);
                 int expectedWidth = original.Width * artInfo.SourceScale;

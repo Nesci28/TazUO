@@ -42,6 +42,7 @@ namespace ClassicUO.Assets
             public HdAssetPack Pack { get; }
             public HdAssetPackEntry PackEntry { get; }
             public bool IsPacked => Pack != null;
+            public bool IsTrusted => IsPacked;
             public string DisplayPath => IsPacked
                 ? $"{Pack.Path}:{PackEntry.Kind}/{PackEntry.Key}"
                 : Path;
@@ -150,7 +151,8 @@ namespace ClassicUO.Assets
                         Pixels = cached.pixels,
                         Width = cached.width,
                         Height = cached.height,
-                        SourceScale = cached.sourceScale
+                        SourceScale = cached.sourceScale,
+                        IsTrusted = imageFile.IsTrusted
                     };
                 }
             }
@@ -171,7 +173,8 @@ namespace ClassicUO.Assets
                     Pixels = pixels,
                     Width = width,
                     Height = height,
-                    SourceScale = imageFile.SourceScale
+                    SourceScale = imageFile.SourceScale,
+                    IsTrusted = imageFile.IsTrusted
                 };
             }
             catch (Exception ex)
@@ -201,7 +204,8 @@ namespace ClassicUO.Assets
                         Pixels = cached.pixels,
                         Width = cached.width,
                         Height = cached.height,
-                        SourceScale = cached.sourceScale
+                        SourceScale = cached.sourceScale,
+                        IsTrusted = imageFile.IsTrusted
                     };
                 }
             }
@@ -222,7 +226,8 @@ namespace ClassicUO.Assets
                     Pixels = pixels,
                     Width = width,
                     Height = height,
-                    SourceScale = imageFile.SourceScale
+                    SourceScale = imageFile.SourceScale,
+                    IsTrusted = imageFile.IsTrusted
                 };
             }
             catch (Exception ex)
@@ -245,7 +250,8 @@ namespace ClassicUO.Assets
                     out uint[] pixels,
                     out int width,
                     out int height,
-                    out int sourceScale
+                    out int sourceScale,
+                    out bool isTrusted
                 )
             )
             {
@@ -254,7 +260,8 @@ namespace ClassicUO.Assets
                     Pixels = pixels,
                     Width = width,
                     Height = height,
-                    SourceScale = sourceScale
+                    SourceScale = sourceScale,
+                    IsTrusted = isTrusted
                 };
             }
 
@@ -273,7 +280,8 @@ namespace ClassicUO.Assets
                     out uint[] pixels,
                     out int width,
                     out int height,
-                    out int sourceScale
+                    out int sourceScale,
+                    out bool isTrusted
                 )
             )
             {
@@ -282,7 +290,8 @@ namespace ClassicUO.Assets
                     Pixels = pixels,
                     Width = width,
                     Height = height,
-                    SourceScale = sourceScale
+                    SourceScale = sourceScale,
+                    IsTrusted = isTrusted
                 };
             }
 
@@ -322,7 +331,8 @@ namespace ClassicUO.Assets
                         Pixels = cached.pixels,
                         Width = cached.width,
                         Height = cached.height,
-                        SourceScale = cached.sourceScale
+                        SourceScale = cached.sourceScale,
+                        IsTrusted = imageFile.IsTrusted
                     };
                 }
             }
@@ -349,7 +359,8 @@ namespace ClassicUO.Assets
                     Pixels = pixels,
                     Width = width,
                     Height = height,
-                    SourceScale = imageFile.SourceScale
+                    SourceScale = imageFile.SourceScale,
+                    IsTrusted = imageFile.IsTrusted
                 };
             }
             catch (Exception ex)
@@ -368,13 +379,15 @@ namespace ClassicUO.Assets
             out uint[] pixels,
             out int width,
             out int height,
-            out int sourceScale
+            out int sourceScale,
+            out bool isTrusted
         )
         {
             pixels = Array.Empty<uint>();
             width = 0;
             height = 0;
             sourceScale = 1;
+            isTrusted = false;
 
             ExternalImageFile imageFile;
 
@@ -392,6 +405,7 @@ namespace ClassicUO.Assets
                     width = cached.width;
                     height = cached.height;
                     sourceScale = cached.sourceScale;
+                    isTrusted = imageFile.IsTrusted;
                     return true;
                 }
             }
@@ -404,6 +418,7 @@ namespace ClassicUO.Assets
                     return false;
 
                 sourceScale = imageFile.SourceScale;
+                isTrusted = imageFile.IsTrusted;
                 lock (_imageCacheLock)
                     textureCache[graphic] = (pixels, width, height, sourceScale);
                 return true;

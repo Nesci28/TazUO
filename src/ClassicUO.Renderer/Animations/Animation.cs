@@ -437,44 +437,54 @@ namespace ClassicUO.Renderer.Animations
                     if (!externalFrame.Pixels.IsEmpty)
                     {
                         sourceScale = Math.Max(1, externalFrame.SourceScale);
-                        int expectedWidth = frame.Width * sourceScale;
-                        int expectedHeight = frame.Height * sourceScale;
-
-                        if (
-                            externalFrame.Width != expectedWidth
-                            || externalFrame.Height != expectedHeight
-                            || externalFrame.Width > 4096
-                            || externalFrame.Height > 4096
-                        )
+                        if (externalFrame.IsTrusted)
                         {
-                            Log.Warn(
-                                $"Ignoring HD animation frame {id}/{action}/{dir}/{frame.Num}: " +
-                                $"got {externalFrame.Width}x{externalFrame.Height} for @{sourceScale}x, " +
-                                $"expected {expectedWidth}x{expectedHeight}."
-                            );
-                            ExternalImageLoader.Instance.RejectAnimationFrameOverride(
-                                id,
-                                action,
-                                dir,
-                                frame.Num
-                            );
-                            sourceScale = 1;
-                        }
-                        else
-                        {
-                            ExternalImageMaskRestorer.RestoreFromOriginal(
-                                frame.Pixels,
-                                frame.Width,
-                                frame.Height,
-                                externalFrame.Pixels,
-                                externalFrame.Width,
-                                externalFrame.Height,
-                                sourceScale
-                            );
                             uploadWidth = externalFrame.Width;
                             uploadHeight = externalFrame.Height;
                             uploadPixels = externalFrame.Pixels;
                             loadedExternalFrame = true;
+                        }
+                        else
+                        {
+                            int expectedWidth = frame.Width * sourceScale;
+                            int expectedHeight = frame.Height * sourceScale;
+
+                            if (
+                                externalFrame.Width != expectedWidth
+                                || externalFrame.Height != expectedHeight
+                                || externalFrame.Width > 4096
+                                || externalFrame.Height > 4096
+                            )
+                            {
+                                Log.Warn(
+                                    $"Ignoring HD animation frame {id}/{action}/{dir}/{frame.Num}: " +
+                                    $"got {externalFrame.Width}x{externalFrame.Height} for @{sourceScale}x, " +
+                                    $"expected {expectedWidth}x{expectedHeight}."
+                                );
+                                ExternalImageLoader.Instance.RejectAnimationFrameOverride(
+                                    id,
+                                    action,
+                                    dir,
+                                    frame.Num
+                                );
+                                sourceScale = 1;
+                            }
+                            else
+                            {
+                                ExternalImageMaskRestorer.RestoreFromOriginal(
+                                    frame.Pixels,
+                                    frame.Width,
+                                    frame.Height,
+                                    externalFrame.Pixels,
+                                    externalFrame.Width,
+                                    externalFrame.Height,
+                                    sourceScale
+                                );
+                                uploadWidth = externalFrame.Width;
+                                uploadHeight = externalFrame.Height;
+                                uploadPixels = externalFrame.Pixels;
+                                loadedExternalFrame = true;
+                            }
                         }
                     }
 
