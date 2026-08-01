@@ -46,9 +46,14 @@ start. Its display-mode selector provides three behaviours:
   renders world targets, classic gumps, Myra windows, text, and the cursor using the physical-to-
   logical window pixel ratio. On a 2x Retina display this retains the normal layout and field of
   view while mapping `@2x` assets close to their native pixel dimensions.
+- **HiDPI Balanced (1.5x)** keeps the HiDPI layout and high-density window but caps TazUO's render
+  density at 1.5x. On a 2x Retina display this renders 2.25 pixels per logical pixel instead of 4,
+  reducing backbuffer, world-target, and light-target pixel work by 43.75% while retaining more HD
+  detail than Same size.
 
 If the display reports a 1x pixel density, HiDPI safely behaves like Same size. Native world does
-not require a Retina/HiDPI display.
+not require a Retina/HiDPI display. Both HiDPI modes require a restart because the high-density SDL
+window must be requested before graphics initialization.
 
 ## Required dimensions
 

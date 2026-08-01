@@ -323,12 +323,15 @@ namespace ClassicUO
                 CUOEnviroment.Use2XAssets = use2XAssets;
                 CUOEnviroment.AssetDisplayMode = use2XAssets
                     && rawMode >= (int)TwoXAssetDisplayMode.SameSize
-                    && rawMode <= (int)TwoXAssetDisplayMode.HiDpi
+                    && rawMode <= (int)TwoXAssetDisplayMode.HiDpiBalanced
                     ? (TwoXAssetDisplayMode)rawMode
                     : TwoXAssetDisplayMode.SameSize;
 
                 // FNA must receive this before GameController creates the SDL window.
-                if (CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.HiDpi)
+                if (
+                    CUOEnviroment.AssetDisplayMode
+                    is TwoXAssetDisplayMode.HiDpi or TwoXAssetDisplayMode.HiDpiBalanced
+                )
                 {
                     Environment.SetEnvironmentVariable("FNA_GRAPHICS_ENABLE_HIGHDPI", "1");
                     CUOEnviroment.IsHighDPI = true;
