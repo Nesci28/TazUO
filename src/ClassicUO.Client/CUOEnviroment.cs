@@ -11,7 +11,8 @@ namespace ClassicUO
     {
         SameSize = 0,
         NativeWorld = 1,
-        HiDpi = 2
+        HiDpi = 2,
+        HiDpiBalanced = 3
     }
 
     internal static class CUOEnviroment
@@ -25,6 +26,7 @@ namespace ClassicUO
         public static bool IsHighDPI;
         public static bool Use2XAssets = true;
         public static TwoXAssetDisplayMode AssetDisplayMode;
+        public const float BalancedHiDpiDensity = 1.5f;
         public static uint CurrentRefreshRate;
         public static bool SkipLoginScreen;
         public static bool NoServerPing;

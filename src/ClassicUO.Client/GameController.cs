@@ -427,7 +427,10 @@ namespace ClassicUO
         {
             float density = 1f;
 
-            if (CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.HiDpi)
+            if (
+                CUOEnviroment.AssetDisplayMode
+                is TwoXAssetDisplayMode.HiDpi or TwoXAssetDisplayMode.HiDpiBalanced
+            )
             {
                 SDL_GetWindowSize(Window.Handle, out int logicalWidth, out int logicalHeight);
                 SDL_GetWindowSizeInPixels(Window.Handle, out int pixelWidth, out int pixelHeight);
@@ -438,6 +441,9 @@ namespace ClassicUO
                     float densityY = pixelHeight / (float)logicalHeight;
                     density = Math.Clamp(Math.Min(densityX, densityY), 1f, 4f);
                 }
+
+                if (CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.HiDpiBalanced)
+                    density = Math.Min(density, CUOEnviroment.BalancedHiDpiDensity);
             }
 
             if (Math.Abs(RenderPixelDensity - density) < 0.001f)

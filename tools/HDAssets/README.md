@@ -52,6 +52,11 @@ pipeline has already performed those checks and restored the masks before packin
 extra full passes over each image. Loose `ExternalImages` and `tuoassets.zip` replacements remain
 untrusted and retain the runtime validation and mask-restoration path.
 
+For a Retina display that cannot sustain the target frame rate in native 2x HiDPI, select
+**HiDPI Balanced (1.5x)** in Video → Post-processing. It keeps the normal field of view and HiDPI
+layout while reducing full-frame pixel work by 43.75% compared with native 2x rendering. The
+hdpack and its `@2x` images do not need to be regenerated.
+
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
 
 After a sheet is finalized successfully, the pipeline writes a durable completion marker and removes that large upscaled sheet. This keeps peak disk usage bounded while preserving restart safety: completed sheets are skipped by both the upscale and finalization stages.
