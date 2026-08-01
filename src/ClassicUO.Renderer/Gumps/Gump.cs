@@ -41,7 +41,7 @@ namespace ClassicUO.Renderer.Gumps
                 GumpInfo gumpInfo = ExternalImageLoader.Instance.LoadGumpTexture(idx);
                 bool loadedFromPNG = !gumpInfo.Pixels.IsEmpty;
 
-                if (loadedFromPNG && gumpInfo.SourceScale > 1)
+                if (loadedFromPNG && !gumpInfo.IsTrusted && gumpInfo.SourceScale > 1)
                 {
                     GumpInfo original = _gumpsLoader.GetGump(idx);
                     int expectedWidth = original.Width * gumpInfo.SourceScale;
