@@ -322,6 +322,12 @@ namespace ClassicUO.Game.Managers
                 sb.AppendLine($"/c[gray]Matched Rule: {bestGridHighlightData.Name}/cd");
             }
 
+            if (compareTo != uint.MinValue)
+            {
+                ItemPropertiesData equippedProperties = itemPropertiesData.GetComparedItemProperties();
+                sb.Append(ItemComparisonStatChanges.BuildSection(itemPropertiesData, equippedProperties));
+            }
+
             return sb.ToString();
         }
 
