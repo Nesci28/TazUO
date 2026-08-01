@@ -983,11 +983,18 @@ public class GridItem : Control
         if (compItem == null || itemLayer == Layer.Backpack)
             return;
 
+        // Equipped items are not directly hovered during a comparison, so make sure their OPL is
+        // requested for both the side tooltip and the stat-change summary.
+        _world.OPL.Contains(compItem.Serial);
+        if (compItem2 != null)
+            _world.OPL.Contains(compItem2.Serial);
+
         ClearTooltip();
         var toolTipList = new List<CustomToolTip>();
         _toolTipThis = new CustomToolTip(_world, _item, Mouse.Position.X + 5, Mouse.Position.Y + 5, this, compareTo: compItem);
         toolTipList.Add(_toolTipThis);
         _toolTipitem1 = new CustomToolTip(_world, compItem, _toolTipThis.X + _toolTipThis.Width + 10, _toolTipThis.Y, this, "<basefont color=\"orange\">Equipped Item<br>");
+        _toolTipitem1.OnOPLLoaded += _toolTipThis.RefreshData;
         toolTipList.Add(_toolTipitem1);
 
         if (CUOEnviroment.Debug)
