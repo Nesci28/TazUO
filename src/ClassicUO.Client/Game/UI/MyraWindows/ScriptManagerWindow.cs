@@ -54,7 +54,6 @@ public class ScriptManagerWindow : MyraControl
     private string _contextMenuSubGroup = "";
 
     private MyraGrid _mainGrid;
-    private MyraGrid _headerToolbar;
 
     // Resizing fires this on every mouse-move tick; debounce so we're not hitting the settings DB
     // on every pixel, only once the drag settles.
@@ -79,9 +78,6 @@ public class ScriptManagerWindow : MyraControl
         Instance = this;
         CanBeSaved = true;
         Build();
-        _rootWindow.SizeChanged += (_, _) => UpdateHeaderWidth();
-        _rootWindow.ArrangeUpdated += (_, _) => UpdateHeaderWidth();
-        _rootWindow.Resized += (_, _) => UpdateHeaderWidth();
         RestoreWindowState();
         LegionScripting.LegionScripting.ScriptStarted += OnScriptChanged;
         LegionScripting.LegionScripting.ScriptStopped += OnScriptChanged;
@@ -134,7 +130,6 @@ public class ScriptManagerWindow : MyraControl
             _rootWindow.Height = height;
         }
 
-        UpdateHeaderWidth();
     }
 
     public override void PreDraw()
@@ -191,7 +186,6 @@ public class ScriptManagerWindow : MyraControl
 
         SetRootContent(_mainGrid);
         ApplyContentTheme();
-        UpdateHeaderWidth();
     }
 
     private void ApplyContentTheme()
@@ -205,23 +199,6 @@ public class ScriptManagerWindow : MyraControl
             : MyraStyle.Brush(MyraStyle.BorderColor);
         _mainGrid.BorderThickness = new Thickness(1);
         _mainGrid.Padding = new Thickness(MyraStyle.STANDARD_SPACING);
-    }
-
-
-    private void UpdateHeaderWidth()
-
-    {
-        if (_mainGrid == null || _headerToolbar == null)
-            return;
-
-        int windowWidth = _rootWindow.Width ?? _rootWindow.Bounds.Width;
-
-        if (windowWidth <= 0)
-            return;
-
-        int mainWidth = Math.Max(MIN_WIDTH, windowWidth - MyraStyle.STANDARD_SPACING * 2);
-        _mainGrid.Width = mainWidth;
-        _headerToolbar.Width = Math.Max(1, mainWidth - MyraStyle.STANDARD_SPACING * 2);
     }
 
     private WrapPanel BuildMenuBar()
