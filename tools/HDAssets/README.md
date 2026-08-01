@@ -54,8 +54,9 @@ untrusted and retain the runtime validation and mask-restoration path.
 
 For a Retina display that cannot sustain the target frame rate in native 2x HiDPI, select
 **HiDPI Balanced (1.5x)** in Video → Post-processing. It keeps the normal field of view and HiDPI
-layout while reducing full-frame pixel work by 43.75% compared with native 2x rendering. The
-hdpack and its `@2x` images do not need to be regenerated.
+layout while reducing internal render-target pixels by 43.75% compared with native 2x rendering,
+then performs one linear upscale to the physical drawable. The hdpack and its `@2x` images do not
+need to be regenerated.
 
 On macOS the script downloads the current official universal `upscayl-ncnn` backend release and the selected model, verifies their SHA-256 hashes, and makes the backend executable. Metal access is required. A complete 2x pack is recommended before trying 4x because animations dominate both disk usage and conversion time.
 
