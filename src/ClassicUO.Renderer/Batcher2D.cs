@@ -125,8 +125,8 @@ namespace ClassicUO.Renderer
         public GraphicsDevice GraphicsDevice { get; }
 
         /// <summary>
-        /// Maps logical client coordinates to physical output pixels. HiDPI mode sets this to the
-        /// SDL window pixel-density ratio; ordinary rendering keeps it at 1.
+        /// Maps logical client coordinates to render-target pixels. Native HiDPI uses the SDL
+        /// drawable ratio; Balanced HiDPI may use a lower density and upscale during presentation.
         /// </summary>
         public float OutputScale
         {
