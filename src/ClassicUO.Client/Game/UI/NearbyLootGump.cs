@@ -630,7 +630,7 @@ public sealed class NearbyLootGump : MyraControl
 
     private sealed record NavigationEntry(string Identity, NearbyLootRow Row, Action Activate);
 
-    private sealed class NearbyLootRow : Button
+    private sealed class NearbyLootRow : Myra.Graphics2D.UI.Button
     {
         internal static readonly SolidBrush SelectionBrush = new(new Color(255, 110, 45, 220));
         private static readonly SolidBrush LootingBrush = new(new Color(50, 180, 80, 220));
