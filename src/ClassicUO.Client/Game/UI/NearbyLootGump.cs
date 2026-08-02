@@ -28,8 +28,12 @@ public sealed class NearbyLootGump : MyraControl
     private const int DefaultHeight = 550;
     private const int MinimumWidth = 250;
     private const int MinimumHeight = 200;
-    private const int ItemIconSize = 36;
-    private const int GroupIconSize = 24;
+    private const int ItemIconSize = 32;
+    private const int GroupIconSize = 30;
+    private const int ExpandedItemIconSize = 28;
+    private const string CollapsedChevron = "›";
+    private const string ExpandedChevron = "▾";
+    private const string CollapseAllChevron = "▴";
     private const long ContentRefreshInterval = 200;
     private const long VisualRefreshInterval = 100;
     private const long CorpseCacheLifetime = 120_000;
@@ -117,42 +121,42 @@ public sealed class NearbyLootGump : MyraControl
             Margin = new Thickness(0, 0, 0, 4)
         };
         commands.RowsProportions.Add(new Proportion(ProportionType.Auto));
-        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
-        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
-        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
-        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.1f));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 0.9f));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.3f));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1f));
 
         _lootButton = new MyraButton(
             TazLang.Get("nearbyloot_lootall", "Loot All"),
-            LootAll,
-            MyraLabel.TextStyle.H5
+            LootAll
         );
         AddGridWidget(commands, _lootButton, 0, 0);
         AddGridWidget(
             commands,
             new MyraButton(
-                TazLang.Get("nearbyloot_setlootbag", "Set Loot Bag"),
-                SetLootBag,
-                MyraLabel.TextStyle.H5
-            ),
+                TazLang.Get("nearbyloot_set", "Set"),
+                SetLootBag
+            )
+            {
+                Tooltip = TazLang.Get("nearbyloot_setlootbag", "Set Loot Bag")
+            },
             0,
             1
         );
         _expandCollapseButton = new MyraButton(
-            TazLang.Get("nearbyloot_expandall", "Expand All"),
-            ToggleAllGroups,
-            MyraLabel.TextStyle.H5
+            $"{TazLang.Get("nearbyloot_expand", "Expand")} {ExpandedChevron}",
+            ToggleAllGroups
         )
         {
-            Enabled = false
+            Enabled = false,
+            Tooltip = TazLang.Get("nearbyloot_expandall", "Expand All")
         };
         AddGridWidget(commands, _expandCollapseButton, 0, 2);
         AddGridWidget(
             commands,
             new MyraButton(
                 TazLang.Get("nearbyloot_options", "Options"),
-                ShowOptions,
-                MyraLabel.TextStyle.H5
+                ShowOptions
             ),
             0,
             3
@@ -291,8 +295,9 @@ public sealed class NearbyLootGump : MyraControl
                 continue;
             }
 
-            AddGroupHeader(group);
-            if (_expandedGroups.Contains(group.Key))
+            bool expanded = _expandedGroups.Contains(group.Key);
+            AddGroupHeader(group, expanded);
+            if (expanded)
             {
                 foreach (Item item in group.Items)
                     AddItemRow(item, true);
@@ -380,7 +385,7 @@ public sealed class NearbyLootGump : MyraControl
         GameActions.QueueOpenCorpse(corpse.Serial);
     }
 
-    private void AddGroupHeader(LootGroup group)
+    private void AddGroupHeader(LootGroup group, bool expanded)
     {
         int entryCount = group.Items.Count;
         int totalAmount = group.Items.Sum(item => Math.Max(1, (int)item.Amount));
@@ -400,8 +405,11 @@ public sealed class NearbyLootGump : MyraControl
             () => ClearItemTooltip(group.Items[0].Serial),
             () => group.Items.Any(IsBeingLooted),
             () => GetGroupHighlight(group.Items),
-            GroupIconSize,
-            true
+            iconSize: GroupIconSize,
+            labelStyle: MyraLabel.TextStyle.H4,
+            disclosure: expanded ? ExpandedChevron : CollapsedChevron,
+            emphasized: true,
+            compact: true
         );
 
         _navigationEntries.Add(new NavigationEntry(identity, row, () => ToggleGroup(group.Key)));
@@ -419,7 +427,11 @@ public sealed class NearbyLootGump : MyraControl
             () => SelectRow(index, item.Serial),
             () => ClearItemTooltip(item.Serial),
             () => IsBeingLooted(item),
-            () => GetItemHighlight(item)
+            () => GetItemHighlight(item),
+            iconSize: indented ? ExpandedItemIconSize : ItemIconSize,
+            labelStyle: indented ? MyraLabel.TextStyle.H5 : MyraLabel.TextStyle.P,
+            disclosure: indented ? null : CollapsedChevron,
+            compact: indented
         );
 
         _navigationEntries.Add(new NavigationEntry(identity, row, () => QuickLoot(item)));
@@ -435,29 +447,46 @@ public sealed class NearbyLootGump : MyraControl
         Func<bool> isBeingLooted,
         Func<Color?> highlightColor,
         int iconSize = ItemIconSize,
+        MyraLabel.TextStyle labelStyle = MyraLabel.TextStyle.P,
+        string disclosure = null,
+        bool emphasized = false,
         bool compact = false
     )
     {
         var icon = new NearbyLootIconFrame(item.DisplayedGraphic, item.Hue, iconSize, highlightColor);
-        var content = new HorizontalStackPanel
+        var content = new Grid
         {
-            Spacing = MyraStyle.STANDARD_SPACING,
+            ColumnSpacing = MyraStyle.STANDARD_SPACING,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center
         };
-        content.Widgets.Add(icon);
-        content.Widgets.Add(new MyraLabel(
-            label,
-            compact ? MyraLabel.TextStyle.H5 : MyraLabel.TextStyle.P
-        )
-        {
-            VerticalAlignment = VerticalAlignment.Center
-        });
+        content.RowsProportions.Add(new Proportion(ProportionType.Auto));
+        content.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+        content.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+        content.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
 
-        var row = new NearbyLootRow(activate, hover, leave, isBeingLooted)
+        AddGridWidget(content, icon, 0, 0);
+        AddGridWidget(content, new MyraLabel(label, labelStyle)
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center
+        }, 0, 1);
+
+        if (!string.IsNullOrEmpty(disclosure))
+        {
+            AddGridWidget(content, new MyraLabel(disclosure, MyraLabel.TextStyle.H4)
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 0, 2, 0)
+            }, 0, 2);
+        }
+
+        var row = new NearbyLootRow(activate, hover, leave, isBeingLooted, emphasized)
         {
             Content = content,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = indented ? new Thickness(18, 0, 0, 0) : new Thickness(0),
+            Margin = indented ? new Thickness(22, 0, 0, 0) : new Thickness(0),
             Padding = compact ? new Thickness(2, 0) : new Thickness(3, 1)
         };
 
@@ -512,7 +541,11 @@ public sealed class NearbyLootGump : MyraControl
             return;
 
         _expandCollapseButton.Enabled = _duplicateGroupKeys.Count > 0;
-        _expandCollapseButton.Text = AreAllGroupsExpanded()
+        bool collapse = AreAllGroupsExpanded();
+        _expandCollapseButton.Text = collapse
+            ? $"{TazLang.Get("nearbyloot_collapse", "Collapse")} {CollapseAllChevron}"
+            : $"{TazLang.Get("nearbyloot_expand", "Expand")} {ExpandedChevron}";
+        _expandCollapseButton.Tooltip = collapse
             ? TazLang.Get("nearbyloot_collapseall", "Collapse All")
             : TazLang.Get("nearbyloot_expandall", "Expand All");
     }
@@ -722,21 +755,38 @@ public sealed class NearbyLootGump : MyraControl
     private sealed class NearbyLootRow : Myra.Graphics2D.UI.Button
     {
         internal static readonly SolidBrush SelectionBrush = new(new Color(255, 110, 45, 220));
+        private static readonly SolidBrush GroupBrush = new(new Color(185, 100, 35, 190));
         private static readonly SolidBrush LootingBrush = new(new Color(50, 180, 80, 220));
 
         private readonly Action _activate;
         private readonly Action _hover;
         private readonly Action _leave;
         private readonly Func<bool> _isBeingLooted;
+        private readonly bool _emphasized;
         private bool? _lastBeingLooted;
         private bool? _lastSelected;
 
-        public NearbyLootRow(Action activate, Action hover, Action leave, Func<bool> isBeingLooted)
+        public NearbyLootRow(
+            Action activate,
+            Action hover,
+            Action leave,
+            Func<bool> isBeingLooted,
+            bool emphasized
+        )
         {
             _activate = activate;
             _hover = hover;
             _leave = leave;
             _isBeingLooted = isBeingLooted;
+            _emphasized = emphasized;
+
+            if (emphasized)
+            {
+                Background = MyraStyle.NinePatchButtonDown;
+                OverBackground = MyraStyle.NinePatchButtonDown;
+                PressedBackground = MyraStyle.NinePatchButtonDown;
+            }
+
             DisabledBackground = Background;
         }
 
@@ -748,8 +798,12 @@ public sealed class NearbyLootGump : MyraControl
 
             _lastBeingLooted = beingLooted;
             _lastSelected = selected;
-            Border = beingLooted ? LootingBrush : selected ? SelectionBrush : null;
-            BorderThickness = beingLooted ? new Thickness(2) : selected ? new Thickness(1) : new Thickness(0);
+            Border = beingLooted
+                ? LootingBrush
+                : selected ? SelectionBrush : _emphasized ? GroupBrush : null;
+            BorderThickness = beingLooted || selected
+                ? new Thickness(2)
+                : _emphasized ? new Thickness(1) : new Thickness(0);
         }
 
         public override void OnMouseEntered()
