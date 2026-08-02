@@ -348,7 +348,7 @@ public sealed class NearbyLootGump : MyraControl
     private void AddGroupHeader(LootGroup group)
     {
         int entryCount = group.Items.Count;
-        int totalAmount = group.Items.Sum(item => Math.Max(1, item.Amount));
+        int totalAmount = group.Items.Sum(item => Math.Max(1, (int)item.Amount));
         string count = totalAmount == entryCount
             ? FormatLocalized("nearbyloot_groupitems", "{0} items", entryCount)
             : FormatLocalized("nearbyloot_groupstacks", "{0} stacks · {1} total", entryCount, totalAmount);
