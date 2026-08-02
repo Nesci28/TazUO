@@ -391,20 +391,20 @@ public class MyraControl : IGui
     }
 
     #region Invokations
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void InvokeKeyUp(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
+    /// <summary>Forwards top-level keyboard input to overridable Myra window handlers.</summary>
+    public virtual void InvokeKeyUp(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) => OnKeyUp(key, mod);
 
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void InvokeKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
+    /// <summary>Forwards top-level keyboard input to overridable Myra window handlers.</summary>
+    public virtual void InvokeKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) => OnKeyDown(key, mod);
 
     /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
     public void InvokeTextInput(string c) { }
 
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void InvokeControllerButtonUp(SDL.SDL_GamepadButton button) { }
+    /// <summary>Forwards top-level controller input to overridable Myra window handlers.</summary>
+    public virtual void InvokeControllerButtonUp(SDL.SDL_GamepadButton button) => OnControllerButtonUp(button);
 
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void InvokeControllerButtonDown(SDL.SDL_GamepadButton button) { }
+    /// <summary>Forwards top-level controller input to overridable Myra window handlers.</summary>
+    public virtual void InvokeControllerButtonDown(SDL.SDL_GamepadButton button) => OnControllerButtonDown(button);
 
     /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
     public void InvokeMouseDown(Point position, MouseButtonType button) { }
@@ -529,11 +529,17 @@ public class MyraControl : IGui
         return false;
     }
 
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void OnKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
+    /// <summary>Override in Myra windows that handle top-level keyboard input.</summary>
+    public virtual void OnKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
 
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void OnKeyUp(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
+    /// <summary>Override in Myra windows that handle top-level keyboard input.</summary>
+    public virtual void OnKeyUp(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
+
+    /// <summary>Override in Myra windows that handle top-level controller input.</summary>
+    protected virtual void OnControllerButtonDown(SDL.SDL_GamepadButton button) { }
+
+    /// <summary>Override in Myra windows that handle top-level controller input.</summary>
+    protected virtual void OnControllerButtonUp(SDL.SDL_GamepadButton button) { }
 
     /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
     public void OnButtonClick(int buttonID) { }
