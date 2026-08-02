@@ -846,6 +846,7 @@ namespace ClassicUO.Configuration
         [Obsolete("Remove after 10/12/26")]
         public bool UseWASDInsteadArrowKeys { get; set => SetProperty(ref field, value); }
         public int NearbyLootGumpHeight { get; set => SetProperty(ref field, value); } = 550;
+        public int NearbyLootGumpWidth { get; set => SetProperty(ref field, value); } = 300;
         public bool ForceTooltipsOnOldClients { get; set => SetProperty(ref field, value); } = true;
         public bool NearbyLootOpensHumanCorpses { get; set => SetProperty(ref field, value); }
         [Obsolete("Remove after 10/12/26")]
@@ -985,6 +986,7 @@ namespace ClassicUO.Configuration
                 QuickCureSpell = OldQuickCureSpell;
                 WebMapServerPort = OldWebMapServerPort;
                 WebMapAutoStart = OldWebMapAutoStart;
+                NearbyLootGumpWidth = OldNearbyLootGumpWidth;
 
                 ProfileMigrationVersion = 6;
             }
@@ -1343,12 +1345,21 @@ namespace ClassicUO.Configuration
                                 UIManager.SavePosition(serverSerial, new Point(x, y));
                             }
 
+                            // Nearby Loot moved from a legacy Gump to Myra. Restore old saved
+                            // entries once at their previous position; subsequent saves use <myra>.
+                            if (type == GumpType.NearbyCorpseLoot)
+                            {
+                                var nearbyLoot = new NearbyLootGump(world);
+                                nearbyLoot.SetPosition(x, y);
+                                UIManager.Add(nearbyLoot);
+                                continue;
+                            }
+
                             Gump gump = null;
 
                             switch (type)
                             {
                                 case GumpType.SpellBar: gump = new SpellBar(world); break;
-                                case GumpType.NearbyCorpseLoot: gump = new NearbyLootGump(world); break;
                                 case GumpType.Buff:
                                     if (ProfileManager.CurrentProfile.UseImprovedBuffBar)
                                         gump = new ImprovedBuffGump(world);
@@ -1734,6 +1745,14 @@ namespace ClassicUO.Configuration
                     var polls = new PollsWindow();
                     polls.Load(xml);
                     UIManager.Add(polls);
+                    break;
+                case "ClassicUO.Game.UI.NearbyLootGump":
+                    if (World.Instance != null)
+                    {
+                        var nearbyLoot = new NearbyLootGump(World.Instance);
+                        nearbyLoot.Load(xml);
+                        UIManager.Add(nearbyLoot);
+                    }
                     break;
             }
         }
