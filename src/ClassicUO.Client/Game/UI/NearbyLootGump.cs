@@ -29,12 +29,16 @@ public sealed class NearbyLootGump : MyraControl
     private const int MinimumWidth = 250;
     private const int MinimumHeight = 200;
     private const int ItemIconSize = 36;
+    private const int GroupIconSize = 24;
+    private const long ContentRefreshInterval = 200;
+    private const long VisualRefreshInterval = 100;
     private const long CorpseCacheLifetime = 120_000;
 
     private static readonly HashSet<uint> _corpsesRequested = [];
     private static readonly HashSet<uint> _openedCorpses = [];
 
     private readonly World _world;
+    private readonly HashSet<LootGroupKey> _duplicateGroupKeys = [];
     private readonly HashSet<LootGroupKey> _expandedGroups = [];
     private readonly List<NavigationEntry> _navigationEntries = [];
     private readonly List<NearbyLootIconFrame> _iconFrames = [];
@@ -47,9 +51,13 @@ public sealed class NearbyLootGump : MyraControl
     };
 
     private MyraButton _lootButton;
+    private MyraButton _expandCollapseButton;
     private bool _refreshRequested;
     private bool _eventsSubscribed;
+    private bool? _lootAllSelected;
     private int _selectedIndex = -1;
+    private long _nextContentRefresh;
+    private long _nextVisualRefresh;
     private long _nextClean;
 
     public NearbyLootGump(World world)
@@ -112,20 +120,42 @@ public sealed class NearbyLootGump : MyraControl
         commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
         commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
         commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part));
 
-        _lootButton = new MyraButton(TazLang.Get("nearbyloot_lootall", "Loot All"), LootAll);
+        _lootButton = new MyraButton(
+            TazLang.Get("nearbyloot_lootall", "Loot All"),
+            LootAll,
+            MyraLabel.TextStyle.H5
+        );
         AddGridWidget(commands, _lootButton, 0, 0);
         AddGridWidget(
             commands,
-            new MyraButton(TazLang.Get("nearbyloot_setlootbag", "Set Loot Bag"), SetLootBag),
+            new MyraButton(
+                TazLang.Get("nearbyloot_setlootbag", "Set Loot Bag"),
+                SetLootBag,
+                MyraLabel.TextStyle.H5
+            ),
             0,
             1
         );
+        _expandCollapseButton = new MyraButton(
+            TazLang.Get("nearbyloot_expandall", "Expand All"),
+            ToggleAllGroups,
+            MyraLabel.TextStyle.H5
+        )
+        {
+            Enabled = false
+        };
+        AddGridWidget(commands, _expandCollapseButton, 0, 2);
         AddGridWidget(
             commands,
-            new MyraButton(TazLang.Get("nearbyloot_options", "Options"), ShowOptions),
+            new MyraButton(
+                TazLang.Get("nearbyloot_options", "Options"),
+                ShowOptions,
+                MyraLabel.TextStyle.H5
+            ),
             0,
-            2
+            3
         );
 
         var scrollViewer = new ScrollViewer
@@ -243,11 +273,15 @@ public sealed class NearbyLootGump : MyraControl
             .ThenBy(group => group.Key.NormalizedName, StringComparer.Ordinal)
             .ToList();
 
-        HashSet<LootGroupKey> duplicateKeys = groups
-            .Where(group => group.Items.Count > 1)
-            .Select(group => group.Key)
-            .ToHashSet();
-        _expandedGroups.RemoveWhere(key => !duplicateKeys.Contains(key));
+        _duplicateGroupKeys.Clear();
+        foreach (LootGroup group in groups)
+        {
+            if (group.Items.Count > 1)
+                _duplicateGroupKeys.Add(group.Key);
+        }
+
+        _expandedGroups.RemoveWhere(key => !_duplicateGroupKeys.Contains(key));
+        UpdateExpandCollapseButton();
 
         foreach (LootGroup group in groups)
         {
@@ -285,6 +319,7 @@ public sealed class NearbyLootGump : MyraControl
         }
 
         RefreshRowVisuals();
+        _nextVisualRefresh = Time.Ticks + VisualRefreshInterval;
     }
 
     private void ProcessCorpse(Item corpse, List<Item> itemList)
@@ -364,7 +399,9 @@ public sealed class NearbyLootGump : MyraControl
             () => SelectRow(index, group.Items[0].Serial),
             () => ClearItemTooltip(group.Items[0].Serial),
             () => group.Items.Any(IsBeingLooted),
-            () => GetGroupHighlight(group.Items)
+            () => GetGroupHighlight(group.Items),
+            GroupIconSize,
+            true
         );
 
         _navigationEntries.Add(new NavigationEntry(identity, row, () => ToggleGroup(group.Key)));
@@ -396,17 +433,22 @@ public sealed class NearbyLootGump : MyraControl
         Action hover,
         Action leave,
         Func<bool> isBeingLooted,
-        Func<Color?> highlightColor
+        Func<Color?> highlightColor,
+        int iconSize = ItemIconSize,
+        bool compact = false
     )
     {
-        var icon = new NearbyLootIconFrame(item.DisplayedGraphic, item.Hue, highlightColor);
+        var icon = new NearbyLootIconFrame(item.DisplayedGraphic, item.Hue, iconSize, highlightColor);
         var content = new HorizontalStackPanel
         {
             Spacing = MyraStyle.STANDARD_SPACING,
             VerticalAlignment = VerticalAlignment.Center
         };
         content.Widgets.Add(icon);
-        content.Widgets.Add(new MyraLabel(label, MyraLabel.TextStyle.P)
+        content.Widgets.Add(new MyraLabel(
+            label,
+            compact ? MyraLabel.TextStyle.H5 : MyraLabel.TextStyle.P
+        )
         {
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -416,7 +458,7 @@ public sealed class NearbyLootGump : MyraControl
             Content = content,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = indented ? new Thickness(18, 0, 0, 0) : new Thickness(0),
-            Padding = new Thickness(3, 1)
+            Padding = compact ? new Thickness(2, 0) : new Thickness(3, 1)
         };
 
         _lootList.Widgets.Add(row);
@@ -443,7 +485,36 @@ public sealed class NearbyLootGump : MyraControl
         if (!_expandedGroups.Add(key))
             _expandedGroups.Remove(key);
 
+        UpdateExpandCollapseButton();
         RequestUpdateContents();
+    }
+
+    private void ToggleAllGroups()
+    {
+        if (_duplicateGroupKeys.Count == 0)
+            return;
+
+        if (AreAllGroupsExpanded())
+            _expandedGroups.Clear();
+        else
+            _expandedGroups.UnionWith(_duplicateGroupKeys);
+
+        UpdateExpandCollapseButton();
+        RequestUpdateContents();
+    }
+
+    private bool AreAllGroupsExpanded() =>
+        _duplicateGroupKeys.Count > 0 && _expandedGroups.IsSupersetOf(_duplicateGroupKeys);
+
+    private void UpdateExpandCollapseButton()
+    {
+        if (_expandCollapseButton == null)
+            return;
+
+        _expandCollapseButton.Enabled = _duplicateGroupKeys.Count > 0;
+        _expandCollapseButton.Text = AreAllGroupsExpanded()
+            ? TazLang.Get("nearbyloot_collapseall", "Collapse All")
+            : TazLang.Get("nearbyloot_expandall", "Expand All");
     }
 
     private void SelectRow(int index, uint serial)
@@ -467,24 +538,32 @@ public sealed class NearbyLootGump : MyraControl
 
     private static Color? GetGroupHighlight(IReadOnlyList<Item> items)
     {
-        List<Item> highlighted = items
-            .Where(item => item is { IsDestroyed: false, MatchesHighlightData: true })
-            .ToList();
-        if (highlighted.Count == 0)
-            return null;
-
         foreach (GridHighlightData config in GridHighlightData.AllConfigs)
         {
             if (!config.Enabled)
                 continue;
 
-            Item match = highlighted.FirstOrDefault(item =>
-                string.Equals(item.HighlightName, config.Name, StringComparison.OrdinalIgnoreCase));
-            if (match != null)
-                return match.HighlightColor;
+            foreach (Item item in items)
+            {
+                if (item is { IsDestroyed: false, MatchesHighlightData: true } &&
+                    string.Equals(item.HighlightName, config.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.HighlightColor;
+                }
+            }
         }
 
-        return highlighted.OrderBy(item => item.Serial).First().HighlightColor;
+        Item fallback = null;
+        foreach (Item item in items)
+        {
+            if (item is { IsDestroyed: false, MatchesHighlightData: true } &&
+                (fallback == null || item.Serial < fallback.Serial))
+            {
+                fallback = item;
+            }
+        }
+
+        return fallback?.HighlightColor;
     }
 
     private void QuickLoot(Item item)
@@ -539,6 +618,10 @@ public sealed class NearbyLootGump : MyraControl
             _lootRows[i].Refresh(i == _selectedIndex);
 
         bool lootAllSelected = _selectedIndex == -1;
+        if (_lootAllSelected == lootAllSelected)
+            return;
+
+        _lootAllSelected = lootAllSelected;
         _lootButton.Border = lootAllSelected ? NearbyLootRow.SelectionBrush : null;
         _lootButton.BorderThickness = lootAllSelected ? new Thickness(1) : new Thickness(0);
     }
@@ -549,21 +632,27 @@ public sealed class NearbyLootGump : MyraControl
         if (IsDisposed)
             return;
 
-        if (_refreshRequested)
+        long now = Time.Ticks;
+        if (_refreshRequested && now >= _nextContentRefresh)
         {
             _refreshRequested = false;
+            _nextContentRefresh = now + ContentRefreshInterval;
             RebuildLootList();
         }
 
-        foreach (NearbyLootIconFrame icon in _iconFrames)
-            icon.RefreshHighlight();
-        RefreshRowVisuals();
+        if (now >= _nextVisualRefresh)
+        {
+            foreach (NearbyLootIconFrame icon in _iconFrames)
+                icon.RefreshHighlight();
+            RefreshRowVisuals();
+            _nextVisualRefresh = now + VisualRefreshInterval;
+        }
 
-        if (Time.Ticks > _nextClean)
+        if (now > _nextClean)
         {
             _openedCorpses.Clear();
             _corpsesRequested.Clear();
-            _nextClean = Time.Ticks + CorpseCacheLifetime;
+            _nextClean = now + CorpseCacheLifetime;
         }
     }
 
@@ -639,6 +728,8 @@ public sealed class NearbyLootGump : MyraControl
         private readonly Action _hover;
         private readonly Action _leave;
         private readonly Func<bool> _isBeingLooted;
+        private bool? _lastBeingLooted;
+        private bool? _lastSelected;
 
         public NearbyLootRow(Action activate, Action hover, Action leave, Func<bool> isBeingLooted)
         {
@@ -652,6 +743,11 @@ public sealed class NearbyLootGump : MyraControl
         public void Refresh(bool selected)
         {
             bool beingLooted = _isBeingLooted?.Invoke() == true;
+            if (_lastBeingLooted == beingLooted && _lastSelected == selected)
+                return;
+
+            _lastBeingLooted = beingLooted;
+            _lastSelected = selected;
             Border = beingLooted ? LootingBrush : selected ? SelectionBrush : null;
             BorderThickness = beingLooted ? new Thickness(2) : selected ? new Thickness(1) : new Thickness(0);
         }
@@ -694,15 +790,15 @@ public sealed class NearbyLootGump : MyraControl
         private Color? _lastColor;
         private int _lastThickness = -1;
 
-        public NearbyLootIconFrame(uint graphic, ushort hue, Func<Color?> highlightColor)
+        public NearbyLootIconFrame(uint graphic, ushort hue, int iconSize, Func<Color?> highlightColor)
         {
             _highlightColor = highlightColor;
-            Width = ItemIconSize + 4;
-            Height = ItemIconSize + 4;
+            Width = iconSize + 4;
+            Height = iconSize + 4;
             Padding = new Thickness(2);
             VerticalAlignment = VerticalAlignment.Center;
 
-            Widgets.Add(new MyraArtTexture(graphic, hue, ItemIconSize)
+            Widgets.Add(new MyraArtTexture(graphic, hue, iconSize)
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
