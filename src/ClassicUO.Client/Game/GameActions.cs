@@ -81,7 +81,7 @@ internal static class GameActions
     /// <returns>False if no nearby loot gump was open</returns>
     internal static bool CloseNearbyLootGump()
     {
-        Gump g = UIManager.GetGump<NearbyLootGump>();
+        NearbyLootGump g = UIManager.GetGump<NearbyLootGump>();
 
         if (g != null)
         {
