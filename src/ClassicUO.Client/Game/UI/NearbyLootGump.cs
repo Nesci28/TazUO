@@ -627,7 +627,7 @@ public sealed class NearbyLootGump : MyraControl
 
     private void SetLootBag()
     {
-        GameActions.Print(_world, Resources.ResGumps.TargetContainerToGrabItemsInto);
+        GameActions.Print(_world, TazLang.Get("target_container_to_grab_items_into"));
         _world.TargetManager.SetTargeting(CursorTarget.SetGrabBag, 0, TargetType.Neutral);
     }
 
