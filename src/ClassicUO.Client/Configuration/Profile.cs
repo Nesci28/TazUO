@@ -474,6 +474,7 @@ namespace ClassicUO.Configuration
         public bool NamePlateHealthBar { get; set => SetProperty(ref field, value); } = true;
         public byte NamePlateOpacity { get; set => SetProperty(ref field, value); } = 75;
         public byte NamePlateHealthBarOpacity { get; set => SetProperty(ref field, value); } = 50;
+        public bool NamePlateShowHealthValues { get; set => SetProperty(ref field, value); }
         public bool NamePlateHideAtFullHealth { get; set => SetProperty(ref field, value); }
         public bool NamePlateHideAtFullHealthInWarmode { get; set => SetProperty(ref field, value); }
         public byte NamePlateBorderOpacity { get; set => SetProperty(ref field, value); } = 50;
