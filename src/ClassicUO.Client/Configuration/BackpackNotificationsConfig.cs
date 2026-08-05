@@ -8,6 +8,13 @@ using ClassicUO.Common;
 
 namespace ClassicUO.Configuration;
 
+public enum BackpackNotificationDestination
+{
+    Journal,
+    Overhead,
+    OnScreen
+}
+
 public sealed class BackpackNotificationConfigEntry
 {
     public bool Enabled { get; set; } = true;
@@ -25,17 +32,75 @@ public sealed class BackpackNotificationConfigEntry
 
     public string Announcement { get; set; } = "{rule} received: {item}";
 
-    public bool Journal { get; set; } = true;
+    [JsonConverter(typeof(JsonStringEnumConverter<BackpackNotificationDestination>))]
+    public BackpackNotificationDestination Destination { get; set; } = BackpackNotificationDestination.Journal;
 
-    public ushort JournalHue { get; set; } = 63;
+    public ushort Hue { get; set; } = 63;
 
-    public bool Overhead { get; set; }
+    public string OnScreenFont { get; set; } = "avadonian";
 
-    public ushort OverheadHue { get; set; } = 63;
+    public int OnScreenFontSize { get; set; } = 20;
 
-    public bool OnScreen { get; set; } = true;
+    [JsonPropertyName("journal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyJournal { get; set; }
 
-    public ushort OnScreenHue { get; set; } = 63;
+    [JsonPropertyName("journal_hue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? LegacyJournalHue { get; set; }
+
+    [JsonPropertyName("overhead")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyOverhead { get; set; }
+
+    [JsonPropertyName("overhead_hue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? LegacyOverheadHue { get; set; }
+
+    [JsonPropertyName("on_screen")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyOnScreen { get; set; }
+
+    [JsonPropertyName("on_screen_hue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? LegacyOnScreenHue { get; set; }
+
+    internal bool MigrateLegacyDestination()
+    {
+        if (
+            LegacyJournal == null
+            && LegacyJournalHue == null
+            && LegacyOverhead == null
+            && LegacyOverheadHue == null
+            && LegacyOnScreen == null
+            && LegacyOnScreenHue == null
+        )
+            return false;
+
+        if (LegacyOnScreen == true)
+        {
+            Destination = BackpackNotificationDestination.OnScreen;
+            Hue = LegacyOnScreenHue ?? Hue;
+        }
+        else if (LegacyOverhead == true)
+        {
+            Destination = BackpackNotificationDestination.Overhead;
+            Hue = LegacyOverheadHue ?? Hue;
+        }
+        else
+        {
+            Destination = BackpackNotificationDestination.Journal;
+            Hue = LegacyJournalHue ?? Hue;
+        }
+
+        LegacyJournal = null;
+        LegacyJournalHue = null;
+        LegacyOverhead = null;
+        LegacyOverheadHue = null;
+        LegacyOnScreen = null;
+        LegacyOnScreenHue = null;
+        return true;
+    }
 }
 
 public sealed class BackpackNotificationsConfig : JsonSave<BackpackNotificationsConfig>
@@ -75,6 +140,9 @@ public sealed class BackpackNotificationsConfig : JsonSave<BackpackNotifications
             _current.Rules = CreateDefaultRules();
             shouldSave = true;
         }
+
+        foreach (BackpackNotificationConfigEntry rule in _current.Rules)
+            shouldSave |= rule.MigrateLegacyDestination();
 
         if (shouldSave)
             _current.Save();
@@ -127,12 +195,10 @@ public sealed class BackpackNotificationsConfig : JsonSave<BackpackNotifications
                 Hues = "-1",
                 RegexSearch = @"(?i)\bArtifact Rarity\b",
                 Announcement = "{rule} received: {item}",
-                Journal = true,
-                JournalHue = 63,
-                Overhead = false,
-                OverheadHue = 63,
-                OnScreen = true,
-                OnScreenHue = 63
+                Destination = BackpackNotificationDestination.OnScreen,
+                Hue = 63,
+                OnScreenFont = "avadonian",
+                OnScreenFontSize = 20
             }
         ];
     }
