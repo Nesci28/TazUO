@@ -14,7 +14,6 @@ namespace ClassicUO.Game.Managers;
 public sealed class BackpackNotificationManager
 {
     private const long PendingPropertyTimeout = 10000;
-    private const int OnScreenWidth = 360;
     private const int OnScreenTopOffset = 120;
     private const int OnScreenSpacing = 5;
 
@@ -94,6 +93,18 @@ public sealed class BackpackNotificationManager
 
         foreach (uint serial in expired)
             _pendingPropertySerials.Remove(serial);
+    }
+
+    public void TestNotification(BackpackNotificationConfigEntry rule)
+    {
+        if (rule == null || !_world.InGame)
+            return;
+
+        Notify(
+            rule,
+            GetRuleName(rule),
+            TazLang.Get("backpacknotifications_testitem", "Test item")
+        );
     }
 
     private void OnItemAddedToContainer(object sender, ItemContainerUpdateEventArgs e)
@@ -228,25 +239,67 @@ public sealed class BackpackNotificationManager
         if (string.IsNullOrWhiteSpace(itemName))
             itemName = $"0x{item.Graphic:X4}";
 
-        string ruleName = string.IsNullOrWhiteSpace(rule.Name)
+        Notify(rule, GetRuleName(rule), itemName);
+    }
+
+    private void Notify(BackpackNotificationConfigEntry rule, string ruleName, string itemName)
+    {
+        string message = FormatAnnouncement(rule, ruleName, itemName);
+
+        ShowNotification(
+            rule.Destination,
+            message,
+            rule.Hue,
+            rule.OnScreenFont,
+            rule.OnScreenFontSize
+        );
+    }
+
+    public void ShowNotification(
+        BackpackNotificationDestination destination,
+        string message,
+        ushort hue,
+        string onScreenFont,
+        int onScreenFontSize
+    )
+    {
+        if (!_world.InGame || string.IsNullOrWhiteSpace(message))
+            return;
+
+        switch (destination)
+        {
+            case BackpackNotificationDestination.Overhead:
+                if (_world.Player != null)
+                    GameActions.MessageOverhead(_world, message, hue, _world.Player.Serial);
+                break;
+
+            case BackpackNotificationDestination.OnScreen:
+                AddOnScreenMessage(message, hue, onScreenFont, onScreenFontSize);
+                break;
+
+            default:
+                GameActions.Print(_world, message, hue, MessageType.System);
+                break;
+        }
+    }
+
+    private static string GetRuleName(BackpackNotificationConfigEntry rule) =>
+        string.IsNullOrWhiteSpace(rule.Name)
             ? TazLang.Get("backpacknotifications_defaultname", "Item")
             : rule.Name.Trim();
 
-        string message = FormatAnnouncement(rule, ruleName, itemName);
-
-        if (rule.Journal)
-            GameActions.Print(_world, message, rule.JournalHue, MessageType.System);
-
-        if (rule.Overhead && _world.Player != null)
-            GameActions.MessageOverhead(_world, message, rule.OverheadHue, _world.Player.Serial);
-
-        if (rule.OnScreen)
-            AddOnScreenMessage(message, rule.OnScreenHue);
-    }
-
-    private void AddOnScreenMessage(string message, ushort hue)
+    private void AddOnScreenMessage(string message, ushort hue, string font, int fontSize)
     {
-        var timedText = new SimpleTimedTextGump(_world, message, hue, TimeSpan.FromSeconds(3), OnScreenWidth);
+        int viewportWidth = Math.Max(1, Client.Game.Scene.Camera.Bounds.Width);
+        var timedText = new SimpleTimedTextGump(
+            _world,
+            message,
+            hue,
+            TimeSpan.FromSeconds(3),
+            viewportWidth,
+            font,
+            Math.Clamp(fontSize, 5, 50)
+        );
         timedText.CenterXInViewPort();
         timedText.Y = Client.Game.Scene.Camera.Bounds.Y + OnScreenTopOffset;
 

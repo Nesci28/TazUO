@@ -26,17 +26,13 @@ public sealed class BackpackNotificationRule : IRule, INotifyPropertyChanged
 
     public string Announcement { get; set => SetField(ref field, value); } = "{rule} received: {item}";
 
-    public bool Journal { get; set => SetField(ref field, value); } = true;
+    public BackpackNotificationDestination Destination { get; set => SetField(ref field, value); } = BackpackNotificationDestination.OnScreen;
 
-    public ushort JournalHue { get; set => SetField(ref field, value); } = 63;
+    public ushort Hue { get; set => SetField(ref field, value); } = 63;
 
-    public bool Overhead { get; set => SetField(ref field, value); }
+    public string OnScreenFont { get; set => SetField(ref field, value); } = "avadonian";
 
-    public ushort OverheadHue { get; set => SetField(ref field, value); } = 63;
-
-    public bool OnScreen { get; set => SetField(ref field, value); } = true;
-
-    public ushort OnScreenHue { get; set => SetField(ref field, value); } = 63;
+    public int OnScreenFontSize { get; set => SetField(ref field, value); } = 20;
 
     public static BackpackNotificationRule FromEntry(uint order, BackpackNotificationConfigEntry entry)
     {
@@ -49,12 +45,10 @@ public sealed class BackpackNotificationRule : IRule, INotifyPropertyChanged
             Hues = entry.Hues,
             RegexSearch = entry.RegexSearch,
             Announcement = entry.Announcement,
-            Journal = entry.Journal,
-            JournalHue = entry.JournalHue,
-            Overhead = entry.Overhead,
-            OverheadHue = entry.OverheadHue,
-            OnScreen = entry.OnScreen,
-            OnScreenHue = entry.OnScreenHue
+            Destination = entry.Destination,
+            Hue = entry.Hue,
+            OnScreenFont = entry.OnScreenFont,
+            OnScreenFontSize = entry.OnScreenFontSize
         };
     }
 
@@ -68,12 +62,10 @@ public sealed class BackpackNotificationRule : IRule, INotifyPropertyChanged
             Hues = Hues,
             RegexSearch = RegexSearch,
             Announcement = Announcement,
-            Journal = Journal,
-            JournalHue = JournalHue,
-            Overhead = Overhead,
-            OverheadHue = OverheadHue,
-            OnScreen = OnScreen,
-            OnScreenHue = OnScreenHue
+            Destination = Destination,
+            Hue = Hue,
+            OnScreenFont = OnScreenFont,
+            OnScreenFontSize = OnScreenFontSize
         };
     }
 
