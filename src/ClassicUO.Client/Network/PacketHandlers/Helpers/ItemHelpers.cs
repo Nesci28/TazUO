@@ -19,7 +19,8 @@ internal static class ItemHelpers
         ushort x,
         ushort y,
         ushort hue,
-        uint containerSerial
+        uint containerSerial,
+        bool isBulkUpdate = false
     )
     {
         if (Client.Game.UO.GameCursor.ItemHold.Serial == serial)
@@ -76,6 +77,8 @@ internal static class ItemHelpers
             EventSink.InvokeOnItemCreated(item);
         else
             EventSink.InvokeOnItemUpdated(item);
+
+        EventSink.InvokeOnItemAddedToContainer(item, containerSerial, itemWasCreated, isBulkUpdate);
 
         if (SerialHelper.IsMobile(containerSerial))
         {

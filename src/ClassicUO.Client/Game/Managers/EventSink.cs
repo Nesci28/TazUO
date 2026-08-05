@@ -56,6 +56,14 @@ public class EventSink
     }
 
     /// <summary>
+    /// Invoked when a server container update places an item in a container.
+    /// </summary>
+    internal static event EventHandler<ItemContainerUpdateEventArgs> OnItemAddedToContainerInternal;
+
+    internal static void InvokeOnItemAddedToContainer(Item item, uint containerSerial, bool itemWasCreated, bool isBulkUpdate) =>
+        OnItemAddedToContainerInternal?.Invoke(null, new ItemContainerUpdateEventArgs(item, containerSerial, itemWasCreated, isBulkUpdate));
+
+    /// <summary>
     /// Invoked when a corpse is added to the client. The event's 'sender' is the corpse Item
     /// </summary>
     [ApiEvent]
@@ -291,6 +299,25 @@ public class SkillChangeArgs : EventArgs
     {
         Index = index;
     }
+}
+
+public class ItemContainerUpdateEventArgs : EventArgs
+{
+    public ItemContainerUpdateEventArgs(Item item, uint containerSerial, bool itemWasCreated, bool isBulkUpdate)
+    {
+        Item = item;
+        ContainerSerial = containerSerial;
+        ItemWasCreated = itemWasCreated;
+        IsBulkUpdate = isBulkUpdate;
+    }
+
+    public Item Item { get; }
+
+    public uint ContainerSerial { get; }
+
+    public bool ItemWasCreated { get; }
+
+    public bool IsBulkUpdate { get; }
 }
 
 /// <summary>

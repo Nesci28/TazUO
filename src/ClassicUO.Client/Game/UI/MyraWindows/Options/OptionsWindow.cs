@@ -8,6 +8,7 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.ScreenDecorations.Manager;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows.Options.Tabs;
+using ClassicUO.Game.UI.MyraWindows.Options.Tabs.Notifications;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
@@ -171,6 +172,7 @@ public class OptionsWindow : MyraControl
         AddOptionSource(TazLang.Get("mog_gameplaytab_gameplaylabel"), GameplayTab.GetContent());
         AddOptionSource(TazLang.Get("mog_kw_interface"), InterfaceTab.GetContent());
         AddOptionSource(TazLang.Get("mog_labelchatandtext"), ChatTab.GetContent());
+        AddOptionSource(TazLang.Get("backpacknotifications_category", "Notifications"), NotificationsTab.GetContent());
         AddOptionSource(TazLang.Get("mog_videotab_label"), VideoTab.GetContent());
         AddOptionSource(TazLang.Get("mog_soundtab_label"), SoundsTab.GetContent());
         AddOptionSource(TazLang.Get("mog_misctab_label"), MiscTab.GetContent());

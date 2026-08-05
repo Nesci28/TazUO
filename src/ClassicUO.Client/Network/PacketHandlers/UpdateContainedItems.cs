@@ -36,7 +36,7 @@ internal static class UpdateContainedItems
                     Helpers.ItemHelpers.ClearContainerAndRemoveItems(world, container, container.Graphic == 0x2006);
             }
 
-            Helpers.ItemHelpers.AddItemToContainer(world, serial, graphic, amount, x, y, hue, containerSerial);
+            Helpers.ItemHelpers.AddItemToContainer(world, serial, graphic, amount, x, y, hue, containerSerial, true);
         }
     }
 }
