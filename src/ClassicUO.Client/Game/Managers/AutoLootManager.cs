@@ -134,6 +134,28 @@ namespace ClassicUO.Game.Managers
         }
 
         /// <summary>
+        /// Resolves the corpse containing an item for both standard container hierarchies and
+        /// OSI's dead-mobile corpse hierarchy.
+        /// </summary>
+        public static Item GetContainingCorpse(World world, Item item)
+        {
+            if (world == null || item == null) return null;
+
+            Item top = item;
+
+            while (SerialHelper.IsItem(top.Container))
+            {
+                top = world.Items.Get(top.Container);
+
+                if (top == null) return null;
+            }
+
+            if (top.IsCorpse) return top;
+
+            return world.CorpseManager.GetCorpseObject(top.Container);
+        }
+
+        /// <summary>
         /// Check an item against the loot list, if it needs to be auto looted it will be.
         /// </summary>
         private void CheckAndLoot(Item i)
@@ -363,13 +385,13 @@ namespace ClassicUO.Game.Managers
                 return;
             }
 
-            Item root = _world.Items.Get(i.RootContainer);
-            if (root != null && root.IsCorpse)
+            Item corpse = GetContainingCorpse(_world, i);
+            if (corpse != null)
             {
                 // Check the item that triggered this call directly
                 CheckAndLoot(i);
                 // A defensive safety net to ensure all items in the corpse are processed
-                HandleCorpse(root);
+                HandleCorpse(corpse);
                 return;
             }
         }
@@ -478,7 +500,7 @@ namespace ClassicUO.Game.Managers
 
             if (moveItem.Distance > ProfileManager.CurrentProfile.AutoOpenCorpseRange)
             {
-                Item rc = _world.Items.Get(moveItem.RootContainer);
+                Item rc = GetContainingCorpse(_world, moveItem) ?? _world.Items.Get(moveItem.RootContainer);
                 if (rc != null && rc.Distance > ProfileManager.CurrentProfile.AutoOpenCorpseRange)
                 {
                     if (rc.IsCorpse && !ProfileManager.CurrentProfile.DisableAutolootCorpseRetry)

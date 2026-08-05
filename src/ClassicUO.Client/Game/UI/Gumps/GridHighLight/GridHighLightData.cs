@@ -306,8 +306,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
                     if (bestMatch.LootOnMatch)
                     {
-                        Item root = World.Items.Get(data.item.RootContainer);
-                        if (root != null && root.IsCorpse)
+                        if (AutoLootManager.GetContainingCorpse(World, data.item) != null)
                         {
                             AutoLootManager.Instance.LootItem(data.item, bestMatch.GetLootEntry());
                             data.item.ShouldAutoLoot = true;
