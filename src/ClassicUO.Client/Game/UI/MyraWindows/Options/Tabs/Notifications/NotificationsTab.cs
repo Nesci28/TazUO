@@ -14,13 +14,16 @@ internal static partial class NotificationsTab
     internal static IOptionSource GetContent()
     {
         return OptionsUi.Vertical(
-            GetBackpackSection()
+            GetBackpackSection(),
+            GetHealthSection()
         ).WithSearch(
             new SearchMetadata(
                 TazLang.Get("backpacknotifications_category", "Notifications"),
                 Tags:
                 [
                     TazLang.Get("backpacknotifications_backpack", "Backpack"),
+                    TazLang.Get("healthnotifications_health", "Health"),
+                    TazLang.Get("healthnotifications_debuffs", "Debuffs"),
                     TazLang.Get("mog_kw_journal"),
                     TazLang.Get("backpacknotifications_overhead", "Overhead")
                 ]
@@ -54,8 +57,14 @@ internal static partial class NotificationsTab
     {
         var rb = new Rulebase<BackpackNotificationRule>
         {
+            Width = BackpackRuleEditorWidth,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
+            TableStyleOptions =
+            {
+                ShowHeader = false,
+                ColumnBorders = null
+            },
             TitleLabel =
             {
                 Text = TazLang.Get("backpacknotifications_rules", "Backpack notification rules"),
