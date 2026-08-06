@@ -100,7 +100,10 @@ public sealed class HealthNotificationManager
         int hits = Math.Max(1, maxHits * config.LowHealthPercentage / 100);
         int healthPercentage = CalculatePercentage(hits, maxHits);
 
-        Show(FormatLowHealth(config.LowHealthAnnouncement, healthPercentage, hits, maxHits));
+        Show(
+            FormatLowHealth(config.LowHealthAnnouncement, healthPercentage, hits, maxHits),
+            config.LowHealthHue
+        );
     }
 
     public void TestDebuffNotification()
@@ -110,7 +113,10 @@ public sealed class HealthNotificationManager
 
         HealthNotificationsConfig config = HealthNotificationsConfig.Current;
         BuffIconType type = config.Debuffs is { Count: > 0 } ? config.Debuffs[0] : BuffIconType.Poison;
-        Show(FormatDebuff(config.DebuffAnnouncement, HealthDebuffCatalog.GetName(type)));
+        Show(
+            FormatDebuff(config.DebuffAnnouncement, HealthDebuffCatalog.GetName(type)),
+            config.DebuffHue
+        );
     }
 
     private void OnPlayerHitsChanged(object sender, int hits)
@@ -129,7 +135,10 @@ public sealed class HealthNotificationManager
         if (isLowHealth && !_wasLowHealth && config.LowHealthEnabled)
         {
             int healthPercentage = CalculatePercentage(hits, maxHits);
-            Show(FormatLowHealth(config.LowHealthAnnouncement, healthPercentage, hits, maxHits));
+            Show(
+                FormatLowHealth(config.LowHealthAnnouncement, healthPercentage, hits, maxHits),
+                config.LowHealthHue
+            );
         }
 
         _wasLowHealth = isLowHealth;
@@ -170,16 +179,19 @@ public sealed class HealthNotificationManager
         if (!config.DebuffsEnabled || !config.IsDebuffEnabled(type))
             return;
 
-        Show(FormatDebuff(config.DebuffAnnouncement, HealthDebuffCatalog.GetName(type)));
+        Show(
+            FormatDebuff(config.DebuffAnnouncement, HealthDebuffCatalog.GetName(type)),
+            config.DebuffHue
+        );
     }
 
-    private void Show(string message)
+    private void Show(string message, ushort hue)
     {
         HealthNotificationsConfig config = HealthNotificationsConfig.Current;
         BackpackNotificationManager.Instance.ShowNotification(
             config.Destination,
             message,
-            config.Hue,
+            hue,
             config.OnScreenFont,
             config.OnScreenFontSize
         );
