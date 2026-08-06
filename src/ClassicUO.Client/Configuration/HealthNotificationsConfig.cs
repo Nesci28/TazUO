@@ -73,7 +73,13 @@ public sealed class HealthNotificationsConfig : JsonSave<HealthNotificationsConf
     [JsonConverter(typeof(JsonStringEnumConverter<BackpackNotificationDestination>))]
     public BackpackNotificationDestination Destination { get; set; } = BackpackNotificationDestination.OnScreen;
 
-    public ushort Hue { get; set; } = 32;
+    public ushort LowHealthHue { get; set; } = 32;
+
+    public ushort DebuffHue { get; set; } = 32;
+
+    [JsonPropertyName("hue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? LegacyHue { get; set; }
 
     public string OnScreenFont { get; set; } = "avadonian";
 
@@ -148,7 +154,7 @@ public sealed class HealthNotificationsConfig : JsonSave<HealthNotificationsConf
 
     private bool Normalize()
     {
-        bool changed = false;
+        bool changed = MigrateLegacyHue();
         int percentage = Math.Clamp(LowHealthPercentage, 1, 100);
         int fontSize = Math.Clamp(OnScreenFontSize, 5, 50);
 
@@ -199,6 +205,17 @@ public sealed class HealthNotificationsConfig : JsonSave<HealthNotificationsConf
         }
 
         return changed;
+    }
+
+    internal bool MigrateLegacyHue()
+    {
+        if (LegacyHue == null)
+            return false;
+
+        LowHealthHue = LegacyHue.Value;
+        DebuffHue = LegacyHue.Value;
+        LegacyHue = null;
+        return true;
     }
 }
 
