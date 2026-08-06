@@ -13,11 +13,8 @@ internal static partial class NotificationsTab
 {
     internal static IOptionSource GetContent()
     {
-        return OptionsUi.Vertical(
-            GetBackpackSection(),
-            GetHealthSection()
-        ).WithSearch(
-            new SearchMetadata(
+        return new OptionTabGroup(
+            search: new SearchMetadata(
                 TazLang.Get("backpacknotifications_category", "Notifications"),
                 Tags:
                 [
@@ -28,7 +25,32 @@ internal static partial class NotificationsTab
                     TazLang.Get("backpacknotifications_overhead", "Overhead")
                 ]
             )
-        );
+        )
+            .AddTab(
+                TazLang.Get("backpacknotifications_backpacktab", "Backpack"),
+                GetBackpackSection,
+                new SearchMetadata(
+                    TazLang.Get("backpacknotifications_backpack", "Backpack Notifications"),
+                    Keywords:
+                    [
+                        TazLang.Get("backpacknotifications_artifact", "Artifact"),
+                        TazLang.Get("backpacknotifications_regex", "Regex"),
+                        TazLang.Get("backpacknotifications_itemhues", "Hues")
+                    ]
+                )
+            )
+            .AddTab(
+                TazLang.Get("healthnotifications_statustab", "Health Status"),
+                GetHealthSection,
+                new SearchMetadata(
+                    TazLang.Get("healthnotifications_health", "Health Notifications"),
+                    Keywords:
+                    [
+                        TazLang.Get("healthnotifications_lowhealth", "Low health"),
+                        TazLang.Get("healthnotifications_debuffs", "Debuffs")
+                    ]
+                )
+            );
     }
 
     private static OptionFragment GetBackpackSection()
