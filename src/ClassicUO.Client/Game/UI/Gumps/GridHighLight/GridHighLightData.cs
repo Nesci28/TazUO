@@ -272,8 +272,10 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                     continue;
                 }
 
-                // Check if item is still valid for highlighting
-                if (item.OnGround || item.IsMulti || item.HighlightChecked)
+                // Check if item is still valid for highlighting. OSI can parent corpse contents
+                // directly to the corpse's dead-mobile object serial, which makes Item.OnGround
+                // report true even though the item is inside a corpse.
+                if (!IsEligibleItem(World, item) || item.HighlightChecked)
                 {
                     // Item moved to ground or is multi, remove from hashset and skip
                     _queuedItems.Remove(ser);
@@ -356,7 +358,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             foreach (KeyValuePair<uint, Item> kvp in world.Items)
             {
                 Item item = kvp.Value;
-                if (item.OnGround || item.IsMulti)
+                if (!IsEligibleItem(world, item))
                     continue;
 
                 item.MatchesHighlightData = false;
@@ -367,6 +369,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
                 ProcessItemOpl(world, kvp.Key);
             }
+        }
+
+        internal static bool IsEligibleItem(World world, Item item)
+        {
+            if (world == null || item == null || item.IsMulti) return false;
+
+            return !item.OnGround || AutoLootManager.GetContainingCorpse(world, item) != null;
         }
 
         public bool IsMatch(ItemPropertiesData itemData) => AcceptExtraProperties
