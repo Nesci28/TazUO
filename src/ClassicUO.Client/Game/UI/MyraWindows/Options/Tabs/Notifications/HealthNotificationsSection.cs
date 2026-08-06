@@ -67,10 +67,17 @@ internal static partial class NotificationsTab
             () => HealthNotificationManager.Instance.TestDebuffNotification()
         );
 
+        Widget lowHealthHue = CreateHealthHueSelector(
+            config,
+            new Accessor<ushort>(() => config.LowHealthHue)
+        );
+        Widget debuffHue = CreateHealthHueSelector(
+            config,
+            new Accessor<ushort>(() => config.DebuffHue)
+        );
         Widget font = CreateHealthFontSelector(config);
         Widget size = CreateHealthFontSizeInput(config);
         Widget destination = CreateHealthDestinationSelector(config, font, size);
-        Widget hue = CreateHealthHueSelector(config);
 
         Widget lowHealthMessage = CreateTextInput(
             TazLang.Get("healthnotifications_lowhealth", "Low health"),
@@ -102,13 +109,13 @@ internal static partial class NotificationsTab
                 TazLang.Get("healthnotifications_lowhealth", "Low health"),
                 (lowHealthEnabled, 1f),
                 (threshold, 2f),
+                (lowHealthHue, 1.25f),
                 (testLowHealth, 1.4f)
             ),
-            CreateDebuffSection(config, debuffsEnabled, testDebuff),
+            CreateDebuffSection(config, debuffsEnabled, debuffHue, testDebuff),
             CreateCardSection(
                 TazLang.Get("healthnotifications_deliveryappearance", "Delivery & appearance"),
                 (destination, 2f),
-                (hue, 1.25f),
                 (font, 2f),
                 (size, 1.25f)
             ),
@@ -152,12 +159,14 @@ internal static partial class NotificationsTab
     private static Widget CreateDebuffSection(
         HealthNotificationsConfig config,
         Widget enabled,
+        Widget hue,
         Widget test
     )
     {
         var controls = CreateFieldsGrid(
             (enabled, 1f),
             (new MyraLabel(TazLang.Get("healthnotifications_selectdebuffs", "Notify for these debuffs"), MyraLabel.TextStyle.P), 3f),
+            (hue, 1.25f),
             (test, 1.4f)
         );
 
@@ -236,15 +245,18 @@ internal static partial class NotificationsTab
         return Labeled(TazLang.Get("backpacknotifications_destination", "Notify via"), combo);
     }
 
-    private static Widget CreateHealthHueSelector(HealthNotificationsConfig config)
+    private static Widget CreateHealthHueSelector(
+        HealthNotificationsConfig config,
+        Accessor<ushort> hue
+    )
     {
-        var hueLabel = new MyraLabel(config.Hue.ToString(), MyraLabel.TextStyle.P);
+        var hueLabel = new MyraLabel(hue.Get().ToString(), MyraLabel.TextStyle.P);
         Widget picker = OptionsFactory.CreateHuePicker(
             null,
-            config.Hue,
+            hue.Get(),
             value =>
             {
-                config.Hue = value;
+                hue.Set(value);
                 hueLabel.Text = value.ToString();
                 config.Save();
             }
