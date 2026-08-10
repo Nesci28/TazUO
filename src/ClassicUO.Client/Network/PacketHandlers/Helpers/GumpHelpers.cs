@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using ClassicUO.Configuration;
 using ClassicUO.Game;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.Managers.VendorSearch;
 using ClassicUO.Game.UI;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
@@ -583,6 +584,8 @@ internal static class GumpHelpers
 
         gump.Update();
         gump.SetInScreen();
+
+        VendorSearchWebManager.Instance.ObserveGump(gump, layout, lines);
 
         // Persist this server gump's position immediately if the user opted to save all gumps.
         UIManager.AutoSaveGumpPositionIfEnabled(gump);
