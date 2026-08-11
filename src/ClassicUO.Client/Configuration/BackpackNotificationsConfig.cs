@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -103,7 +104,7 @@ public sealed class BackpackNotificationConfigEntry
     }
 }
 
-public sealed class BackpackNotificationsConfig : JsonSave<BackpackNotificationsConfig>
+public sealed class BackpackNotificationsConfig : JsonSave<BackpackNotificationsConfig>, INotifyPropertyChanged
 {
     private const string BackpackNotificationsFileName = "backpack_notifications.json";
 
