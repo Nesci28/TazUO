@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -52,7 +53,7 @@ public static class HealthDebuffCatalog
     internal static List<BuffIconType> CreateDefaults() => All.Select(definition => definition.Type).ToList();
 }
 
-public sealed class HealthNotificationsConfig : JsonSave<HealthNotificationsConfig>
+public sealed class HealthNotificationsConfig : JsonSave<HealthNotificationsConfig>, INotifyPropertyChanged
 {
     private const string HealthNotificationsFileName = "health_notifications.json";
     private const string DefaultLowHealthAnnouncement = "Low health: {health}% ({hits}/{maxhits})";
