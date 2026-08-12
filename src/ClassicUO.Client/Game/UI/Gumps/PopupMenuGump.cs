@@ -1,7 +1,9 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
+using System;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
+using ClassicUO.Game.Managers.VendorSearch;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
 using ClassicUO.Utility;
@@ -12,6 +14,7 @@ namespace ClassicUO.Game.UI.Gumps
     {
         public static uint CloseNext = uint.MaxValue;
 
+        private Action _selectedAction;
         private ushort _selectedItem;
         private readonly PopupMenuData _data;
 
@@ -71,6 +74,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 box.MouseEnter += (sender, e) =>
                 {
+                    _selectedAction = null;
                     _selectedItem = (ushort)(sender as HitBox).Tag;
                 };
 
@@ -107,6 +111,53 @@ namespace ClassicUO.Game.UI.Gumps
                 }
             }
 
+            if (
+                VendorSearchWebManager.TryGetEnabledContextMenuIndex(
+                    data,
+                    World.Player?.Serial ?? 0,
+                    out ushort vendorSearchIndex
+                )
+            )
+            {
+                var label = new Label(
+                    TazLang.Get("vendor_search_web", "Vendor Search Web"),
+                    true,
+                    0xFFFF,
+                    font: 1
+                );
+                label.ApplyScale(scale, scalePosition: false);
+                label.X = ScaleHelper.Scaled(10, scale);
+                label.Y = offsetY;
+
+                var box = new HitBox(
+                    ScaleHelper.Scaled(10, scale),
+                    offsetY,
+                    label.Width,
+                    label.Height
+                )
+                {
+                    Tag = (Action)(() =>
+                    {
+                        GameActions.ResponsePopupMenu(_data.Serial, vendorSearchIndex);
+                        VendorSearchWebManager.Instance.OpenBrowser();
+                    })
+                };
+
+                box.MouseEnter += (sender, e) =>
+                {
+                    _selectedAction = (Action)(sender as HitBox).Tag;
+                };
+
+                Add(box);
+                Add(label);
+
+                offsetY += label.Height;
+                height += label.Height;
+
+                if (width < label.Width)
+                    width = label.Width;
+            }
+
             width += ScaleHelper.Scaled(20, scale);
 
             if (height <= ScaleHelper.Scaled(10, scale) || width <= ScaleHelper.Scaled(20, scale))
@@ -129,10 +180,18 @@ namespace ClassicUO.Game.UI.Gumps
         {
             if (button == MouseButtonType.Left)
             {
-                if (CUOEnviroment.Debug)
-                    GameActions.Print(World, $"Popup menu [{_data.Serial}] response: {_selectedItem}");
+                if (_selectedAction != null)
+                {
+                    _selectedAction();
+                }
+                else
+                {
+                    if (CUOEnviroment.Debug)
+                        GameActions.Print(World, $"Popup menu [{_data.Serial}] response: {_selectedItem}");
 
-                GameActions.ResponsePopupMenu(_data.Serial, _selectedItem);
+                    GameActions.ResponsePopupMenu(_data.Serial, _selectedItem);
+                }
+
                 Dispose();
             }
         }
