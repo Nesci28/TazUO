@@ -48,12 +48,12 @@ internal static class VendorSearchWebPage
   <main>
     <section class="workspace">
       <div id="notice" role="status"></div>
-      <div class="scroll"><div id="stage" class="empty"><div><strong>Waiting for Vendor Search</strong>Open Vendor Search in TazUO to begin.</div></div></div>
+      <div class="scroll"><div id="stage" class="empty"><div><strong>Waiting for Vendor Search</strong>Select Vendor Search Web from your character's context menu.</div></div></div>
     </section>
     <aside>
       <h2>How it works</h2>
       <p>This page mirrors the live OSI Vendor Search gump. Searches and map requests are still validated and executed by your shard.</p>
-      <ol><li>Open your character's context menu.</li><li>Select <em>Vendor Search</em>.</li><li>Use this page; TazUO forwards each response to the current gump.</li></ol>
+      <ol><li>Open your own character's context menu.</li><li>Select <em>Vendor Search Web</em>.</li><li>Use this page; TazUO forwards each response to the current gump.</li></ol>
       <p>Keep TazUO connected. This server listens only on your local machine.</p>
     </aside>
   </main>
@@ -102,7 +102,7 @@ internal static class VendorSearchWebPage
       notice.textContent = state.message || '';
 
       if (!state.available) {
-        showEmpty('Vendor Search is not open', state.message || 'Open Vendor Search in TazUO.');
+        showEmpty('Vendor Search is not open', state.message || "Select Vendor Search Web from your character's context menu.");
         return;
       }
       if (state.mode === 'pending' || state.mode === 'waiting') {
