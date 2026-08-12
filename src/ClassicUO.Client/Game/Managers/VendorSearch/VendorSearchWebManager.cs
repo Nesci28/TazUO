@@ -8,10 +8,10 @@ using System.IO;
 using System.Linq;
 using ClassicUO.Assets;
 using ClassicUO.Configuration;
+using ClassicUO.Game.Data;
 using ClassicUO.Game.UI;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
-using ClassicUO.Input;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 using SixLabors.ImageSharp;
@@ -24,7 +24,8 @@ internal sealed class VendorSearchWebManager
 {
     public const int DefaultPort = 8089;
 
-    private const string LauncherTag = "tazuo-vendor-search-web-launcher";
+    internal const int VendorSearchContextCliloc = 1154679;
+    private const ushort DisabledContextMenuFlag = 0x01;
     private static VendorSearchWebManager _instance;
 
     private readonly Dictionary<uint, byte[]> _artCache = new();
@@ -81,9 +82,34 @@ internal sealed class VendorSearchWebManager
             gump.ServerSerial,
             observedVersion
         );
+    }
 
-        if (kind is VendorSearchGumpKind.Query or VendorSearchGumpKind.Results)
-            AddWebLauncher(gump);
+    internal static bool TryGetEnabledContextMenuIndex(
+        PopupMenuData data,
+        uint playerSerial,
+        out ushort index
+    )
+    {
+        index = 0;
+
+        if (data == null || playerSerial == 0 || data.Serial != playerSerial)
+            return false;
+
+        for (int i = 0; i < data.Items.Length; i++)
+        {
+            PopupMenuItem item = data.Items[i];
+
+            if (
+                item.Cliloc == VendorSearchContextCliloc
+                && (item.Flags & DisabledContextMenuFlag) == 0
+            )
+            {
+                index = item.Index;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void NotifyItemProperties(uint serial)
@@ -290,25 +316,6 @@ internal sealed class VendorSearchWebManager
         );
     }
 
-    private void AddWebLauncher(Gump gump)
-    {
-        if (
-            gump.Children.Any(
-                child => child is Control control && Equals(control.Tag, LauncherTag)
-            )
-        )
-            return;
-
-        var launcher = new WebLauncherButton(
-            Math.Max(4, gump.Width - 52),
-            OpenBrowser
-        )
-        {
-            Tag = LauncherTag
-        };
-        gump.Add(launcher);
-    }
-
     private VendorSearchStateDto BuildStateOnMainThread()
     {
         VendorSearchSnapshot snapshot;
@@ -322,7 +329,7 @@ internal sealed class VendorSearchWebManager
             {
                 Available = false,
                 Mode = "unavailable",
-                Message = "Open Vendor Search from your character's context menu in TazUO."
+                Message = "Select Vendor Search Web from your character's context menu in TazUO."
             };
         }
 
@@ -551,25 +558,4 @@ internal sealed class VendorSearchWebManager
         return stream.ToArray();
     }
 
-    private sealed class WebLauncherButton : NiceButton
-    {
-        private readonly Action _openBrowser;
-
-        public WebLauncherButton(int x, Action openBrowser)
-            : base(x, 5, 46, 20, ButtonAction.SwitchPage, "Web", hue: 0xFFFF)
-        {
-            _openBrowser = openBrowser;
-            AlwaysShowBackground = true;
-            BackgroundColor = new Microsoft.Xna.Framework.Color(32, 36, 44, 225);
-            DisplayBorder = true;
-            IsSelectable = false;
-            SetTooltip("Open Vendor Search in browser");
-        }
-
-        public override void OnMouseUp(int x, int y, MouseButtonType button)
-        {
-            if (button == MouseButtonType.Left)
-                _openBrowser();
-        }
-    }
 }

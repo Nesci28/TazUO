@@ -4,11 +4,11 @@ TazUO mirrors the shard-provided Vendor Search interface at `http://localhost:80
 
 ## Usage
 
-1. Open your character's context menu and select **Vendor Search**.
-2. Click the **Web** button added to the recognized Vendor Search gump.
+1. Open your own character's context menu.
+2. Select **Vendor Search Web**. TazUO invokes the shard's enabled Vendor Search action and opens the browser.
 3. Use the browser interface. Keep TazUO running and connected while the page is open.
 
-The native gump remains usable. Closing or replacing it invalidates the corresponding browser state, so an old browser tab cannot replay an action against a newer gump.
+The option is shown only when the shard provides an enabled Vendor Search entry for your character. The native gump remains usable. Closing or replacing it invalidates the corresponding browser state, so an old browser tab cannot replay an action against a newer gump.
 
 ## Packet analysis
 
@@ -16,9 +16,11 @@ Vendor Search does not have a dedicated network opcode. It is an application bui
 
 | Direction | Packet | Role |
 | --- | --- | --- |
+| server → client | `0xBF/0x14` | Character context menu; the standard Vendor Search entry is identified by cliloc `1154679` |
 | server → client | `0xB0` | Uncompressed gump: sender serial, gump/type ID, X/Y, ASCII layout, UTF-16BE text lines |
 | server → client | `0xDD` | Compressed gump: the same identity and layout, with independently zlib-compressed layout and text blocks |
 | server → client | `0xD6` | MegaCliloc/object property list (OPL) for each result's `itemproperty` serial |
+| client → server | `0xBF/0x15` | Selects the shard-provided Vendor Search context-menu index before opening the browser |
 | client → server | `0xB1` | Gump response: sender serial, gump/type ID, button ID, selected switches, and UTF-16BE text-entry values |
 
 TazUO's packet handlers decode `0xB0` and `0xDD` into the same layout command stream before the bridge sees them. The bridge identifies the OSI-compatible stages by their title clilocs:
