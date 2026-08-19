@@ -18,6 +18,7 @@ using ClassicUO.Utility.Debounce;
 using ClassicUO.Utility.Logging;
 using FontStashSharp.RichText;
 using Microsoft.Xna.Framework;
+using Myra.Events;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 using Myra.Graphics2D.UI.WrapPanel;
@@ -891,9 +892,9 @@ public class ScriptManagerWindow : MyraControl
             VerticalAlignment = VerticalAlignment.Center;
         }
 
-        public override void OnTouchDown()
+        public override void OnTouchDown(TouchEventArgs args)
         {
-            base.OnTouchDown();
+            base.OnTouchDown(args);
             _onClick();
         }
     }
