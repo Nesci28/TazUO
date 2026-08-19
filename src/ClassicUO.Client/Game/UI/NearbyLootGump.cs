@@ -15,6 +15,7 @@ using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Input;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
+using Myra.Events;
 using Myra.Graphics2D;
 using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
@@ -830,9 +831,9 @@ public sealed class NearbyLootGump : MyraControl
             _leave?.Invoke();
         }
 
-        public override void OnTouchDown()
+        public override void OnTouchDown(TouchEventArgs args)
         {
-            base.OnTouchDown();
+            base.OnTouchDown(args);
             if (Enabled)
                 _activate?.Invoke();
         }
