@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text;
 using ClassicUO.Configuration;
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Gumps.GridHighLight;
+using ClassicUO.Utility;
 using FluentAssertions;
+using Microsoft.Xna.Framework;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game.Managers
@@ -145,6 +149,23 @@ namespace ClassicUO.UnitTests.Game.Managers
             world.Clear();
         }
 
+        [Fact]
+        public void GridHighlightLegendShowsEveryMatchingRuleInColorOrder()
+        {
+            GridHighlightData primary = CreateGridHighlightRule("Jewelry (Dexxer)", new Color(255, 0, 255));
+            GridHighlightData secondary = CreateGridHighlightRule("Prized", new Color(0, 255, 0));
+            var output = new StringBuilder();
+
+            ToolTipOverrideData.AppendGridHighlightLegend(output, [primary, secondary]);
+
+            string legend = output.ToString();
+            legend.Should().Contain("Matched Rules:");
+            legend.Should().Contain($"/c[{primary.HighlightColor.ToHtmlHex()}]•/cd /c[gray]{primary.Name}/cd");
+            legend.Should().Contain($"/c[{secondary.HighlightColor.ToHtmlHex()}]•/cd /c[gray]{secondary.Name}/cd");
+            legend.IndexOf(primary.Name, StringComparison.Ordinal)
+                .Should().BeLessThan(legend.IndexOf(secondary.Name, StringComparison.Ordinal));
+        }
+
         #endregion
 
         #region Helpers
@@ -157,6 +178,13 @@ namespace ClassicUO.UnitTests.Game.Managers
                 GridHighlightProperties = false,
                 GridHighlightShowRuleName = false,
             };
+        }
+
+        private static GridHighlightData CreateGridHighlightRule(string name, Color color)
+        {
+            var rule = new GridHighlightData(new GridHighlightSetupEntry { Name = name, ItemNames = ["ring"] });
+            rule.HighlightColor = color;
+            return rule;
         }
 
         private static void SetCurrentProfile(Profile profile)

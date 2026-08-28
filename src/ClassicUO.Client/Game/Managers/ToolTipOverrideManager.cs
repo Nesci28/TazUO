@@ -239,8 +239,11 @@ namespace ClassicUO.Game.Managers
 
             bool highlightProperties = ProfileManager.CurrentProfile is { GridHighlightProperties: true };
             bool showRuleName = ProfileManager.CurrentProfile is { GridHighlightShowRuleName: true };
-            GridHighlightData bestGridHighlightData = highlightProperties || showRuleName
-                ? GridHighlightData.GetBestMatch(itemPropertiesData)
+            GridHighlightData[] matchingGridHighlights = highlightProperties || showRuleName
+                ? GridHighlightData.GetMatches(itemPropertiesData)
+                : Array.Empty<GridHighlightData>();
+            GridHighlightData bestGridHighlightData = matchingGridHighlights.Length > 0
+                ? matchingGridHighlights[0]
                 : null;
 
             foreach (ItemPropertiesData.SinglePropertyData property in itemPropertiesData.singlePropertyData)
@@ -321,12 +324,34 @@ namespace ClassicUO.Game.Managers
                 sb.AppendLine(finalLine);
             }
 
-            if (showRuleName && bestGridHighlightData != null && !string.IsNullOrEmpty(bestGridHighlightData.Name))
-            {
-                sb.AppendLine($"/c[gray]{TazLang.Get("gridhighlight_matchedrule", [bestGridHighlightData.Name])}/cd");
-            }
+            if (showRuleName)
+                AppendGridHighlightLegend(sb, matchingGridHighlights);
 
             return sb.ToString();
+        }
+
+        internal static void AppendGridHighlightLegend(
+            StringBuilder sb,
+            IReadOnlyList<GridHighlightData> matchingRules
+        )
+        {
+            if (sb == null || matchingRules == null || matchingRules.Count == 0)
+                return;
+
+            sb.AppendLine($"/c[gray]{TazLang.Get("gridhighlight_matchedrules", "Matched Rules:")}/cd");
+
+            for (int i = 0; i < matchingRules.Count; i++)
+            {
+                GridHighlightData rule = matchingRules[i];
+                if (rule == null)
+                    continue;
+
+                string ruleName = string.IsNullOrWhiteSpace(rule.Name)
+                    ? TazLang.Get("gridhighlight_unnamedrule", "Unnamed Rule")
+                    : rule.Name.Trim().Replace('\r', ' ').Replace('\n', ' ');
+                string color = rule.HighlightColor.ToHtmlHex();
+                sb.AppendLine($"/c[{color}]•/cd /c[gray]{ruleName}/cd");
+            }
         }
 
         public static string ProcessTooltipText(World world, uint serial, uint compareTo = uint.MinValue)
