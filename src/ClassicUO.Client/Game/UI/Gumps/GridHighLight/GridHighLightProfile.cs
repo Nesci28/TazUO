@@ -1,6 +1,8 @@
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
 {
@@ -9,6 +11,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public bool Enabled { get; set; } = true;
         public string Name { get; set; }
         public List<string> ItemNames { get; set; } = new();
+        [Obsolete("Legacy UO hue retained only for importing older grid-highlight configurations.")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public ushort Hue { get; set; }
         public string HighlightColor { get; set; } = "#FF0000";
         public List<GridHighlightProperty> Properties { get; set; } = new();
@@ -26,10 +30,58 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public bool LootOnMatch { get; set; } = false;
         public uint DestinationContainer { get; set; } = 0;
         public bool IsHighlightProperties { get; set; } = true;
+        public Color GetHighlightColor() => HighlightColor.FromHtmlHex(Color.Red);
 
-        public Color GetHighlightColor() => HighlightColor.FromHtmlHex();
+        // Keep alpha for grid highlights. The shared ToHtmlHex helper intentionally emits RGB only.
+        public void SetHighlightColor(Color color) =>
+            HighlightColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}{color.A:X2}";
 
-        public void SetHighlightColor(Color color) => HighlightColor = color.ToHtmlHex();
+        /// <summary>
+        /// Repairs values loaded from user-editable or legacy JSON without replacing the list instances
+        /// currently used by the editor. Match caches ignore blank rows and duplicate values.
+        /// </summary>
+        public void Normalize()
+        {
+            Name ??= string.Empty;
+            ItemNames = NormalizeStrings(ItemNames);
+            ExcludeNegatives = NormalizeStrings(ExcludeNegatives);
+            RequiredRarities = NormalizeStrings(RequiredRarities);
+            Properties ??= new List<GridHighlightProperty>();
+            foreach (GridHighlightProperty property in Properties)
+            {
+                if (property != null)
+                {
+                    property.Name = property.Name?.Trim() ?? string.Empty;
+                    property.MinValue = Math.Max(-1, property.MinValue);
+                }
+            }
+            GridHighlightSlot ??= new GridHighlightSlot();
+
+            MinimumWeight = Math.Max(0, MinimumWeight);
+            MaximumWeight = Math.Max(0, MaximumWeight);
+            MinimumProperty = Math.Max(0, MinimumProperty);
+            MaximumProperty = Math.Max(0, MaximumProperty);
+            MinimumMatchingProperty = Math.Max(0, MinimumMatchingProperty);
+            MaximumMatchingProperty = Math.Max(0, MaximumMatchingProperty);
+
+            if (MaximumWeight > 0 && MinimumWeight > MaximumWeight)
+                (MinimumWeight, MaximumWeight) = (MaximumWeight, MinimumWeight);
+            if (MaximumProperty > 0 && MinimumProperty > MaximumProperty)
+                (MinimumProperty, MaximumProperty) = (MaximumProperty, MinimumProperty);
+            if (MaximumMatchingProperty > 0 && MinimumMatchingProperty > MaximumMatchingProperty)
+                (MinimumMatchingProperty, MaximumMatchingProperty) = (MaximumMatchingProperty, MinimumMatchingProperty);
+
+            // Accessing the color also validates it and supplies a safe fallback.
+            SetHighlightColor(GetHighlightColor());
+        }
+
+        private static List<string> NormalizeStrings(List<string> values)
+        {
+            values ??= new List<string>();
+            for (int i = 0; i < values.Count; i++)
+                values[i] = values[i]?.Trim() ?? string.Empty;
+            return values;
+        }
     }
 
     public class GridHighlightSlot

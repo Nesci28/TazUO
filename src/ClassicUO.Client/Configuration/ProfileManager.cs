@@ -124,6 +124,10 @@ namespace ClassicUO.Configuration
             CurrentProfile.CharacterName = charactername;
             CurrentProfile.Serial = serial;
 
+            // The configurable property catalog is shared globally, so reload it for every
+            // profile instead of retaining the first character's static cache.
+            GridHighlightRules.ReloadForCurrentProfile();
+
             // Load (or migrate from the in-profile GridHighlightSetup / legacy per-list storage) the grid highlights.
             if (GridHighlightsConfig.LoadForProfile(ProfilePath, CurrentProfile))
             {
