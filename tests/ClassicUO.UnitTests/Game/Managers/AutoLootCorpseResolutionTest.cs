@@ -7,6 +7,7 @@ using Xunit;
 
 namespace ClassicUO.UnitTests.Game.Managers
 {
+    [Collection(WorldStateTestCollection.Name)]
     public class AutoLootCorpseResolutionTest
     {
         [Fact]
