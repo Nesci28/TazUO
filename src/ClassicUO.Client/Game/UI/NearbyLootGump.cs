@@ -533,35 +533,15 @@ namespace ClassicUO.Game.UI
 
             if (currentItem != null && currentItem.MatchesHighlightData)
             {
-                int bx = x + 6;
-                int by = y + 6;
-
-                var borderHueVec = new Vector3(1, 0, 1);
-                Texture2D borderTexture = SolidColorTextureCache.GetTexture(currentItem.HighlightColor);
-
-                batcher.Draw( //Top bar
-                    borderTexture,
-                    new Rectangle(bx, by, ITEM_SIZE - 12, 1),
-                    borderHueVec
-                    );
-
-                batcher.Draw( //Left Bar
-                    borderTexture,
-                    new Rectangle(bx, by + 1, 1, ITEM_SIZE - 10),
-                    borderHueVec
-                    );
-
-                batcher.Draw( //Right Bar
-                    borderTexture,
-                    new Rectangle(bx + ITEM_SIZE - 12 - 1, by + 1, 1, ITEM_SIZE - 10),
-                    borderHueVec
-                    );
-
-                batcher.Draw( //Bottom bar
-                    borderTexture,
-                    new Rectangle(bx, by + ITEM_SIZE - 11, ITEM_SIZE - 12, 1),
-                    borderHueVec
-                    );
+                var itemBounds = new Rectangle(x, y, ITEM_SIZE, ITEM_SIZE);
+                GridItem.DrawHighlightBorder(
+                    batcher,
+                    itemBounds,
+                    SolidColorTextureCache.GetTexture(currentItem.HighlightColor),
+                    new Vector3(1, 0, 1),
+                    ProfileManager.CurrentProfile.GridHighlightSize
+                );
+                GridItem.DrawAdditionalHighlightMarkers(batcher, itemBounds, currentItem.HighlightColors);
             }
 
             return true;
