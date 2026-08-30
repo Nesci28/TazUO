@@ -12,6 +12,7 @@ using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
 using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
+using ClassicUO.Game.UI.MyraWindows.Widgets.ArtTexture;
 using ClassicUO.Input;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
