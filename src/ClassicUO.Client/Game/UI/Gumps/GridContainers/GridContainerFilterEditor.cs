@@ -21,7 +21,7 @@ internal sealed class GridContainerFilterEditor : MyraControl
     private static readonly Layer[] FilterLayers =
     {
         Layer.Invalid, Layer.OneHanded, Layer.TwoHanded, Layer.Shoes, Layer.Pants, Layer.Shirt,
-        Layer.Helmet, Layer.Gloves, Layer.Ring, Layer.Talisman, Layer.Necklace, Layer.Waist,
+        Layer.Helmet, Layer.Gloves, Layer.Ring, Layer.Talisman, Layer.Neck, Layer.Waist,
         Layer.Torso, Layer.Bracelet, Layer.Tunic, Layer.Earrings, Layer.Arms, Layer.Cloak,
         Layer.Backpack, Layer.Robe, Layer.Skirt, Layer.Legs
     };
