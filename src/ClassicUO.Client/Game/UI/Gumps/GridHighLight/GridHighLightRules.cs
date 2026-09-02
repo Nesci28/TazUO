@@ -25,9 +25,16 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             }
 
             List<string> list = getList();
-            return list != null && list.Count > 0
+            return list != null
                 ? new HashSet<string>(list, StringComparer.OrdinalIgnoreCase)
                 : defaultSet;
+        }
+
+        public static void ReloadForCurrentProfile()
+        {
+            _loaded = false;
+            LoadGridHighlightConfiguration();
+            _loaded = true;
         }
         public static void SaveGridHighlightConfiguration()
         {
@@ -44,9 +51,16 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             };
 
             string path = Path.Combine(CUOEnviroment.ExecutablePath, "Data", CONFIG_FILE_NAME);
-
-            string json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-            FileSystemHelper.WriteAllTextSafe(path, json);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                string json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+                FileSystemHelper.WriteAllTextSafe(path, json);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Failed to save GridHighlightConfiguration: " + ex.Message);
+            }
         }
 
         public static void LoadGridHighlightConfiguration()
@@ -63,12 +77,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 // Initialize with default values and save to file
                 if (ProfileManager.CurrentProfile != null)
                 {
-                    ProfileManager.CurrentProfile.ConfigurableProperties = DefaultProperties.ToList();
-                    ProfileManager.CurrentProfile.ConfigurableResistances = DefaultResistances.ToList();
-                    ProfileManager.CurrentProfile.ConfigurableNegatives = DefaultNegative.ToList();
-                    ProfileManager.CurrentProfile.ConfigurableSuperSlayers = DefaultSuperSlayer.ToList();
-                    ProfileManager.CurrentProfile.ConfigurableSlayers = DefaultSlayer.ToList();
-                    ProfileManager.CurrentProfile.ConfigurableRarities = DefaultRarity.ToList();
+                    ApplyDefaultsToCurrentProfile();
                     SaveGridHighlightConfiguration();
                 }
 
@@ -82,18 +91,32 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
                 if (config != null && ProfileManager.CurrentProfile != null)
                 {
-                    ProfileManager.CurrentProfile.ConfigurableProperties = config.Properties ?? new List<string>();
-                    ProfileManager.CurrentProfile.ConfigurableResistances = config.Resistances ?? new List<string>();
-                    ProfileManager.CurrentProfile.ConfigurableNegatives = config.Negatives ?? new List<string>();
-                    ProfileManager.CurrentProfile.ConfigurableSuperSlayers = config.SuperSlayers ?? new List<string>();
-                    ProfileManager.CurrentProfile.ConfigurableSlayers = config.Slayers ?? new List<string>();
-                    ProfileManager.CurrentProfile.ConfigurableRarities = config.Rarities ?? new List<string>();
+                    ProfileManager.CurrentProfile.ConfigurableProperties = config.Properties ?? DefaultProperties.ToList();
+                    ProfileManager.CurrentProfile.ConfigurableResistances = config.Resistances ?? DefaultResistances.ToList();
+                    ProfileManager.CurrentProfile.ConfigurableNegatives = config.Negatives ?? DefaultNegative.ToList();
+                    ProfileManager.CurrentProfile.ConfigurableSuperSlayers = config.SuperSlayers ?? DefaultSuperSlayer.ToList();
+                    ProfileManager.CurrentProfile.ConfigurableSlayers = config.Slayers ?? DefaultSlayer.ToList();
+                    ProfileManager.CurrentProfile.ConfigurableRarities = config.Rarities ?? DefaultRarity.ToList();
                 }
             }
             catch (Exception ex)
             {
                 Log.Error("Failed to load GridHighlightConfiguration: " + ex.Message);
+                ApplyDefaultsToCurrentProfile();
             }
+        }
+
+        private static void ApplyDefaultsToCurrentProfile()
+        {
+            if (ProfileManager.CurrentProfile == null)
+                return;
+
+            ProfileManager.CurrentProfile.ConfigurableProperties = DefaultProperties.ToList();
+            ProfileManager.CurrentProfile.ConfigurableResistances = DefaultResistances.ToList();
+            ProfileManager.CurrentProfile.ConfigurableNegatives = DefaultNegative.ToList();
+            ProfileManager.CurrentProfile.ConfigurableSuperSlayers = DefaultSuperSlayer.ToList();
+            ProfileManager.CurrentProfile.ConfigurableSlayers = DefaultSlayer.ToList();
+            ProfileManager.CurrentProfile.ConfigurableRarities = DefaultRarity.ToList();
         }
 
         private class GridHighlightSettings

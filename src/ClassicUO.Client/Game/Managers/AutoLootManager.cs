@@ -3,6 +3,7 @@ using ClassicUO.Game;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Game.UI.Gumps.GridHighLight;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using System;
@@ -88,7 +89,13 @@ namespace ClassicUO.Game.Managers
 
         private readonly HashSet<uint> _quickContainsLookup = new ();
         private readonly HashSet<uint> _recentlyLooted = new();
-        private static readonly PriorityQueue<(uint item, AutoLootConfigEntry entry, bool ignorePlayerEquippedSourceGuard), AutoLootPriority> _lootItems = new ();
+        private readonly record struct LootRequest(
+            uint Item,
+            AutoLootConfigEntry Entry,
+            bool IsGridHighlight,
+            bool IgnorePlayerEquippedSourceGuard
+        );
+        private static readonly PriorityQueue<LootRequest, AutoLootPriority> _lootItems = new ();
         private readonly List<AutoLootConfigEntry> _fallbackEntries = new ();
         private AutoLootData _data = new ();
         private AutoLootList _currentList;
@@ -97,6 +104,7 @@ namespace ClassicUO.Game.Managers
         private long _nextClearRecents = Time.Ticks + (ProfileManager.CurrentProfile?.AutoLootRetryDelay ?? 5000);
         private ProgressBarGump _progressBarGump;
         private int _currentLootTotalCount = 0;
+        private bool _lastEnabledState;
         private bool IsEnabled => ProfileManager.CurrentProfile.EnableAutoLoot;
 
         private readonly World _world;
@@ -116,32 +124,83 @@ namespace ClassicUO.Game.Managers
         }
 
         public void LootItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
+            => QueueLootItem(item, entry, priority, false, false);
+
+        /// <summary>
+        /// Queues a grid-highlight loot request only while global auto-loot is enabled and tags it
+        /// so rule edits can revoke pending actions safely.
+        /// </summary>
+        public bool LootGridHighlightItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
         {
-            QueueLootItem(item, entry, priority, false);
+            if (!IsEnabled)
+                return false;
+
+            return QueueLootItem(item, entry, priority, true, false);
         }
 
-        private void QueueLootItem(
+        private bool QueueLootItem(
             Item item,
+            AutoLootConfigEntry entry,
+            AutoLootPriority priority,
+            bool isGridHighlight,
+            bool ignorePlayerEquippedSourceGuard
+        )
+        {
+            if (item == null || (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(item)))
+                return false;
+
+            // A normal auto-loot rule is authoritative if the same item was first queued by a
+            // grid-highlight rule. Promote it so later grid-rule edits cannot cancel normal loot.
+            if (_quickContainsLookup.Contains(item.Serial))
+                return !isGridHighlight && PromoteQueuedRequestToStandard(
+                    item.Serial,
+                    entry,
+                    priority,
+                    ignorePlayerEquippedSourceGuard
+                );
+
+            if (!_recentlyLooted.Add(item.Serial) || !_quickContainsLookup.Add(item.Serial))
+                return false;
+
+            if (entry != null)
+                priority = entry.Priority;
+            _lootItems.Enqueue(
+                new LootRequest(item.Serial, entry, isGridHighlight, ignorePlayerEquippedSourceGuard),
+                priority
+            );
+            _currentLootTotalCount++;
+            _nextClearRecents = Time.Ticks + (ProfileManager.CurrentProfile?.AutoLootRetryDelay ?? 5000);
+            return true;
+        }
+
+        private static bool PromoteQueuedRequestToStandard(
+            uint serial,
             AutoLootConfigEntry entry,
             AutoLootPriority priority,
             bool ignorePlayerEquippedSourceGuard
         )
         {
-            if (
-                item == null
-                || (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(item))
-                || !_recentlyLooted.Add(item.Serial)
-                || !_quickContainsLookup.Add(item.Serial)
-            )
-            {
-                return;
-            }
-
             if (entry != null)
                 priority = entry.Priority;
-            _lootItems.Enqueue((item, entry, ignorePlayerEquippedSourceGuard), priority);
-            _currentLootTotalCount++;
-            _nextClearRecents = Time.Ticks + (ProfileManager.CurrentProfile?.AutoLootRetryDelay ?? 5000);
+
+            bool promoted = false;
+            var queued = new List<(LootRequest Request, AutoLootPriority Priority)>(_lootItems.Count);
+            while (_lootItems.TryDequeue(out LootRequest request, out AutoLootPriority queuedPriority))
+            {
+                if (!promoted && request.Item == serial && request.IsGridHighlight)
+                {
+                    request = new LootRequest(serial, entry, false, ignorePlayerEquippedSourceGuard);
+                    queuedPriority = priority;
+                    promoted = true;
+                }
+
+                queued.Add((request, queuedPriority));
+            }
+
+            foreach ((LootRequest request, AutoLootPriority queuedPriority) in queued)
+                _lootItems.Enqueue(request, queuedPriority);
+
+            return promoted;
         }
 
         public void ForceLootContainer(uint serial)
@@ -215,12 +274,13 @@ namespace ClassicUO.Game.Managers
 
             if (i.ShouldAutoLoot)
             {
-                QueueLootItem(i, null, AutoLootPriority.Normal, ignorePlayerEquippedSourceGuard);
+                QueueLootItem(i, null, AutoLootPriority.Normal, false, ignorePlayerEquippedSourceGuard);
                 return;
             }
 
             AutoLootConfigEntry entry = IsOnLootList(i);
-            if (entry != null) QueueLootItem(i, entry, AutoLootPriority.Normal, ignorePlayerEquippedSourceGuard);
+            if (entry != null)
+                QueueLootItem(i, entry, AutoLootPriority.Normal, false, ignorePlayerEquippedSourceGuard);
         }
 
         /// <summary>
@@ -507,7 +567,22 @@ namespace ClassicUO.Game.Managers
 
         public void Update()
         {
-            if (!_loaded || !IsEnabled || !_world.InGame) return;
+            if (!_loaded || !_world.InGame) return;
+
+            bool isEnabled = IsEnabled;
+            if (isEnabled != _lastEnabledState)
+            {
+                _lastEnabledState = isEnabled;
+                if (isEnabled)
+                    GridHighlightData.RecheckMatchStatus();
+            }
+
+            if (!isEnabled)
+            {
+                if (_lootItems.Count > 0)
+                    ClearActiveLootQueue();
+                return;
+            }
 
             if (_nextLootTime > Time.Ticks) return;
 
@@ -516,6 +591,7 @@ namespace ClassicUO.Game.Managers
 
             if (_lootItems.Count == 0)
             {
+                _currentLootTotalCount = 0;
                 _progressBarGump?.Dispose();
                 if (Time.Ticks > _nextClearRecents)
                 {
@@ -525,11 +601,11 @@ namespace ClassicUO.Game.Managers
                 return;
             }
 
-            (uint item, AutoLootConfigEntry entry, bool ignorePlayerEquippedSourceGuard) = _lootItems.Dequeue();
+            LootRequest request = _lootItems.Dequeue();
+            uint item = request.Item;
+            AutoLootConfigEntry entry = request.Entry;
+            bool ignorePlayerEquippedSourceGuard = request.IgnorePlayerEquippedSourceGuard;
             if (item == 0) return;
-
-            if (_lootItems.Count == 0) //Que emptied out
-                _currentLootTotalCount = 0;
 
             _quickContainsLookup.Remove(item);
 
@@ -548,7 +624,11 @@ namespace ClassicUO.Game.Managers
 
             CreateProgressBar();
 
-            if (_progressBarGump is { IsDisposed: false }) _progressBarGump.CurrentPercentage = 1 - ((double)_lootItems.Count / (double)_currentLootTotalCount);
+            if (_progressBarGump is { IsDisposed: false })
+            {
+                int totalCount = Math.Max(1, _currentLootTotalCount);
+                _progressBarGump.CurrentPercentage = 1 - ((double)_lootItems.Count / totalCount);
+            }
 
             if (moveItem.Distance > ProfileManager.CurrentProfile.AutoOpenCorpseRange)
             {
@@ -755,11 +835,43 @@ namespace ClassicUO.Game.Managers
 
         public void ClearActiveLootQueue()
         {
-            while (_lootItems.TryDequeue(out _, out _));
+            while (_lootItems.TryDequeue(out LootRequest request, out _))
+            {
+                _recentlyLooted.Remove(request.Item);
+            }
             _currentLootTotalCount = 0;
             _quickContainsLookup.Clear();
             _progressBarGump?.Dispose();
             _progressBarGump = null;
+        }
+
+        public void CancelGridHighlightLoot()
+        {
+            if (_lootItems.Count == 0)
+                return;
+
+            var retained = new List<(LootRequest Request, AutoLootPriority Priority)>(_lootItems.Count);
+            while (_lootItems.TryDequeue(out LootRequest request, out AutoLootPriority priority))
+            {
+                if (!request.IsGridHighlight)
+                {
+                    retained.Add((request, priority));
+                    continue;
+                }
+
+                _quickContainsLookup.Remove(request.Item);
+                _recentlyLooted.Remove(request.Item);
+            }
+
+            foreach ((LootRequest request, AutoLootPriority priority) in retained)
+                _lootItems.Enqueue(request, priority);
+
+            _currentLootTotalCount = retained.Count;
+            if (retained.Count == 0)
+            {
+                _progressBarGump?.Dispose();
+                _progressBarGump = null;
+            }
         }
 
         public void ImportFromOtherCharacter(string characterName, List<AutoLootConfigEntry> entries)

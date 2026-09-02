@@ -593,7 +593,6 @@ namespace ClassicUO.Configuration
         public List<ushort> GridHighlight_Hue { get; set => SetProperty(ref field, value); } = new List<ushort>();
         public List<List<string>> GridHighlight_PropNames { get; set => SetProperty(ref field, value); } = new List<List<string>>();
         public List<List<int>> GridHighlight_PropMinVal { get; set => SetProperty(ref field, value); } = new List<List<int>>();
-        public bool GridHighlight_CorpseOnly { get; set => SetProperty(ref field, value); } = false;
         public int GridHighlightSize { get; set => SetProperty(ref field, value); } = 1;
         public bool GridHighlightProperties { get; set => SetProperty(ref field, value); } = true;
         public bool GridHighlightShowRuleName { get; set => SetProperty(ref field, value); } = true;

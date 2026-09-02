@@ -237,12 +237,16 @@ namespace ClassicUO.Game.Managers
                 );
             }
 
-            GridHighlightData bestGridHighlightData = ProfileManager.CurrentProfile is { GridHighlightProperties: true } ? GridHighlightData.GetBestMatch(itemPropertiesData) : null;
+            bool highlightProperties = ProfileManager.CurrentProfile is { GridHighlightProperties: true };
+            bool showRuleName = ProfileManager.CurrentProfile is { GridHighlightShowRuleName: true };
+            GridHighlightData bestGridHighlightData = highlightProperties || showRuleName
+                ? GridHighlightData.GetBestMatch(itemPropertiesData)
+                : null;
 
             foreach (ItemPropertiesData.SinglePropertyData property in itemPropertiesData.singlePropertyData)
             {
                 // Find if this property is highlighted
-                bool isHighlighted = bestGridHighlightData != null && bestGridHighlightData.DoesPropertyMatch(property);
+                bool isHighlighted = highlightProperties && bestGridHighlightData != null && bestGridHighlightData.DoesPropertyMatch(property);
 
                 // Try to find an override
                 ToolTipOverrideData matchedOverride = null;
@@ -317,9 +321,9 @@ namespace ClassicUO.Game.Managers
                 sb.AppendLine(finalLine);
             }
 
-            if (ProfileManager.CurrentProfile is { GridHighlightShowRuleName: true } && bestGridHighlightData != null && !string.IsNullOrEmpty(bestGridHighlightData.Name))
+            if (showRuleName && bestGridHighlightData != null && !string.IsNullOrEmpty(bestGridHighlightData.Name))
             {
-                sb.AppendLine($"/c[gray]Matched Rule: {bestGridHighlightData.Name}/cd");
+                sb.AppendLine($"/c[gray]{TazLang.Get("gridhighlight_matchedrule", [bestGridHighlightData.Name])}/cd");
             }
 
             return sb.ToString();
