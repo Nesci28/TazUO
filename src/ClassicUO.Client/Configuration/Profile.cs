@@ -275,6 +275,7 @@ namespace ClassicUO.Configuration
         public bool HoldDownKeyTab { get; set => SetProperty(ref field, value); }
         public bool HoldShiftForContext { get; set => SetProperty(ref field, value); } = false;
         public bool HoldShiftToSplitStack { get; set => SetProperty(ref field, value); } = false;
+        public Dictionary<ushort, int> MobileDefaultContextActions { get; set => SetProperty(ref field, value); } = new Dictionary<ushort, int>();
 
         // general
         [JsonConverter(typeof(Point2Converter))] public Point WindowClientBounds { get; set => SetProperty(ref field, value); } = new Point(600, 480);
