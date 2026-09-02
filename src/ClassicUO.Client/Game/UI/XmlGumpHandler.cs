@@ -4,10 +4,12 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Network;
 using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml;
@@ -68,6 +70,18 @@ namespace ClassicUO.Game.UI
                                 if (bool.TryParse(attr.Value, out bool b))
                                 {
                                     gump.AcceptMouseInput = b;
+                                }
+                                break;
+                            case "fontsizeoffset":
+                                if (int.TryParse(attr.Value, out int fontSizeOffset))
+                                {
+                                    gump.FontSizeOffset = Math.Clamp(fontSizeOffset, -8, 24);
+                                }
+                                break;
+                            case "nativefont":
+                                if (bool.TryParse(attr.Value, out bool nativeFont))
+                                {
+                                    gump.UseNativeFont = nativeFont;
                                 }
                                 break;
                         }
@@ -136,6 +150,21 @@ namespace ClassicUO.Game.UI
                             HandleImage(gump, child);
                             break;
                         }
+                        if (child.Name.ToLower().Equals("embedded_image"))
+                        {
+                            HandleEmbeddedImage(gump, child);
+                            break;
+                        }
+                        if (child.Name.ToLower().Equals("nine_slice"))
+                        {
+                            HandleNineSlice(gump, child);
+                            break;
+                        }
+                        if (child.Name.ToLower().Equals("player_paperdoll"))
+                        {
+                            HandlePlayerPaperDoll(world, gump, child);
+                            break;
+                        }
                         if (child.Name.ToLower().Equals("image_progress_bar"))
                         {
                             HandleImageProgressBar(world, gump, child);
@@ -179,6 +208,179 @@ namespace ClassicUO.Game.UI
                         break;
                 }
             }
+        }
+
+        private static void HandleEmbeddedImage(XmlGump gump, XmlNode node)
+        {
+            EmbeddedTextureSettings settings = ParseEmbeddedTextureSettings(node);
+
+            if (
+                string.IsNullOrWhiteSpace(settings.Texture)
+                || !ExternalImageLoader.Instance.TryGetEmbeddedTexture(settings.Texture, out var texture)
+                || texture == null
+                || texture.IsDisposed
+            )
+            {
+                return;
+            }
+
+            var image = new EmbeddedGumpPic(0, 0, texture, settings.Hue)
+            {
+                Alpha = settings.Alpha,
+                AcceptMouseInput = false,
+                CanMove = false
+            };
+            gump.Add(ApplyBasicAttributes(image, node));
+        }
+
+        private static void HandleNineSlice(XmlGump gump, XmlNode node)
+        {
+            EmbeddedTextureSettings settings = ParseEmbeddedTextureSettings(node, 8);
+
+            if (
+                string.IsNullOrWhiteSpace(settings.Texture)
+                || !ExternalImageLoader.Instance.TryGetEmbeddedTexture(settings.Texture, out var texture)
+                || texture == null
+                || texture.IsDisposed
+            )
+            {
+                return;
+            }
+
+            int maximumBorder = Math.Max(1, Math.Min(texture.Width, texture.Height) / 2);
+            int border = Math.Clamp(settings.Border, 1, maximumBorder);
+            var panel = new NineSliceControl(texture.Width, texture.Height, texture, border)
+            {
+                Alpha = settings.Alpha,
+                Hue = settings.Hue,
+                AcceptMouseInput = false,
+                CanMove = false
+            };
+            gump.Add(ApplyBasicAttributes(panel, node));
+        }
+
+        internal static EmbeddedTextureSettings ParseEmbeddedTextureSettings(
+            XmlNode node,
+            int defaultBorder = 0
+        )
+        {
+            string texture = string.Empty;
+            int border = defaultBorder;
+            ushort hue = 0;
+            float alpha = 1f;
+
+            foreach (XmlAttribute attr in node.Attributes)
+            {
+                switch (attr.Name.ToLower())
+                {
+                    case "texture":
+                    case "name":
+                        texture = attr.Value.Trim();
+                        break;
+                    case "border":
+                        if (int.TryParse(attr.Value, out int parsedBorder) && parsedBorder > 0)
+                        {
+                            border = parsedBorder;
+                        }
+                        break;
+                    case "hue":
+                        ushort.TryParse(attr.Value, out hue);
+                        break;
+                    case "alpha":
+                        if (
+                            float.TryParse(
+                                attr.Value,
+                                NumberStyles.Float,
+                                CultureInfo.InvariantCulture,
+                                out float parsedAlpha
+                            )
+                        )
+                        {
+                            alpha = Math.Clamp(parsedAlpha, 0f, 1f);
+                        }
+                        break;
+                }
+            }
+
+            return new EmbeddedTextureSettings(texture, border, hue, alpha);
+        }
+
+        private static void HandlePlayerPaperDoll(World world, XmlGump gump, XmlNode node)
+        {
+            if (world.Player == null)
+            {
+                return;
+            }
+
+            PlayerPaperDollSettings settings = ParsePlayerPaperDollSettings(node);
+            var paperDoll = new XmlPaperDollView(
+                world,
+                world.Player,
+                settings.Width,
+                settings.Height,
+                settings.Updates,
+                settings.Background
+            );
+
+            ApplyBasicAttributes(paperDoll, node);
+            paperDoll.TargetSize = new Vector2(settings.Width, settings.Height);
+            paperDoll.Alpha = settings.Alpha;
+            gump.Add(paperDoll);
+        }
+
+        internal static PlayerPaperDollSettings ParsePlayerPaperDollSettings(XmlNode node)
+        {
+            int width = PlayerPaperDollSettings.DefaultWidth;
+            int height = PlayerPaperDollSettings.DefaultHeight;
+            bool updates = true;
+            bool background = false;
+            float alpha = 1f;
+
+            foreach (XmlAttribute attr in node.Attributes)
+            {
+                switch (attr.Name.ToLower())
+                {
+                    case "width":
+                        if (int.TryParse(attr.Value, out int parsedWidth) && parsedWidth > 0)
+                        {
+                            width = parsedWidth;
+                        }
+                        break;
+                    case "height":
+                        if (int.TryParse(attr.Value, out int parsedHeight) && parsedHeight > 0)
+                        {
+                            height = parsedHeight;
+                        }
+                        break;
+                    case "updates":
+                        if (bool.TryParse(attr.Value, out bool parsedUpdates))
+                        {
+                            updates = parsedUpdates;
+                        }
+                        break;
+                    case "background":
+                        if (bool.TryParse(attr.Value, out bool parsedBackground))
+                        {
+                            background = parsedBackground;
+                        }
+                        break;
+                    case "alpha":
+                        if (
+                            float.TryParse(
+                                attr.Value,
+                                NumberStyles.Float,
+                                CultureInfo.InvariantCulture,
+                                out float parsedAlpha
+                            )
+                        )
+                        {
+                            alpha = Math.Clamp(parsedAlpha, 0f, 1f);
+                        }
+                        break;
+                }
+            }
+
+            return new PlayerPaperDollSettings(width, height, updates, background, alpha);
         }
 
         private static void HandleImageHPBar(World world, XmlGump gump, XmlNode node)
@@ -655,7 +857,10 @@ namespace ClassicUO.Game.UI
             string font = TrueTypeLoader.EMBEDDED_FONT;
             int x = 0, y = 0, fontSize = 16, width = 0, hue = 997;
             bool needsUpdates = false;
+            bool useNativeFont = gump.UseNativeFont;
+            XmlTextStyleSettings style = ParseXmlTextStyleSettings(textNode);
             FontStashSharp.RichText.TextHorizontalAlignment align = FontStashSharp.RichText.TextHorizontalAlignment.Left;
+            TEXT_ALIGN_TYPE nativeAlign = TEXT_ALIGN_TYPE.TS_LEFT;
 
             foreach (XmlAttribute attr in textNode.Attributes)
             {
@@ -679,37 +884,136 @@ namespace ClassicUO.Game.UI
                     case "hue":
                         int.TryParse(attr.Value, out hue);
                         break;
+                    case "color":
+                    case "stroke":
+                        // Parsed together below so hue-only XML remains backward compatible.
+                        break;
                     case "updates":
                         bool.TryParse(attr.Value, out needsUpdates);
+                        break;
+                    case "native":
+                        bool.TryParse(attr.Value, out useNativeFont);
                         break;
                     case "align":
                         switch (attr.Value.ToLower())
                         {
                             case "left":
                                 align = FontStashSharp.RichText.TextHorizontalAlignment.Left;
+                                nativeAlign = TEXT_ALIGN_TYPE.TS_LEFT;
                                 break;
                             case "center":
                                 align = FontStashSharp.RichText.TextHorizontalAlignment.Center;
+                                nativeAlign = TEXT_ALIGN_TYPE.TS_CENTER;
                                 break;
                             case "right":
                                 align = FontStashSharp.RichText.TextHorizontalAlignment.Right;
+                                nativeAlign = TEXT_ALIGN_TYPE.TS_RIGHT;
                                 break;
                         }
                         break;
                 }
             }
-            TextBox t;
 
-            TextBox.RTLOptions textboxOptions = new (){Width = width > 0 ? width : null, Align = align};
-            gump.Add(t = TextBox.GetOne(FormatText(world, textNode.InnerText), font, fontSize, hue, textboxOptions));
+            string text = FormatText(world, textNode.InnerText);
+            if (useNativeFont)
+            {
+                byte nativeFont = byte.TryParse(font, out byte parsedFont) ? parsedFont : byte.MaxValue;
+                ushort nativeHue = (ushort)Math.Clamp(hue, ushort.MinValue, ushort.MaxValue);
+                // Script gump labels are rendered without a max width. Do the same here so width is
+                // an alignment region rather than a word-wrap boundary that can stack into the next row.
+                var label = new Label(text, true, nativeHue, font: nativeFont)
+                {
+                    X = x,
+                    Y = y,
+                    AcceptMouseInput = false
+                };
+                label.X = GetNativeTextX(x, width, label.Width, nativeAlign);
+
+                gump.Add(label);
+
+                if (needsUpdates)
+                {
+                    gump.TextBoxUpdates.Add(
+                        new XmlTextUpdateInfo(label, textNode.InnerText, text, x, width, nativeAlign)
+                    );
+                }
+
+                return;
+            }
+
+            fontSize = Math.Max(1, fontSize + gump.FontSizeOffset);
+
+            TextBox.RTLOptions textboxOptions = new()
+            {
+                Width = width > 0 ? width : null,
+                Align = align,
+                StrokeEffect = style.Stroke
+            };
+            TextBox t = style.Color.HasValue
+                ? TextBox.GetOne(text, font, fontSize, style.Color.Value, textboxOptions)
+                : TextBox.GetOne(text, font, fontSize, hue, textboxOptions);
+            gump.Add(t);
             t.X = x;
             t.Y = y;
             t.AcceptMouseInput = false;
 
             if (needsUpdates)
             {
-                gump.TextBoxUpdates.Add(new Tuple<TextBox, Tuple<string, int>>(t, new Tuple<string, int>(textNode.InnerText, width)));
+                gump.TextBoxUpdates.Add(new XmlTextUpdateInfo(t, textNode.InnerText, text));
             }
+        }
+
+        internal static int GetNativeTextX(
+            int x,
+            int width,
+            int labelWidth,
+            TEXT_ALIGN_TYPE align
+        )
+        {
+            if (width <= 0 || labelWidth >= width)
+            {
+                return x;
+            }
+
+            return align switch
+            {
+                TEXT_ALIGN_TYPE.TS_CENTER => x + (width - labelWidth) / 2,
+                TEXT_ALIGN_TYPE.TS_RIGHT => x + width - labelWidth,
+                _ => x
+            };
+        }
+
+        internal static XmlTextStyleSettings ParseXmlTextStyleSettings(XmlNode textNode)
+        {
+            Color? color = null;
+            bool stroke = false;
+
+            foreach (XmlAttribute attr in textNode.Attributes)
+            {
+                switch (attr.Name.ToLowerInvariant())
+                {
+                    case "color":
+                        string hex = attr.Value.Trim();
+                        if (hex.StartsWith("#", StringComparison.Ordinal))
+                        {
+                            hex = hex.Substring(1);
+                        }
+
+                        if (
+                            hex.Length == 6
+                            && int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb)
+                        )
+                        {
+                            color = new Color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+                        }
+                        break;
+                    case "stroke":
+                        bool.TryParse(attr.Value, out stroke);
+                        break;
+                }
+            }
+
+            return new XmlTextStyleSettings(color, stroke);
         }
 
         private static Control ApplyBasicAttributes(Control c, XmlNode node)
@@ -804,6 +1108,28 @@ namespace ClassicUO.Game.UI
             text = text.Replace("{pets}", world.Player.Followers.ToString());
             text = text.Replace("{petsmax}", world.Player.FollowersMax.ToString());
 
+            NetStatistics statistics = AsyncNetClient.Socket?.Statistics;
+            text = FormatNetworkText(
+                text,
+                statistics?.Ping ?? 0,
+                statistics?.DeltaBytesReceived ?? 0,
+                statistics?.DeltaBytesSent ?? 0
+            );
+
+            return text;
+        }
+
+        internal static string FormatNetworkText(
+            string text,
+            uint ping,
+            uint bytesReceived,
+            uint bytesSent
+        )
+        {
+            text = text.Replace("{ping}", ping.ToString());
+            text = text.Replace("{bytesreceived}", NetStatistics.GetSizeAdaptive(bytesReceived));
+            text = text.Replace("{bytessent}", NetStatistics.GetSizeAdaptive(bytesSent));
+
             return text;
         }
 
@@ -822,6 +1148,110 @@ namespace ClassicUO.Game.UI
             public string Value { get; }
             public string MaxValue { get; }
         }
+
+        public sealed class XmlTextUpdateInfo
+        {
+            public XmlTextUpdateInfo(
+                Control control,
+                string template,
+                string initialText,
+                int x = 0,
+                int width = 0,
+                TEXT_ALIGN_TYPE align = TEXT_ALIGN_TYPE.TS_LEFT
+            )
+            {
+                Control = control;
+                Template = template;
+                LastText = initialText;
+                X = x;
+                Width = width;
+                Align = align;
+            }
+
+            public Control Control { get; }
+            public string Template { get; }
+            public string LastText { get; private set; }
+            private int X { get; }
+            private int Width { get; }
+            private TEXT_ALIGN_TYPE Align { get; }
+
+            internal void Apply(string text)
+            {
+                switch (Control)
+                {
+                    case TextBox textBox:
+                        textBox.Text = text;
+                        // TextBox applies its stroke during Update. Rebuild now so a changed
+                        // value never renders for one frame without its configured outline.
+                        textBox.Update();
+                        break;
+                    case Label label:
+                        label.Text = text;
+                        label.X = GetNativeTextX(X, Width, label.Width, Align);
+                        break;
+                }
+            }
+
+            internal bool ShouldApply(string text)
+            {
+                if (LastText == text)
+                {
+                    return false;
+                }
+
+                LastText = text;
+                return true;
+            }
+        }
+    }
+
+    internal readonly struct PlayerPaperDollSettings
+    {
+        public const int DefaultWidth = 190;
+        public const int DefaultHeight = 250;
+
+        public PlayerPaperDollSettings(int width, int height, bool updates, bool background, float alpha)
+        {
+            Width = width;
+            Height = height;
+            Updates = updates;
+            Background = background;
+            Alpha = alpha;
+        }
+
+        public int Width { get; }
+        public int Height { get; }
+        public bool Updates { get; }
+        public bool Background { get; }
+        public float Alpha { get; }
+    }
+
+    internal readonly struct EmbeddedTextureSettings
+    {
+        public EmbeddedTextureSettings(string texture, int border, ushort hue, float alpha)
+        {
+            Texture = texture;
+            Border = border;
+            Hue = hue;
+            Alpha = alpha;
+        }
+
+        public string Texture { get; }
+        public int Border { get; }
+        public ushort Hue { get; }
+        public float Alpha { get; }
+    }
+
+    internal readonly struct XmlTextStyleSettings
+    {
+        public XmlTextStyleSettings(Color? color, bool stroke)
+        {
+            Color = color;
+            Stroke = stroke;
+        }
+
+        public Color? Color { get; }
+        public bool Stroke { get; }
     }
 
     public class XmlGump : Gump
@@ -830,11 +1260,13 @@ namespace ClassicUO.Game.UI
         /// The frequency of UI updates for Xml Gumps for text/progress bar changes. This affects all xml gumps, it is not set individually.
         /// </summary>
         public static uint UpdateFrequency { get; set; } = 250;
-        public List<Tuple<TextBox, Tuple<string, int>>> TextBoxUpdates { get; set; } = new List<Tuple<TextBox, Tuple<string, int>>>();
+        public List<XmlTextUpdateInfo> TextBoxUpdates { get; set; } = new List<XmlTextUpdateInfo>();
         public List<XmlProgressBarInfo> ProgressBarUpdates { get; set; } = new List<XmlProgressBarInfo>();
         public List<XmlProgressBarInfo> VerticalProgressBarUpdates { get; set; } = new List<XmlProgressBarInfo>();
         public bool SavePosition { get; set; }
         public string FilePath { get; set; }
+        public int FontSizeOffset { get; set; }
+        public bool UseNativeFont { get; set; }
 
         private uint nextUpdate = 0;
         private bool savingFile = false;
@@ -850,21 +1282,14 @@ namespace ClassicUO.Game.UI
 
             if (Time.Ticks >= nextUpdate)
             {
-                foreach (Tuple<TextBox, Tuple<string, int>> t in TextBoxUpdates)
+                foreach (XmlTextUpdateInfo update in TextBoxUpdates)
                 {
-                    if (t.Item1 != null && !t.Item1.IsDisposed)
+                    if (update.Control != null && !update.Control.IsDisposed)
                     {
-                        string newString = XmlGumpHandler.FormatText(World, t.Item2.Item1);
-                        if (t.Item1.Text != newString)
+                        string newString = XmlGumpHandler.FormatText(World, update.Template);
+                        if (update.ShouldApply(newString))
                         {
-                            if (t.Item2.Item2 < 1)
-                            {
-                                t.Item1.Text = newString;
-                            }
-                            else
-                            {
-                                t.Item1.Text = newString;
-                            }
+                            update.Apply(newString);
                         }
                     }
                 }

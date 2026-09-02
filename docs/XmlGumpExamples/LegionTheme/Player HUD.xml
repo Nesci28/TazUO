@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<gump x="803" y="677" saveposition="true" acceptmouseinput="true" locked="true">
+  <nine_slice texture="LegionXmlWindow.png" x="0" y="0" width="250" height="98" border="10" />
+
+  <nine_slice texture="LegionXmlInset.png" x="7" y="9" width="74" height="80" border="5" />
+  <player_paperdoll x="8" y="13" width="72" height="68" updates="true" background="false" alpha="1" />
+  <embedded_image texture="LegionXmlPortraitFrame.png" x="5" y="10" />
+
+  <nine_slice texture="LegionXmlPanel.png" x="82" y="9" width="159" height="80" border="7" />
+  <text x="88" y="10" width="145" size="12" hue="1153" align="center" updates="true">{charname}</text>
+
+  <text x="91" y="34" width="20" size="8" hue="33" align="left">HP</text>
+  <hp_bar_color x="113" y="35" width="120" height="11" direction="right" hue_background="1965" hue_normal="33" hue_poisoned="62" />
+  <simple_border x="112" y="34" width="122" height="13" hue="1715" />
+  <text x="115" y="34" width="115" size="7" hue="1153" align="right" updates="true">{hp} / {maxhp}</text>
+
+  <text x="91" y="54" width="20" size="8" hue="53" align="left">ST</text>
+  <color_progress_bar x="113" y="55" width="120" height="11" direction="right" background_hue="1965" foreground_hue="53" value="{stam}" max_value="{maxstam}" updates="true" />
+  <simple_border x="112" y="54" width="122" height="13" hue="1715" />
+  <text x="115" y="54" width="115" size="7" hue="1153" align="right" updates="true">{stam} / {maxstam}</text>
+
+  <text x="91" y="74" width="20" size="8" hue="99" align="left">MP</text>
+  <color_progress_bar x="113" y="75" width="120" height="11" direction="right" background_hue="1965" foreground_hue="99" value="{mana}" max_value="{maxmana}" updates="true" />
+  <simple_border x="112" y="74" width="122" height="13" hue="1715" />
+  <text x="115" y="74" width="115" size="7" hue="1153" align="right" updates="true">{mana} / {maxmana}</text>
+</gump>

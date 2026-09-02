@@ -79,6 +79,21 @@ namespace ClassicUO.Game.UI.Controls
     {
         private Texture2D _customTexture;
 
+        public Texture2D Texture
+        {
+            get => _customTexture;
+            set
+            {
+                _customTexture = value;
+
+                if (_customTexture != null)
+                {
+                    Width = _customTexture.Width;
+                    Height = _customTexture.Height;
+                }
+            }
+        }
+
         /// <summary>
         ///
         /// </summary>
@@ -90,13 +105,8 @@ namespace ClassicUO.Game.UI.Controls
         {
             X = x;
             Y = y;
-            _customTexture = texture;
+            Texture = texture;
             Hue = hue;
-
-            if(_customTexture != null){
-                Width = _customTexture.Width;
-                Height = _customTexture.Height;
-            }
         }
 
         public override bool Draw(UltimaBatcher2D batcher, int x, int y)

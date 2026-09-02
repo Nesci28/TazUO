@@ -12,8 +12,27 @@ public class PaperdollTab
     internal static IOptionSource GetContent()
     {
         return OptionsUi.Vertical(
+            GetLegionThemeSection(),
             GetModernPaperdollSection()
         ).WithSearch(new SearchMetadata(TazLang.Get("mog_buttonpaperdoll"), [TazLang.Get("mog_kw_paperdoll"), TazLang.Get("mog_kw_character"), TazLang.Get("mog_kw_equipment")]));
+    }
+
+    private static OptionFragment GetLegionThemeSection()
+    {
+        Profile profile = ProfileManager.CurrentProfile;
+
+        return OptionsUi.VisualContainer(
+            new VisualContainerProps { LabelText = TazLang.Get("legion_paperdoll_theme", "Legion paperdoll theme") },
+            Option.Checkbox(
+                TazLang.Get("legion_paperdoll_theme_enable", "Use dark teal and gold paperdolls"),
+                new Accessor<bool>(() => profile.UseLegionPaperdollTheme, enabled =>
+                {
+                    profile.UseLegionPaperdollTheme = enabled;
+                    PaperDollGump.UpdateAllThemes();
+                    ModernPaperdoll.UpdateAllOptions();
+                })
+            )
+        );
     }
 
     private static OptionFragment GetModernPaperdollSection()
