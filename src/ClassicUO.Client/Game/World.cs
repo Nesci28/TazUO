@@ -46,6 +46,7 @@ namespace ClassicUO.Game
             ChatManager = new ChatManager(this);
             AuraManager = new AuraManager(this);
             TargetManager = new TargetManager(this);
+            CombatDamageTracker = new CombatDamageTracker(this);
             DelayedObjectClickManager = new DelayedObjectClickManager(this);
             BoatMovingManager = new BoatMovingManager(this);
             NameOverHeadManager = new NameOverHeadManager(this);
@@ -118,6 +119,8 @@ namespace ClassicUO.Game
         public AuraManager AuraManager { get; }
 
         public TargetManager TargetManager { get; }
+
+        public CombatDamageTracker CombatDamageTracker { get; }
 
         public DelayedObjectClickManager DelayedObjectClickManager { get; }
 
@@ -1038,6 +1041,7 @@ namespace ClassicUO.Game
             ClientLockedFeatures.SetFlags(0);
             Party?.Clear();
             TargetManager.LastAttack = 0;
+            CombatDamageTracker.Reset();
             MessageManager.PromptData = default;
             _effectManager.Clear();
             _toRemove.Clear();
