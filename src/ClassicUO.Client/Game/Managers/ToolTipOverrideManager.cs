@@ -207,7 +207,7 @@ namespace ClassicUO.Game.Managers
             ToolTipOverrideData[] toolTipOverrides = GetAllToolTipOverrides();
 
             bool headerHandled = false;
-            foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.item?.ItemData.Layer ?? 0))
+            foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.ItemLayer))
             {
                 if (MatchItemName(itemPropertiesData.Name, overrideData.SearchText))
                 {
@@ -252,7 +252,7 @@ namespace ClassicUO.Game.Managers
                 ToolTipOverrideData matchedOverride = null;
                 if (toolTipOverrides != null)
                 {
-                    foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.item?.ItemData.Layer ?? 0))
+                    foreach (ToolTipOverrideData overrideData in FilteredOverrides(toolTipOverrides, itemPropertiesData.ItemLayer))
                     {
                         if (!MatchPropertyName(World.Instance, property.OriginalString, overrideData.SearchText))
                             continue;
@@ -346,6 +346,17 @@ namespace ClassicUO.Game.Managers
             return BuildTooltip(itemPropertiesData, out borderHue, compareTo);
         }
 
+        /// <summary>
+        /// Processes an item from its OPL serial and explicit equipment layer, optionally comparing
+        /// it with a real equipped item. The explicit layer preserves layer-specific tooltip
+        /// overrides without requiring an item lookup or adding a fabricated item to the world.
+        /// </summary>
+        public static string ProcessTooltipText(World world, uint serial, byte itemLayer, out int borderHue, Item compareTo = null)
+        {
+            var itemPropertiesData = new ItemPropertiesData(world, serial, itemLayer, compareTo);
+            return BuildTooltip(itemPropertiesData, out borderHue, compareTo?.Serial ?? uint.MinValue);
+        }
+
         public static string ProcessTooltipText(string text)
             => ProcessTooltipText(text, out _);
 
@@ -357,6 +368,31 @@ namespace ClassicUO.Game.Managers
         {
             var itemPropertiesData = new ItemPropertiesData(text);
             return BuildTooltip(itemPropertiesData, out borderHue);
+        }
+
+        /// <summary>
+        /// Processes tooltip text embedded directly in a server gump while preserving its item
+        /// layer and comparison against the equipped item.
+        /// </summary>
+        public static string ProcessTooltipText(
+            World world,
+            string text,
+            byte itemLayer,
+            out int borderHue,
+            Item compareTo = null
+        )
+        {
+            var itemPropertiesData = new ItemPropertiesData(
+                world,
+                text,
+                itemLayer,
+                compareTo
+            );
+            return BuildTooltip(
+                itemPropertiesData,
+                out borderHue,
+                compareTo?.Serial ?? uint.MinValue
+            );
         }
 
         /// <summary>

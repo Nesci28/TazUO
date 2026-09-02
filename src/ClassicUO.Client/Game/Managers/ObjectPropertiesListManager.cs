@@ -160,6 +160,7 @@ namespace ClassicUO.Game.Managers
         public string Name = "";
         public readonly string RawData = "";
         public readonly uint serial;
+        public readonly byte ItemLayer;
         public string[] RawLines;
         public readonly Item item, itemComparedTo;
         public List<SinglePropertyData> singlePropertyData = new List<SinglePropertyData>();
@@ -175,6 +176,7 @@ namespace ClassicUO.Game.Managers
             itemComparedTo = compareTo;
 
             serial = item.Serial;
+            ItemLayer = item.ItemData.Layer;
             if (world.OPL.TryGetNameAndData(item.Serial, out Name, out RawData))
             {
                 Name = Name.Trim();
@@ -183,10 +185,49 @@ namespace ClassicUO.Game.Managers
             }
         }
 
+        /// <summary>
+        /// Builds property data from an OPL serial and explicit equipment layer. Server-sent gumps
+        /// such as Vendor Search use this without a <see cref="World.Items"/> entry; paperdoll
+        /// comparisons use it to preserve the item's network equipment layer.
+        /// </summary>
+        public ItemPropertiesData(World world, uint serial, byte itemLayer, Item compareTo = null)
+        {
+            if (world == null)
+                return;
+
+            this.world = world;
+            this.serial = serial;
+            ItemLayer = itemLayer;
+            itemComparedTo = compareTo;
+
+            if (world.OPL.TryGetNameAndData(serial, out Name, out RawData))
+            {
+                Name = Name.Trim();
+                HasData = true;
+                processData();
+            }
+        }
+
         public ItemPropertiesData(string tooltip)
+            : this(null, tooltip, 0)
+        {
+        }
+
+        /// <summary>
+        /// Builds comparable property data from tooltip text embedded directly in a server gump.
+        /// </summary>
+        public ItemPropertiesData(
+            World world,
+            string tooltip,
+            byte itemLayer,
+            Item compareTo = null
+        )
         {
             if (string.IsNullOrEmpty(tooltip))
                 return;
+            this.world = world;
+            ItemLayer = itemLayer;
+            itemComparedTo = compareTo;
             if (tooltip.Contains("\n"))
             {
                 Name = tooltip.Substring(0, tooltip.IndexOf("\n"));
@@ -237,7 +278,9 @@ namespace ClassicUO.Game.Managers
         {
             if (itemComparedTo == null) return;
 
-            var itemPropertiesData = new ItemPropertiesData(world, itemComparedTo);
+            // Property diffs only need the equipped item's OPL. Avoid resolving its tile data here
+            // so OPL-only candidates remain independent from the world-item lookup path.
+            var itemPropertiesData = new ItemPropertiesData(world, itemComparedTo.Serial, 0);
             if (itemPropertiesData.HasData)
             {
                 foreach (SinglePropertyData thisItem in singlePropertyData)
