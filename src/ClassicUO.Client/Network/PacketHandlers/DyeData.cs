@@ -19,8 +19,8 @@ internal static class DyeData
 
         ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(0x0906);
 
-        int x = (ScaleHelper.LogicalWindowWidth >> 1) - (gumpInfo.UV.Width >> 1);
-        int y = (ScaleHelper.LogicalWindowHeight >> 1) - (gumpInfo.UV.Height >> 1);
+        int x = (ScaleHelper.LogicalWindowWidth >> 1) - (gumpInfo.LogicalWidth >> 1);
+        int y = (ScaleHelper.LogicalWindowHeight >> 1) - (gumpInfo.LogicalHeight >> 1);
 
         if (ProfileManager.GlobalSettings.UseModernColorPicker)
         {

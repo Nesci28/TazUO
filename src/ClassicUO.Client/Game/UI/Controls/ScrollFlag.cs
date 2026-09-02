@@ -42,15 +42,15 @@ namespace ClassicUO.Game.UI.Controls
             ref readonly SpriteInfo gumpInfoUp = ref Client.Game.UO.Gumps.GetGump(BUTTON_UP);
             ref readonly SpriteInfo gumpInfoDown = ref Client.Game.UO.Gumps.GetGump(BUTTON_DOWN);
 
-            Width = gumpInfoFlag.UV.Width;
-            Height = gumpInfoFlag.UV.Height;
+            Width = gumpInfoFlag.LogicalWidth;
+            Height = gumpInfoFlag.LogicalHeight;
 
-            _rectUpButton = new Rectangle(0, 0, gumpInfoUp.UV.Width, gumpInfoUp.UV.Height);
+            _rectUpButton = new Rectangle(0, 0, gumpInfoUp.LogicalWidth, gumpInfoUp.LogicalHeight);
             _rectDownButton = new Rectangle(
                 0,
                 Height,
-                gumpInfoDown.UV.Width,
-                gumpInfoDown.UV.Height
+                gumpInfoDown.LogicalWidth,
+                gumpInfoDown.LogicalHeight
             );
 
             WantUpdateSize = false;
@@ -68,7 +68,12 @@ namespace ClassicUO.Game.UI.Controls
             {
                 batcher.Draw(
                     gumpInfoFlag.Texture,
-                    new Vector2(x, y + _sliderPosition),
+                    new Rectangle(
+                        x,
+                        y + _sliderPosition,
+                        gumpInfoFlag.LogicalWidth,
+                        gumpInfoFlag.LogicalHeight
+                    ),
                     gumpInfoFlag.UV,
                     hueVector
                 );
@@ -78,14 +83,24 @@ namespace ClassicUO.Game.UI.Controls
             {
                 if (gumpInfoUp.Texture != null)
                 {
-                    batcher.Draw(gumpInfoUp.Texture, new Vector2(x, y), gumpInfoUp.UV, hueVector);
+                    batcher.Draw(
+                        gumpInfoUp.Texture,
+                        new Rectangle(x, y, gumpInfoUp.LogicalWidth, gumpInfoUp.LogicalHeight),
+                        gumpInfoUp.UV,
+                        hueVector
+                    );
                 }
 
                 if (gumpInfoDown.Texture != null)
                 {
                     batcher.Draw(
                         gumpInfoDown.Texture,
-                        new Vector2(x, y + Height),
+                        new Rectangle(
+                            x,
+                            y + Height,
+                            gumpInfoDown.LogicalWidth,
+                            gumpInfoDown.LogicalHeight
+                        ),
                         gumpInfoDown.UV,
                         hueVector
                     );
@@ -99,7 +114,7 @@ namespace ClassicUO.Game.UI.Controls
         {
             ref readonly SpriteInfo gumpInfoFlag = ref Client.Game.UO.Gumps.GetGump(BUTTON_FLAG);
 
-            return Height - gumpInfoFlag.UV.Height;
+            return Height - gumpInfoFlag.LogicalHeight;
         }
 
         protected override void CalculateByPosition(int x, int y)
@@ -107,7 +122,7 @@ namespace ClassicUO.Game.UI.Controls
             if (y != _clickPosition.Y)
             {
                 ref readonly SpriteInfo gumpInfoFlag = ref Client.Game.UO.Gumps.GetGump(BUTTON_FLAG);
-                int height = gumpInfoFlag.UV.Height;
+                int height = gumpInfoFlag.LogicalHeight;
 
                 y -= (height >> 1);
 

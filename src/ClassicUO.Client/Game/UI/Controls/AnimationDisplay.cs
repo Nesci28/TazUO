@@ -88,7 +88,17 @@ public class AnimationDisplay : Control
         ref SpriteInfo spriteInfo = ref frames[_lastFrame];
 
         if (spriteInfo.Texture != null)
-            batcher.Draw(spriteInfo.Texture, new Rectangle(x, y, Math.Min(spriteInfo.UV.Width, _mWidth), Math.Min(spriteInfo.UV.Height, _mHeight)), spriteInfo.UV, _hueVector);
+            batcher.Draw(
+                spriteInfo.Texture,
+                new Rectangle(
+                    x,
+                    y,
+                    Math.Min(spriteInfo.LogicalWidth, _mWidth),
+                    Math.Min(spriteInfo.LogicalHeight, _mHeight)
+                ),
+                spriteInfo.UV,
+                _hueVector
+            );
 
         if (DrawBorder)
             batcher.DrawRectangle(SolidColorTextureCache.GetTexture(Color.Gray), x, y, Width - 1, Height - 1, ShaderHueTranslator.GetHueVector(0, false, Alpha));

@@ -652,6 +652,7 @@ namespace ClassicUO.Game.Managers
             }
 
             batcher.End();
+            batcher.SetSampler(null);
         }
 
         public static void Add(IGui gump, bool front = true)

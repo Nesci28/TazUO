@@ -108,7 +108,7 @@ namespace ClassicUO.Game.UI.Gumps
                 if (value.HasValue)
                 {
                     ref readonly SpriteInfo texture = ref Client.Game.UO.Gumps.GetGump(value.Value);
-                    _bounds = texture.UV;
+                    _bounds = texture.LogicalBounds;
                     IsPartialHue = texture.Texture == null ? false : Client.Game.UO.FileManager.TileData.StaticData[value.Value].IsPartialHue;
                 }
 

@@ -568,12 +568,8 @@ namespace ClassicUO.Game.UI.Gumps
             _borderSize = 4;
         }
 
-        private Texture2D GetGumpTexture(uint g, out Rectangle bounds)
-        {
-            ref readonly SpriteInfo texture = ref Client.Game.UO.Gumps.GetGump(g);
-            bounds = texture.UV;
-            return texture.Texture;
-        }
+        private static SpriteInfo GetGumpInfo(uint graphic) =>
+            Client.Game.UO.Gumps.GetGump(graphic);
 
         public override bool Draw(UltimaBatcher2D batcher, int x, int y)
         {
@@ -587,7 +583,9 @@ namespace ClassicUO.Game.UI.Gumps
             }
             hueVector.Z = Alpha;
 
-            Texture2D texture = GetGumpTexture(h_border, out Rectangle bounds);
+            SpriteInfo gumpInfo = GetGumpInfo(h_border);
+            Texture2D texture = gumpInfo.Texture;
+            Rectangle bounds = gumpInfo.UV;
             if (texture != null)
             {
                 pos = new Rectangle
@@ -610,11 +608,14 @@ namespace ClassicUO.Game.UI.Gumps
                     texture,
                     pos,
                     bounds,
-                    hueVector
+                    hueVector,
+                    gumpInfo.InverseSourceScale
                 );
             }
 
-            texture = GetGumpTexture(h_bottom_border, out bounds);
+            gumpInfo = GetGumpInfo(h_bottom_border);
+            texture = gumpInfo.Texture;
+            bounds = gumpInfo.UV;
             if (texture != null)
             {
                 pos = new Rectangle
@@ -637,11 +638,14 @@ namespace ClassicUO.Game.UI.Gumps
                     texture,
                     pos,
                     bounds,
-                    hueVector
+                    hueVector,
+                    gumpInfo.InverseSourceScale
                 );
             }
 
-            texture = GetGumpTexture(v_border, out bounds);
+            gumpInfo = GetGumpInfo(v_border);
+            texture = gumpInfo.Texture;
+            bounds = gumpInfo.UV;
             if (texture != null)
             {
                 pos = new Rectangle
@@ -664,11 +668,14 @@ namespace ClassicUO.Game.UI.Gumps
                     texture,
                     pos,
                     bounds,
-                    hueVector
+                    hueVector,
+                    gumpInfo.InverseSourceScale
                 );
             }
 
-            texture = GetGumpTexture(v_right_border, out bounds);
+            gumpInfo = GetGumpInfo(v_right_border);
+            texture = gumpInfo.Texture;
+            bounds = gumpInfo.UV;
             if (texture != null)
             {
                 pos = new Rectangle
@@ -691,50 +698,74 @@ namespace ClassicUO.Game.UI.Gumps
                     texture,
                     pos,
                     bounds,
-                    hueVector
+                    hueVector,
+                    gumpInfo.InverseSourceScale
                 );
             }
 
             if (t_left != 0xffff)
             {
-                texture = GetGumpTexture(t_left, out bounds);
+                gumpInfo = GetGumpInfo(t_left);
+                texture = gumpInfo.Texture;
+                bounds = gumpInfo.UV;
                 if (texture != null)
                     batcher.Draw(
                         texture,
-                        new Rectangle(x, y, bounds.Width, bounds.Height),
+                        new Rectangle(x, y, gumpInfo.LogicalWidth, gumpInfo.LogicalHeight),
                         bounds,
                         hueVector
                         );
             }
             if (t_right != 0xffff)
             {
-                texture = GetGumpTexture(t_right, out bounds);
+                gumpInfo = GetGumpInfo(t_right);
+                texture = gumpInfo.Texture;
+                bounds = gumpInfo.UV;
                 if (texture != null)
                     batcher.Draw(
                     texture,
-                    new Rectangle(x + Width - _borderSize, y, bounds.Width, bounds.Height),
+                    new Rectangle(
+                        x + Width - _borderSize,
+                        y,
+                        gumpInfo.LogicalWidth,
+                        gumpInfo.LogicalHeight
+                    ),
                     bounds,
                     hueVector
                     );
             }
             if (b_left != 0xffff)
             {
-                texture = GetGumpTexture(b_left, out bounds);
+                gumpInfo = GetGumpInfo(b_left);
+                texture = gumpInfo.Texture;
+                bounds = gumpInfo.UV;
                 if (texture != null)
                     batcher.Draw(
                     texture,
-                    new Rectangle(x, y + Height - _borderSize, bounds.Width, bounds.Height),
+                    new Rectangle(
+                        x,
+                        y + Height - _borderSize,
+                        gumpInfo.LogicalWidth,
+                        gumpInfo.LogicalHeight
+                    ),
                     bounds,
                     hueVector
                     );
             }
             if (b_right != 0xffff)
             {
-                texture = GetGumpTexture(b_right, out bounds);
+                gumpInfo = GetGumpInfo(b_right);
+                texture = gumpInfo.Texture;
+                bounds = gumpInfo.UV;
                 if (texture != null)
                     batcher.Draw(
                     texture,
-                    new Rectangle(x + Width - _borderSize, y + Height - _borderSize, bounds.Width, bounds.Height),
+                    new Rectangle(
+                        x + Width - _borderSize,
+                        y + Height - _borderSize,
+                        gumpInfo.LogicalWidth,
+                        gumpInfo.LogicalHeight
+                    ),
                     bounds,
                     hueVector
                     );

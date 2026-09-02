@@ -523,6 +523,43 @@ public static class VideoTab
                     search: new SearchMetadata(TazLang.Get("mog_videotab_misc_postprocessingeffecttype"), Keywords: [TazLang.Get("mog_kw_type")])
                 )
             ).WithSearch(new SearchMetadata(TazLang.Get("mog_videotab_misc_label"), [TazLang.Get("mog_kw_postprocessing")], [TazLang.Get("mog_kw_post"), TazLang.Get("mog_kw_process")])),
+            Option.Checkbox(
+                TazLang.Get("mog_videotab_misc_use2xassets", "Use 2x assets"),
+                new Accessor<bool>(() => profile.Use2XAssets),
+                tooltip: TazLang.Get(
+                    "mog_videotab_misc_use2xassets_tooltip",
+                    "Changes take effect after restarting TazUO."
+                ),
+                search: new SearchMetadata(
+                    TazLang.Get("mog_videotab_misc_use2xassets", "Use 2x assets"),
+                    Keywords: [TazLang.Get("mog_kw_postprocessing"), "2x", "assets"]
+                )
+            ),
+            Option.ComboBox(
+                TazLang.Get("mog_videotab_misc_2xdisplaymode", "2x display mode"),
+                Math.Min(
+                    profile.TwoXAssetDisplayMode,
+                    (byte)TwoXAssetDisplayMode.HiDpiBalanced
+                ),
+                [
+                    TazLang.Get("mog_videotab_misc_2xmode_same", "Same size"),
+                    TazLang.Get("mog_videotab_misc_2xmode_nativeworld", "Native world"),
+                    TazLang.Get("mog_videotab_misc_2xmode_hidpi", "HiDPI"),
+                    TazLang.Get(
+                        "mog_videotab_misc_2xmode_hidpi_balanced",
+                        "HiDPI Balanced (1.5x)"
+                    )
+                ],
+                selected => profile.TwoXAssetDisplayMode = (byte)selected,
+                tooltip: TazLang.Get(
+                    "mog_videotab_misc_2xdisplaymode_tooltip",
+                    "Same size preserves the original layout. Native world renders the world at 200%. HiDPI targets native display pixels. HiDPI Balanced keeps the layout at 1.5x to reduce GPU load. Changes require a restart."
+                ),
+                search: new SearchMetadata(
+                    TazLang.Get("mog_videotab_misc_2xdisplaymode", "2x display mode"),
+                    Keywords: ["2x", "native", "HiDPI", "balanced", "performance"]
+                )
+            ),
             OptionsUi.CheckBoxGroup(
                 new PropertyBinder(new Accessor<bool>(() => ProfileManager.GlobalSettings.UseCircleOfTransparency), TazLang.Get("mog_general_enablecot")),
                 Option.Slider(

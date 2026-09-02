@@ -197,14 +197,8 @@ namespace ClassicUO.Game.UI.Gumps
                     y + point.Y,
                     originalSize.X,
                     originalSize.Y
-            ),
-            new Rectangle
-            (
-                    itemSpriteInfo.UV.X + realArtRectBounds.X,
-                    itemSpriteInfo.UV.Y + realArtRectBounds.Y,
-                    realArtRectBounds.Width,
-                    realArtRectBounds.Height
                 ),
+                itemSpriteInfo.GetPhysicalSourceRectangle(realArtRectBounds),
                 hueVector
             );
 

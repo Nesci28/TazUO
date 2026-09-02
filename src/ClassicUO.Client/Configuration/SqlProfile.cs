@@ -109,6 +109,13 @@ public sealed partial class Profile
         [SqlSetting(SettingsScope.Global, Constants.SqlSettings.WEB_MAP_AUTO_START, false)]
         public partial bool OldWebMapAutoStart { get; set; }
 
+        [JsonIgnore]
+        [SqlSetting(SettingsScope.Global, Constants.SqlSettings.USE_2X_ASSETS, true)]
+        public partial bool OldUse2XAssets { get; set; }
+
+        [JsonIgnore]
+        [SqlSetting(SettingsScope.Global, Constants.SqlSettings.TWO_X_ASSET_DISPLAY_MODE, (byte)0)]
+        public partial byte OldTwoXAssetDisplayMode { get; set; }
 
         [JsonIgnore]
         [SqlSetting(SettingsScope.Global, "counter_bar__show_hotkeys", false)]

@@ -383,8 +383,8 @@ namespace ClassicUO.Game.UI.Gumps
                                 (
                                     x,
                                     y,
-                                    Math.Min(spriteInfo.UV.Width, Height),
-                                    Math.Min(spriteInfo.UV.Height, Height)
+                                    Math.Min(spriteInfo.LogicalWidth, Height),
+                                    Math.Min(spriteInfo.LogicalHeight, Height)
                                 ),
                                 spriteInfo.UV,
                                 hueVector
@@ -425,13 +425,7 @@ namespace ClassicUO.Game.UI.Gumps
                             originalSize.X,
                             originalSize.Y
                         ),
-                        new Rectangle
-                        (
-                            texture.UV.X + rect.X,
-                            texture.UV.Y + rect.Y,
-                            rect.Width,
-                            rect.Height
-                        ),
+                        texture.GetPhysicalSourceRectangle(rect),
                         hueVector
                     );
                 }

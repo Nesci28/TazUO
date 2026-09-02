@@ -1329,6 +1329,52 @@ namespace ClassicUO.Game.UI.Gumps
 
             content.BlankLine();
 
+            var use2XAssets = new CheckboxWithLabel(
+                TazLang.Get("mog_videotab_misc_use2xassets", "Use 2x assets"),
+                isChecked: profile.Use2XAssets,
+                valueChanged: b => profile.Use2XAssets = b
+            );
+            use2XAssets.SetTooltip(
+                TazLang.Get(
+                    "mog_videotab_misc_use2xassets_tooltip",
+                    "Changes take effect after restarting TazUO."
+                )
+            );
+            content.AddToRight(use2XAssets, true, page);
+
+            content.BlankLine();
+
+            var twoXDisplayMode = new ComboBoxWithLabel(
+                World,
+                TazLang.Get("mog_videotab_misc_2xdisplaymode", "2x display mode"),
+                150,
+                ThemeSettings.COMBO_BOX_WIDTH,
+                [
+                    TazLang.Get("mog_videotab_misc_2xmode_same", "Same size"),
+                    TazLang.Get("mog_videotab_misc_2xmode_nativeworld", "Native world"),
+                    TazLang.Get("mog_videotab_misc_2xmode_hidpi", "HiDPI"),
+                    TazLang.Get(
+                        "mog_videotab_misc_2xmode_hidpi_balanced",
+                        "HiDPI Balanced (1.5x)"
+                    )
+                ],
+                Math.Min(
+                    profile.TwoXAssetDisplayMode,
+                    (byte)TwoXAssetDisplayMode.HiDpiBalanced
+                ),
+                (selected, _) => profile.TwoXAssetDisplayMode = (byte)selected,
+                autoSortComboboxItems: false
+            );
+            twoXDisplayMode.SetTooltip(
+                TazLang.Get(
+                    "mog_videotab_misc_2xdisplaymode_tooltip",
+                    "Same size preserves the original layout. Native world renders the world at 200%. HiDPI targets native display pixels. HiDPI Balanced keeps the layout at 1.5x to reduce GPU load. Changes require a restart."
+                )
+            );
+            content.AddToRight(twoXDisplayMode, true, page);
+
+            content.BlankLine();
+
             content.AddToRight(
                 new ComboBoxWithLabel(
                     World,

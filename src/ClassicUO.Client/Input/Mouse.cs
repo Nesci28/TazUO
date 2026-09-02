@@ -42,7 +42,11 @@ namespace ClassicUO.Input
             info.IsLeftButtonDown = LButtonPressed;
             info.IsRightButtonDown = RButtonPressed;
             info.IsMiddleButtonDown = MButtonPressed;
-            info.Position = Position;
+            float pixelDensity = Client.Game?.RenderPixelDensity ?? 1f;
+            info.Position = new Point(
+                (int)Math.Round(Position.X * pixelDensity),
+                (int)Math.Round(Position.Y * pixelDensity)
+            );
 
             MouseState fnaMouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
 
@@ -299,9 +303,9 @@ namespace ClassicUO.Input
         /// </summary>
         private static void FinalizePosition(in Point previous)
         {
-            Position.X = (int)(((double)_sdlPosition.X * Client.Game.GraphicManager.PreferredBackBufferWidth / Client.Game.Window.ClientBounds.Width) / Client.Game.RenderScale);
+            Position.X = (int)(((double)_sdlPosition.X * Client.Game.LogicalBackBufferWidth / Client.Game.Window.ClientBounds.Width) / Client.Game.RenderScale);
 
-            Position.Y = (int)(((double)_sdlPosition.Y * Client.Game.GraphicManager.PreferredBackBufferHeight / Client.Game.Window.ClientBounds.Height) / Client.Game.RenderScale);
+            Position.Y = (int)(((double)_sdlPosition.Y * Client.Game.LogicalBackBufferHeight / Client.Game.Window.ClientBounds.Height) / Client.Game.RenderScale);
 
             IsDragging = LButtonPressed || RButtonPressed || MButtonPressed;
 

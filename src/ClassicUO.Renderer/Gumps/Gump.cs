@@ -1,4 +1,6 @@
 using ClassicUO.Assets;
+using ClassicUO.Utility.Logging;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace ClassicUO.Renderer.Gumps
@@ -6,6 +8,7 @@ namespace ClassicUO.Renderer.Gumps
     public sealed class Gump
     {
         private readonly TextureAtlas _atlas;
+        private readonly TextureAtlas _hdAtlas;
         private readonly SpriteInfo[] _spriteInfos;
         private readonly PixelPicker _picker = new PixelPicker(true);
         private readonly GumpsLoader _gumpsLoader;
@@ -16,6 +19,13 @@ namespace ClassicUO.Renderer.Gumps
         {
             _gumpsLoader = gumpsLoader;
             _atlas = new TextureAtlas(device, 4096, 4096, SurfaceFormat.Color);
+            _hdAtlas = new TextureAtlas(
+                device,
+                4096,
+                4096,
+                SurfaceFormat.Color,
+                SamplerState.LinearClamp
+            );
             _spriteInfos = new SpriteInfo[gumpsLoader.File.Entries.Length];
         }
 
@@ -31,20 +41,60 @@ namespace ClassicUO.Renderer.Gumps
                 GumpInfo gumpInfo = ExternalImageLoader.Instance.LoadGumpTexture(idx);
                 bool loadedFromPNG = !gumpInfo.Pixels.IsEmpty;
 
+                if (loadedFromPNG && !gumpInfo.IsTrusted && gumpInfo.SourceScale > 1)
+                {
+                    GumpInfo original = _gumpsLoader.GetGump(idx);
+                    int expectedWidth = original.Width * gumpInfo.SourceScale;
+                    int expectedHeight = original.Height * gumpInfo.SourceScale;
+
+                    if (
+                        original.Pixels.IsEmpty
+                        || gumpInfo.Width != expectedWidth
+                        || gumpInfo.Height != expectedHeight
+                        || gumpInfo.Width > 4096
+                        || gumpInfo.Height > 4096
+                    )
+                    {
+                        Log.Warn(
+                            $"Ignoring HD gump 0x{idx:X}: got {gumpInfo.Width}x{gumpInfo.Height} " +
+                            $"for @{gumpInfo.SourceScale}x, expected {expectedWidth}x{expectedHeight}."
+                        );
+                        ExternalImageLoader.Instance.RejectGumpOverride(idx);
+                        gumpInfo = original;
+                        loadedFromPNG = false;
+                    }
+                    else
+                    {
+                        ExternalImageMaskRestorer.RestoreFromOriginal(
+                            original.Pixels,
+                            original.Width,
+                            original.Height,
+                            gumpInfo.Pixels,
+                            gumpInfo.Width,
+                            gumpInfo.Height,
+                            gumpInfo.SourceScale
+                        );
+                    }
+                }
+
                 if (gumpInfo.Pixels.IsEmpty)
                 {
                     gumpInfo = _gumpsLoader.GetGump(idx);
                 }
                 if (!gumpInfo.Pixels.IsEmpty)
                 {
-                    spriteInfo.Texture = _atlas.AddSprite(
+                    int sourceScale = Math.Max(1, gumpInfo.SourceScale);
+                    TextureAtlas atlas = sourceScale > 1 ? _hdAtlas : _atlas;
+                    spriteInfo.Texture = atlas.AddSprite(
                         gumpInfo.Pixels,
                         gumpInfo.Width,
                         gumpInfo.Height,
-                        out spriteInfo.UV
+                        out spriteInfo.UV,
+                        padding: sourceScale > 1 ? 1 : 0
                     );
+                    spriteInfo.SourceScale = sourceScale;
 
-                    _picker.Set(idx, gumpInfo.Width, gumpInfo.Height, gumpInfo.Pixels);
+                    _picker.Set(idx, gumpInfo.Width, gumpInfo.Height, gumpInfo.Pixels, sourceScale);
 
                     // Clear the pixel cache from PNG Loader since it's now in the atlas
                     if (loadedFromPNG)

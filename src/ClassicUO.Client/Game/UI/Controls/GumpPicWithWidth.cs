@@ -30,7 +30,8 @@ namespace ClassicUO.Game.UI.Controls
                     gumpInfo.Texture,
                     new Rectangle(x, y, Percent, Height),
                     gumpInfo.UV,
-                    hueVector
+                    hueVector,
+                    gumpInfo.InverseSourceScale
                 );
 
                 return true;

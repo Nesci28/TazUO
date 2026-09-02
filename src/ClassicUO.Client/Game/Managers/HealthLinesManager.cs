@@ -234,7 +234,12 @@ namespace ClassicUO.Game.Managers
 
                 batcher.Draw(
                 indicatorInfo.Texture,
-                new Rectangle(p.X - 24, p.Y, indicatorInfo.UV.Width, indicatorInfo.UV.Height),
+                new Rectangle(
+                    p.X - 24,
+                    p.Y,
+                    indicatorInfo.LogicalWidth,
+                    indicatorInfo.LogicalHeight
+                ),
                 indicatorInfo.UV,
                 ShaderHueTranslator.GetHueVector(0, false, 1.0f)
                 );
@@ -372,14 +377,19 @@ namespace ClassicUO.Game.Managers
                 }
 
                 ref readonly SpriteInfo hueGumpInfo = ref Client.Game.UO.Gumps.GetGump(gumpHue);
-                float targetX = x + BAR_WIDTH_HALF - hueGumpInfo.UV.Width / 2f;
+                float targetX = x + BAR_WIDTH_HALF - hueGumpInfo.LogicalWidth / 2f;
                 int topTargetY = height + centerY + 8 + 22 + offsetY;
 
                 ref readonly SpriteInfo newTargGumpInfo = ref Client.Game.UO.Gumps.GetGump(topGump);
                 if (newTargGumpInfo.Texture != null)
                     batcher.Draw(
                         newTargGumpInfo.Texture,
-                        new Vector2(targetX, y - topTargetY),
+                        new Rectangle(
+                            (int)targetX,
+                            y - topTargetY,
+                            newTargGumpInfo.LogicalWidth,
+                            newTargGumpInfo.LogicalHeight
+                        ),
                         newTargGumpInfo.UV,
                         hueVecZero
                     );
@@ -387,18 +397,28 @@ namespace ClassicUO.Game.Managers
                 if (hueGumpInfo.Texture != null)
                     batcher.Draw(
                         hueGumpInfo.Texture,
-                        new Vector2(targetX, y - topTargetY),
+                        new Rectangle(
+                            (int)targetX,
+                            y - topTargetY,
+                            hueGumpInfo.LogicalWidth,
+                            hueGumpInfo.LogicalHeight
+                        ),
                         hueGumpInfo.UV,
                         hueVecZero
                     );
 
-                y += 7 + newTargGumpInfo.UV.Height / 2 - centerY;
+                y += 7 + newTargGumpInfo.LogicalHeight / 2 - centerY;
 
                 newTargGumpInfo = ref Client.Game.UO.Gumps.GetGump(bottomGump);
                 if (newTargGumpInfo.Texture != null)
                     batcher.Draw(
                         newTargGumpInfo.Texture,
-                        new Vector2(targetX, y - 1 - newTargGumpInfo.UV.Height / 2f),
+                        new Rectangle(
+                            (int)targetX,
+                            (int)(y - 1 - newTargGumpInfo.LogicalHeight / 2f),
+                            newTargGumpInfo.LogicalWidth,
+                            newTargGumpInfo.LogicalHeight
+                        ),
                         newTargGumpInfo.UV,
                         hueVecZero
                     );
@@ -410,14 +430,19 @@ namespace ClassicUO.Game.Managers
             }
 
             ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(BACKGROUND_GRAPHIC);
-            Rectangle bounds = gumpInfo.UV;
+            Rectangle bounds = gumpInfo.LogicalBounds;
 
             if (multiplier > 1)
                 x -= (int)(((BAR_WIDTH * multiplier) / 2) - (BAR_WIDTH / 2));
 
             batcher.Draw(
                 gumpInfo.Texture,
-                new Rectangle(x, y, gumpInfo.UV.Width * multiplier, gumpInfo.UV.Height * multiplier),
+                new Rectangle(
+                    x,
+                    y,
+                    gumpInfo.LogicalWidth * multiplier,
+                    gumpInfo.LogicalHeight * multiplier
+                ),
                 gumpInfo.UV,
                 hueVecNoto
             );

@@ -169,8 +169,8 @@ namespace ClassicUO.Game.UI.Controls
 
             if (bodyInfo.Texture != null)
             {
-                _contentWidth = bodyInfo.UV.Width;
-                _contentHeight = bodyInfo.UV.Height;
+                _contentWidth = bodyInfo.LogicalWidth;
+                _contentHeight = bodyInfo.LogicalHeight;
 
                 float scaleX = _targetSize.X / _contentWidth;
                 float scaleY = _targetSize.Y / _contentHeight;
@@ -347,8 +347,8 @@ namespace ClassicUO.Game.UI.Controls
 
             Vector3 hueVector = ShaderHueTranslator.GetHueVector(hue, isPartialHue, Alpha, true);
 
-            int scaledWidth = (int)(gumpInfo.UV.Width * _scaleFactor);
-            int scaledHeight = (int)(gumpInfo.UV.Height * _scaleFactor);
+            int scaledWidth = (int)(gumpInfo.LogicalWidth * _scaleFactor);
+            int scaledHeight = (int)(gumpInfo.LogicalHeight * _scaleFactor);
 
             batcher.Draw(
                 gumpInfo.Texture,
