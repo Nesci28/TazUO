@@ -31,6 +31,9 @@ namespace ClassicUO.Game.UI.Gumps
         private Texture2D _borderColor = SolidColorTextureCache.GetTexture(Color.Black);
         private Vector2 _textDrawOffset = Vector2.Zero;
         private Rectangle _wordOfDeathIconBounds = Rectangle.Empty;
+        private readonly Dictionary<BuffIconType, RenderedText> _buffTimerTexts = new();
+        private readonly Dictionary<BuffIconType, string> _buffTimerTextValues = new();
+        private readonly List<BuffIconType> _staleBuffTimerTexts = new();
         private int _lastLayoutSignature;
         private int _namePlateWidth;
         private int _healthBarWidth;
@@ -44,6 +47,9 @@ namespace ClassicUO.Game.UI.Gumps
         private const int MIN_NAMEPLATE_WIDTH = 60;
         private const int NAMEPLATE_HORIZONTAL_PADDING = 4;
         private const int NAMEPLATE_VERTICAL_PADDING = 4;
+        private const int NAMEPLATE_BUFF_ICON_SPACING = 3;
+        private const int NAMEPLATE_BUFF_MARGIN = 5;
+        private const int NAMEPLATE_BUFF_MAX_VISIBLE = 8;
         private const int WORD_OF_DEATH_GUMP_ID = 0x59E5;
         private const int WORD_OF_DEATH_SPELL_ID = 614;
         private const double WORD_OF_DEATH_HEALTH_THRESHOLD = 0.30d;
@@ -1039,7 +1045,171 @@ namespace ClassicUO.Game.UI.Gumps
 
             bool result = _text.Draw(batcher, textX, textDrawY, textColor);
             DrawWordOfDeathIcon(batcher, textMobile, nameBounds, textDrawY);
+            DrawMobileBuffIcons(batcher, textMobile, nameBounds);
             return result;
+        }
+
+        private void DrawMobileBuffIcons(UltimaBatcher2D batcher, Mobile mobile, Rectangle nameBounds)
+        {
+            if (ProfileManager.CurrentProfile?.NamePlateShowBuffIcons != true || mobile == null || mobile.BuffIcons.Count == 0)
+            {
+                ClearBuffTimerTexts();
+                return;
+            }
+
+            PruneBuffTimerTexts(mobile);
+
+            int cursorX = nameBounds.Right + NAMEPLATE_BUFF_MARGIN;
+            int centerY = nameBounds.Y + (nameBounds.Height >> 1);
+            int drawn = 0;
+            Vector3 hueVector = ShaderHueTranslator.GetHueVector(0, false, 1f, true);
+
+            foreach (KeyValuePair<BuffIconType, BuffIcon> entry in mobile.BuffIcons)
+            {
+                BuffIcon icon = entry.Value;
+
+                if (!ShouldDrawBuffIcon(icon))
+                {
+                    continue;
+                }
+
+                ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(icon.Graphic);
+
+                if (gumpInfo.Texture == null)
+                {
+                    continue;
+                }
+
+                Rectangle iconBounds = new Rectangle(
+                    cursorX,
+                    centerY - (gumpInfo.UV.Height >> 1),
+                    gumpInfo.UV.Width,
+                    gumpInfo.UV.Height
+                );
+
+                batcher.Draw(gumpInfo.Texture, new Vector2(iconBounds.X, iconBounds.Y), gumpInfo.UV, hueVector);
+
+                if (ProfileManager.CurrentProfile?.BuffBarTime == true)
+                {
+                    DrawBuffTimerText(batcher, icon, iconBounds);
+                }
+
+                cursorX += gumpInfo.UV.Width + NAMEPLATE_BUFF_ICON_SPACING;
+                drawn++;
+
+                if (drawn >= NAMEPLATE_BUFF_MAX_VISIBLE)
+                {
+                    break;
+                }
+            }
+        }
+
+        private void DrawBuffTimerText(UltimaBatcher2D batcher, BuffIcon icon, Rectangle iconBounds)
+        {
+            string timerText = FormatBuffTimerText(icon);
+
+            if (string.IsNullOrEmpty(timerText))
+            {
+                return;
+            }
+
+            RenderedText renderedText = GetBuffTimerText(icon.Type, timerText);
+
+            if (renderedText == null || renderedText.IsDestroyed)
+            {
+                return;
+            }
+
+            int textX = iconBounds.X + ((iconBounds.Width - renderedText.Width) >> 1);
+            int textY = iconBounds.Bottom - renderedText.Height + 2;
+            renderedText.Draw(batcher, textX, textY);
+        }
+
+        private RenderedText GetBuffTimerText(BuffIconType type, string text)
+        {
+            if (_buffTimerTexts.TryGetValue(type, out RenderedText renderedText) && renderedText != null && !renderedText.IsDestroyed)
+            {
+                if (!_buffTimerTextValues.TryGetValue(type, out string currentText) || currentText != text)
+                {
+                    renderedText.Text = text;
+                    _buffTimerTextValues[type] = text;
+                }
+
+                return renderedText;
+            }
+
+            renderedText = RenderedText.Create(text, 0xFFFF, 1, true, FontStyle.BlackBorder);
+            _buffTimerTexts[type] = renderedText;
+            _buffTimerTextValues[type] = text;
+
+            return renderedText;
+        }
+
+        private static bool ShouldDrawBuffIcon(BuffIcon icon)
+        {
+            return icon != null && (icon.Timer == 0xFFFF_FFFF || icon.Timer > Time.Ticks);
+        }
+
+        private static string FormatBuffTimerText(BuffIcon icon)
+        {
+            if (icon == null || icon.Timer == 0xFFFF_FFFF)
+            {
+                return string.Empty;
+            }
+
+            long delta = icon.Timer - Time.Ticks;
+
+            if (delta <= 0)
+            {
+                return string.Empty;
+            }
+
+            TimeSpan span = TimeSpan.FromMilliseconds(delta);
+
+            if (span.Hours > 0)
+            {
+                return $"{span.Hours}h";
+            }
+
+            return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"{span.Seconds:00}s";
+        }
+
+        private void PruneBuffTimerTexts(Mobile mobile)
+        {
+            _staleBuffTimerTexts.Clear();
+
+            foreach (BuffIconType type in _buffTimerTexts.Keys)
+            {
+                if (!mobile.BuffIcons.TryGetValue(type, out BuffIcon icon) || !ShouldDrawBuffIcon(icon))
+                {
+                    _staleBuffTimerTexts.Add(type);
+                }
+            }
+
+            foreach (BuffIconType type in _staleBuffTimerTexts)
+            {
+                if (_buffTimerTexts.TryGetValue(type, out RenderedText renderedText))
+                {
+                    renderedText?.Destroy();
+                }
+
+                _buffTimerTexts.Remove(type);
+                _buffTimerTextValues.Remove(type);
+            }
+
+            _staleBuffTimerTexts.Clear();
+        }
+
+        private void ClearBuffTimerTexts()
+        {
+            foreach (RenderedText renderedText in _buffTimerTexts.Values)
+            {
+                renderedText?.Destroy();
+            }
+
+            _buffTimerTexts.Clear();
+            _buffTimerTextValues.Clear();
+            _staleBuffTimerTexts.Clear();
         }
 
         private Rectangle GetResourceBarBounds(int x, int y, int barIndex, int barCount)
@@ -1500,6 +1670,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void Dispose()
         {
+            ClearBuffTimerTexts();
             _text?.Dispose();
             base.Dispose();
         }
