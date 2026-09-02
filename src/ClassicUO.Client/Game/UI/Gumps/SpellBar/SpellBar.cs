@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using ClassicUO.Assets;
 using ClassicUO.LegionScripting;
 using ClassicUO.Configuration;
@@ -10,7 +11,6 @@ using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Input;
 using ClassicUO.Renderer;
-using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Game.UI.Gumps.SpellBar;
@@ -19,7 +19,8 @@ public class SpellBar : Gump
 {
     public static SpellBar Instance { get; private set; }
 
-    private SpellEntry[] spellEntries = new SpellEntry[10];
+    private const int RowHeight = 48;
+    private SpellEntry[] spellEntries = [];
     private TextBox rowLabel;
     private AlphaBlendControl background;
 
@@ -33,7 +34,7 @@ public class SpellBar : Gump
         AcceptMouseInput = true;
 
         Width = 515;
-        Height = 48;
+        Height = RowHeight;
 
         CenterXInViewPort();
         CenterYInViewPort();
@@ -79,18 +80,7 @@ public class SpellBar : Gump
     public void SetRow(int row)
     {
         SpellBarManager.CurrentRow = row;
-
-        if (SpellBarManager.CurrentRow < 0)
-            SpellBarManager.CurrentRow = SpellBarManager.SpellBarRows.Count - 1;
-
-        if (SpellBarManager.CurrentRow >= SpellBarManager.SpellBarRows.Count)
-            SpellBarManager.CurrentRow = 0;
-
-        rowLabel.SetText(SpellBarManager.CurrentRow.ToString());
-
-        for (int s = 0; s < spellEntries.Length; s++) spellEntries[s].SetSlot(SpellBarManager.GetSlot(SpellBarManager.CurrentRow, s), SpellBarManager.CurrentRow, s);
-
-        background.Hue = SpellBarManager.SpellBarRows[SpellBarManager.CurrentRow].RowHue;
+        Build();
     }
 
     public void ChangeRow(bool up)
@@ -103,6 +93,9 @@ public class SpellBar : Gump
 
     public void Build()
     {
+        if (BuildVisibleRows())
+            return;
+
         Clear();
 
         Add(background = new AlphaBlendControl() { Width = Width, Height = Height });
@@ -169,7 +162,7 @@ public class SpellBar : Gump
         }));
         menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_deleterow"), () =>
         {
-            if (SpellBarManager.SpellBarRows.Count > 1)
+                if (SpellBarManager.SpellBarRows.Count > SpellBarManager.GetVisibleRowCount())
             {
                 SpellBarManager.SpellBarRows.RemoveAt(SpellBarManager.CurrentRow);
                 SpellBarManager.CurrentRow = Math.Max(0, SpellBarManager.CurrentRow - 1);
@@ -187,6 +180,115 @@ public class SpellBar : Gump
         menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_moreoptions"), AssistantWindow.Show));
 
         Add(menu);
+    }
+
+    private bool BuildVisibleRows()
+    {
+        Clear();
+        SpellBarManager.EnsureVisibleRowsExist();
+
+        int visibleRows = SpellBarManager.GetVisibleRowCount();
+        Height = RowHeight * visibleRows;
+        spellEntries = new SpellEntry[visibleRows * SpellBarManager.SlotCount];
+
+        Add(background = new AlphaBlendControl() { Width = Width, Height = Height });
+
+        int entryIndex = 0;
+
+        for (int visibleRow = 0; visibleRow < visibleRows; visibleRow++)
+        {
+            int actualRow = SpellBarManager.GetVisibleRow(visibleRow);
+            int y = visibleRow * RowHeight;
+
+            Add(new AlphaBlendControl
+            {
+                Width = Width,
+                Height = RowHeight,
+                Y = y,
+                Hue = SpellBarManager.SpellBarRows[actualRow].RowHue
+            });
+
+            int x = 2;
+
+            for (int slot = 0; slot < SpellBarManager.SlotCount; slot++)
+            {
+                SpellEntry entry = new SpellEntry(World, this)
+                    .SetSlot(SpellBarManager.GetSlot(actualRow, slot), actualRow, slot, visibleRow);
+
+                Add(entry);
+                entry.X = x;
+                entry.Y = y + 1;
+                spellEntries[entryIndex++] = entry;
+                x += 46 + 2;
+            }
+
+            TextBox label = TextBox.GetOne(actualRow.ToString(), TrueTypeLoader.EMBEDDED_FONT, 12, Color.White, TextBox.RTLOptions.DefaultCentered(16));
+            label.X = 482;
+            label.Y = y + ((RowHeight - label.Height) >> 1);
+            Add(label);
+        }
+
+        ExternalImageLoader.Instance.TryGetEmbeddedTexture("upicon.png", out Microsoft.Xna.Framework.Graphics.Texture2D upTexture);
+        var up = new EmbeddedGumpPic(Width - 31, 0, upTexture, 148);
+        up.MouseUp += (sender, e) => { ChangeRow(false); };
+
+        ExternalImageLoader.Instance.TryGetEmbeddedTexture("downicon.png", out Microsoft.Xna.Framework.Graphics.Texture2D downTexture);
+        var down = new EmbeddedGumpPic(Width - 31, Height - 16, downTexture, 148);
+        down.MouseUp += (sender, e) => { ChangeRow(true); };
+
+        Add(up);
+        Add(down);
+
+        NiceButton menu = new(Width - 15, 0, 15, Height, ButtonAction.Default, "+");
+        ContextMenuItemEntry import = new(TazLang.Get("spellbar_importpreset"));
+
+        menu.MouseUp += (sender, e) =>
+        {
+            if (e.Button == MouseButtonType.Left)
+            {
+                import.Items.Clear();
+                GenAvailablePresets(import);
+                menu.ContextMenu?.Show();
+            }
+        };
+
+        menu.ContextMenu = new ContextMenuControl(this);
+        menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_savepreset"), () =>
+        {
+            new PromptPopupWindow(TazLang.Get("spellbar_savepreset_title"), TazLang.Get("spellbar_savepreset_name"), n => SpellBarManager.SaveCurrentRowPreset(n), TazLang.Get("spellbar_save"), TazLang.Get("spellbar_cancel"));
+        }));
+        menu.ContextMenu.Add(import);
+        menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_lockmovement"), (() =>
+        {
+            IsLocked = !IsLocked;
+        })));
+        menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_addrow"), () =>
+        {
+            SpellBarManager.SpellBarRows.Add(new SpellBarRow());
+            SpellBarManager.CurrentRow = SpellBarManager.SpellBarRows.Count - 1;
+            Build();
+        }));
+        menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_deleterow"), () =>
+        {
+            if (SpellBarManager.SpellBarRows.Count > SpellBarManager.GetVisibleRowCount())
+            {
+                SpellBarManager.SpellBarRows.RemoveAt(SpellBarManager.CurrentRow);
+                SpellBarManager.CurrentRow = Math.Max(0, SpellBarManager.CurrentRow - 1);
+                Build();
+            }
+        }));
+        menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_setrowcolor"), () =>
+        {
+            UIManager.Add(new ModernColorPicker(World, (h) =>
+            {
+                SpellBarManager.SpellBarRows[SpellBarManager.CurrentRow].RowHue = h;
+                Build();
+            }));
+        }));
+        menu.ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("spellbar_moreoptions"), AssistantWindow.Show));
+
+        Add(menu);
+        return true;
     }
 
     private static void GenAvailablePresets(ContextMenuItemEntry par)
@@ -266,7 +368,7 @@ public class SpellBar : Gump
         private GumpPic icon;
         private CounterBarSlot slot;
         private AlphaBlendControl background;
-        private int row, col;
+        private int row, col, visibleRow;
         private bool trackCasting;
         private bool scriptRunning;
         private World World;
@@ -361,11 +463,14 @@ public class SpellBar : Gump
         }
 
         /// <summary>Assigns the given slot to this entry at the given row/column and refreshes its icon, tooltip, and hotkey label.</summary>
-        public SpellEntry SetSlot(CounterBarSlot slot, int row, int col)
+        public SpellEntry SetSlot(CounterBarSlot slot, int row, int col) => SetSlot(slot, row, col, 0);
+
+        public SpellEntry SetSlot(CounterBarSlot slot, int row, int col, int visibleRow)
         {
             this.slot = slot ?? CounterBarSlot.Empty();
             this.row = row;
             this.col = col;
+            this.visibleRow = visibleRow;
             background.Hue = SpellBarManager.SpellBarRows[row].RowHue;
             SpellBarManager.SpellBarRows[row].Slots[col] = this.slot;
 
@@ -400,7 +505,7 @@ public class SpellBar : Gump
                 icon.IsVisible = false;
             }
 
-            SetHotkeyText(col);
+            SetHotkeyText(visibleRow, col);
 
             return this;
         }
@@ -411,11 +516,15 @@ public class SpellBar : Gump
             if (macroLabel == null)
                 return;
 
-            string name = slot?.SlotLabel;
+            string name =
+                slot != null && slot.Type == CounterBarSlotType.Macro ? slot.MacroName :
+                slot != null && slot.Type == CounterBarSlotType.Script ? slot.ScriptDisplayName :
+                slot != null && slot.Type == CounterBarSlotType.Skill ? slot.SkillDisplayName :
+                null;
 
             if (!string.IsNullOrEmpty(name))
             {
-                macroLabel.SetText(StringHelper.AbbreviateToInitials(name));
+                macroLabel.SetText(AbbreviateMacroName(name));
                 macroLabel.Y = (Height - macroLabel.Height) >> 1;
                 macroLabel.IsVisible = true;
             }
@@ -426,7 +535,26 @@ public class SpellBar : Gump
             }
         }
 
-        private void SetHotkeyText(int slotIndex)
+        /// <summary>Builds a short label from a macro name using its capital letters (e.g. "Last Object Macro" -> "LOM").</summary>
+        private static string AbbreviateMacroName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            foreach (char c in name)
+                if (char.IsUpper(c))
+                    sb.Append(c);
+
+            // Fall back to the first letter of each word when the name has no capitals.
+            if (sb.Length == 0)
+                foreach (string part in name.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries))
+                    sb.Append(char.ToUpperInvariant(part[0]));
+
+            return sb.Length > 0 ? sb.ToString() : name.ToUpperInvariant();
+        }
+
+        private void SetHotkeyText(int visibleRow, int slotIndex)
         {
             if (!ProfileManager.CurrentProfile.SpellBar_ShowHotkeys) return;
             if (hotkeyLabel == null) return;
@@ -436,9 +564,9 @@ public class SpellBar : Gump
                 return;
             }
 
-            string keys = SpellBarManager.GetKetNames(slotIndex);
+            string keys = SpellBarManager.GetKetNames(visibleRow, slotIndex);
             if (string.IsNullOrEmpty(keys))
-                keys = SpellBarManager.GetControllerButtonsName(slotIndex);
+                keys = SpellBarManager.GetControllerButtonsName(visibleRow, slotIndex);
 
             hotkeyLabel.SetText(keys);
         }
@@ -477,8 +605,8 @@ public class SpellBar : Gump
             if (ProfileManager.CurrentProfile.SpellBar_ShowHotkeys)
             {
                 Add(hotkeyLabel = TextBox.GetOne(string.Empty, "uo-unicode-1", 18, Color.White, TextBox.RTLOptions.DefaultCenterStroked(44))); ;
-                hotkeyLabel.Y = 46;
-                SetHotkeyText(col);
+                hotkeyLabel.Y = 26;
+                SetHotkeyText(visibleRow, col);
             }
         }
 
