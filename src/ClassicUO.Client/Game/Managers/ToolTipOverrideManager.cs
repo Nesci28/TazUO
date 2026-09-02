@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using ClassicUO.Utility.Logging;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
 using ClassicUO.Utility;
 
@@ -324,6 +325,12 @@ namespace ClassicUO.Game.Managers
             if (showRuleName && bestGridHighlightData != null && !string.IsNullOrEmpty(bestGridHighlightData.Name))
             {
                 sb.AppendLine($"/c[gray]{TazLang.Get("gridhighlight_matchedrule", [bestGridHighlightData.Name])}/cd");
+            }
+
+            if (compareTo != uint.MinValue)
+            {
+                ItemPropertiesData equippedProperties = itemPropertiesData.GetComparedItemProperties();
+                sb.Append(ItemComparisonStatChanges.BuildSection(itemPropertiesData, equippedProperties));
             }
 
             return sb.ToString();

@@ -71,6 +71,12 @@ internal static class ItemComparisonTooltips
         if (equipped == null)
             return null;
 
+        // Equipped items are not directly hovered during a comparison, so request their OPL for
+        // both the side tooltip and the stat-change summary.
+        world.OPL.Contains(equipped.Serial);
+        if (secondEquipped != null)
+            world.OPL.Contains(secondEquipped.Serial);
+
         CustomToolTip candidateTooltip = string.IsNullOrWhiteSpace(candidateTooltipText)
             ? new CustomToolTip(
                 world,
@@ -99,6 +105,7 @@ internal static class ItemComparisonTooltips
             hoverReference,
             "<basefont color=\"orange\">Equipped Item<br>"
         );
+        equippedTooltip.OnOPLLoaded += candidateTooltip.RefreshData;
 
         var tooltips = new List<CustomToolTip> { candidateTooltip, equippedTooltip };
 

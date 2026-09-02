@@ -357,6 +357,14 @@ namespace ClassicUO.Game.Managers
             return true;
         }
 
+        internal ItemPropertiesData GetComparedItemProperties()
+        {
+            if (world == null || itemComparedTo == null)
+                return null;
+
+            return new ItemPropertiesData(world, itemComparedTo);
+        }
+
         public string CompileTooltip()
         {
             string result = "";
