@@ -11,6 +11,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
 using ClassicUO.Utility;
@@ -57,7 +58,7 @@ public partial class GridContainer : ResizableGump
         private GumpPic _openRegularGump, _sortContents;
         private ResizableStaticPic _quickDropBackpack;
         private GumpPicTiled _backgroundTexture;
-        private NiceButton _setLootBag, _searchClearButton;
+        private NiceButton _setLootBag, _searchClearButton, _filterButton;
         private readonly bool _isCorpse;
         #endregion
 
@@ -87,6 +88,8 @@ public partial class GridContainer : ResizableGump
         private bool _bandsDisabledForContainer;
         private bool _highlightsDisabledForContainer;
         private GridSortMode _sortMode = GridSortMode.GraphicAndHue;
+        private int _visibleItemCount;
+        private int _totalItemCount;
 
         private readonly bool _skipSave;
         private readonly ushort _originalContainerItemGraphic;
@@ -141,6 +144,7 @@ public partial class GridContainer : ResizableGump
         public GridSortMode SortMode => _sortMode;
         public readonly GridSlotManager SlotManager;
         public bool IsCorpse => _isCorpse;
+        internal GridContainerFilter ContainerFilter => _gridContainerEntry.Filter ??= new GridContainerFilter();
 
         public bool IsMinimized
         {
@@ -167,6 +171,7 @@ public partial class GridContainer : ResizableGump
         {
             if (_searchBox != null) _searchBox.IsVisible = visible;
             if (_searchClearButton != null) _searchClearButton.IsVisible = visible;
+            if (_filterButton != null) _filterButton.IsVisible = visible;
             if (_openRegularGump != null) _openRegularGump.IsVisible = visible;
             if (_quickDropBackpack != null) _quickDropBackpack.IsVisible = visible;
             if (_sortContents != null) _sortContents.IsVisible = visible;
@@ -240,6 +245,25 @@ public partial class GridContainer : ResizableGump
             _background.Hue = _backgroundTexture.Hue = hue;
             _background.Alpha = _backgroundTexture.Alpha = alpha;
         }
+
+        internal void NotifyContainerFilterChanged(bool persist)
+        {
+            _gridContainerEntry.UpdateSaveDataEntry(this);
+            if (persist)
+                GridContainerSaveData.Instance.Save();
+
+            UpdateFilterButtonAppearance();
+            RequestUpdateContents();
+        }
+
+        private void UpdateFilterButtonAppearance()
+        {
+            if (_filterButton == null)
+                return;
+
+            _filterButton.BackgroundColor = ContainerFilter.Enabled ? new Color(164, 92, 20, 190) : null;
+            _filterButton.DisplayBorder = ContainerFilter.Enabled;
+        }
         #endregion
 
         public GridContainer(World world, uint local, ushort originalContainerGraphic, bool? useGridStyle = null) : base(world, GetWidth(), GetHeight(), GetWidth(2), GetHeight(1), local, 0)
@@ -258,6 +282,8 @@ public partial class GridContainer : ResizableGump
             IsPlayerBackpack = LocalSerial == World.Player?.Backpack?.Serial;
 
             _gridContainerEntry = GridContainerSaveData.Instance.GetContainer(local);
+            _gridContainerEntry.Filter ??= new GridContainerFilter();
+            _gridContainerEntry.Filter.Normalize();
 
             _autoSortContainer = _gridContainerEntry.AutoSort;
             _bandsDisabledForContainer = _gridContainerEntry.BandsDisabled;
@@ -388,7 +414,7 @@ public partial class GridContainer : ResizableGump
                 X = _borderWidth,
                 Y = _borderWidth + LABEL_HEIGHT,
                 Multiline = false,
-                Width = _background.Width - 18,
+                Width = _background.Width - 34,
                 Height = 20
             };
             _searchBox.PlaceHolderText = TazLang.Get("gridcontainer_search", "Search...");
@@ -400,10 +426,31 @@ public partial class GridContainer : ResizableGump
                 if (e.Button == MouseButtonType.Left)
                 {
                     _searchBox.ClearText();
+                    ContainerFilter.Reset();
+                    NotifyContainerFilterChanged(true);
+                    GridContainerFilterEditor.RefreshFor(LocalSerial);
                     UIManager.SystemChat?.SetFocus();
                 }
             };
-            _searchClearButton.SetTooltip(TazLang.Get("gridcontainer_clearsearch_tooltip", "Clear search"));
+            _searchClearButton.SetTooltip(TazLang.Get("gridcontainer_clearsearch_tooltip", "Clear search and container filter"));
+
+            _filterButton = new NiceButton(
+                _borderWidth + _background.Width - 32,
+                _borderWidth + LABEL_HEIGHT,
+                16,
+                _searchBox.Height,
+                ButtonAction.Default,
+                TazLang.Get("gridcontainer_filter_button", "F"))
+            {
+                IsSelectable = false
+            };
+            _filterButton.MouseUp += (sender, e) =>
+            {
+                if (e.Button == MouseButtonType.Left)
+                    GridContainerFilterEditor.Open(this);
+            };
+            _filterButton.SetTooltip(TazLang.Get("gridcontainer_filter_button_tooltip", "Configure this container's item filter"));
+            UpdateFilterButtonAppearance();
 
             Texture2D regularGumpIcon = Client.Game.UO.Gumps.GetGump(5839).Texture;
             _openRegularGump = new GumpPic(_background.Width - 25 - _borderWidth, _borderWidth, regularGumpIcon == null ? (ushort)1209 : (ushort)5839, 0);
@@ -526,6 +573,7 @@ public partial class GridContainer : ResizableGump
             };
             _searchBox.Add(_searchBoxBackground);
             Add(_searchBox);
+            Add(_filterButton);
             Add(_searchClearButton);
             Add(_openRegularGump);
             Add(_quickDropBackpack);
@@ -915,9 +963,23 @@ public partial class GridContainer : ResizableGump
             if (_autoSortContainer)
                 overrideSort = true;
 
-            List<Item> sortedContents = (ProfileManager.CurrentProfile is null || ProfileManager.CurrentProfile.GridContainerSearchMode == 0) && !string.IsNullOrEmpty(_searchBox.Text)
-                ? SlotManager.SearchResults(_searchBox.Text)
-                : GridSlotManager.GetItemsInContainer(World, Container, _sortMode, overrideSort);
+            List<Item> allContents = GridSlotManager.GetItemsInContainer(World, Container, _sortMode, overrideSort);
+            List<Item> sortedContents = allContents;
+
+            if (ContainerFilter.Enabled && ContainerFilter.HasCriteria)
+            {
+                sortedContents = allContents.Where(item =>
+                    ContainerFilter.Matches(item, new ItemPropertiesData(World, item))).ToList();
+            }
+
+            bool hideSearchResults =
+                (ProfileManager.CurrentProfile is null || ProfileManager.CurrentProfile.GridContainerSearchMode == 0) &&
+                !string.IsNullOrEmpty(_searchBox.Text);
+            if (hideSearchResults)
+                sortedContents = sortedContents.Where(item => SlotManager.SearchItemNameAndProps(_searchBox.Text, item)).ToList();
+
+            _visibleItemCount = sortedContents.Count;
+            _totalItemCount = allContents.Count;
 
             SlotManager.RebuildContainer(sortedContents, _searchBox.Text, overrideSort);
 
@@ -1050,6 +1112,7 @@ public partial class GridContainer : ResizableGump
             if (_containerNameLabel != null)
                 _containerNameLabel.MouseUp -= OnBackgroundMouseUp;
 
+            GridContainerFilterEditor.CloseFor(LocalSerial);
             DisposeListView();
             base.Dispose();
         }
@@ -1129,7 +1192,7 @@ public partial class GridContainer : ResizableGump
         {
             string rawName = ResolveRawName();
 
-            string countSuffix = SlotManager != null ? $" ({SlotManager.ContainerContents.Count})" : "";
+            string countSuffix = GetCountSuffix();
 
             // Available width = from left border to the sort button, minus a small padding
             int availableWidth = _sortContents.X - _borderWidth - 2;
@@ -1162,10 +1225,23 @@ public partial class GridContainer : ResizableGump
 
             if (!skipCount && SlotManager != null)
             {
-                containerName += $" ({SlotManager.ContainerContents.Count})";
+                containerName += GetCountSuffix();
             }
 
             return containerName;
+        }
+
+        private string GetCountSuffix()
+        {
+            if (SlotManager == null)
+                return string.Empty;
+
+            int total = _totalItemCount;
+            int visible = _visibleItemCount;
+            if (total == 0 && SlotManager.ContainerContents.Count > 0)
+                total = visible = SlotManager.ContainerContents.Count;
+
+            return visible < total ? $" ({visible}/{total})" : $" ({total})";
         }
 
         public void OptionsUpdated()
@@ -1267,8 +1343,10 @@ public partial class GridContainer : ResizableGump
             // Search box + clear button
             _searchBox.X = _borderWidth;
             _searchBox.Y = _borderWidth + LABEL_HEIGHT;
-            _searchBox.Width = adjustedWidth - 18;
+            _searchBox.Width = adjustedWidth - 34;
             _searchBoxBackground.Width = _searchBox.Width;
+            _filterButton.X = _borderWidth + adjustedWidth - 32;
+            _filterButton.Y = _borderWidth + LABEL_HEIGHT;
             _searchClearButton.X = _borderWidth + adjustedWidth - 16;
             _searchClearButton.Y = _borderWidth + LABEL_HEIGHT;
 
