@@ -15,10 +15,26 @@ namespace ClassicUO.LegionScripting.ApiClasses;
 
 public class ApiUiGump(LegionAPI api)
 {
-        private readonly CancellationToken _cachedToken = api.CancellationToken.Token;
+    private readonly CancellationToken _cachedToken = api.CancellationToken.Token;
 
-        private T OnMain<T>(Func<T> func) => MainThreadQueue.InvokeOnMainThread(func, _cachedToken);
-        private void OnMain(Action action) => MainThreadQueue.InvokeOnMainThread(action, _cachedToken);
+    private T OnMain<T>(Func<T> func) => MainThreadQueue.InvokeOnMainThread(func, _cachedToken);
+    private void OnMain(Action action) => MainThreadQueue.InvokeOnMainThread(action, _cachedToken);
+
+    private const uint ScriptGumpLocalSerialBase = 0x7F000000;
+    private const uint ScriptGumpLocalSerialMax = 0x7FFFFFFE;
+    private static readonly object _scriptGumpLocalSerialLock = new();
+    private static uint _nextScriptGumpLocalSerial = ScriptGumpLocalSerialBase;
+
+    private static uint GetNextScriptGumpLocalSerial()
+    {
+        lock (_scriptGumpLocalSerialLock)
+        {
+            if (_nextScriptGumpLocalSerial >= ScriptGumpLocalSerialMax)
+                _nextScriptGumpLocalSerial = ScriptGumpLocalSerialBase;
+
+            return ++_nextScriptGumpLocalSerial;
+        }
+    }
 
     /// <summary>
     /// Get a blank gump.
@@ -33,11 +49,12 @@ public class ApiUiGump(LegionAPI api)
     /// <param name="acceptMouseInput">Allow clicking the gump</param>
     /// <param name="canMove">Allow the player to move this gump</param>
     /// <param name="keepOpen">If true, the gump won't be closed if the script stops. Otherwise, it will be closed when the script is stopped. Defaults to false.</param>
+    /// <param name="gumpId">Optional local serial to assign to the gump. If zero, a unique script gump local serial is generated.</param>
     /// <returns>A new, empty gump</returns>
-    public ApiUiBaseGump CreateGump(bool acceptMouseInput = true, bool canMove = true, bool keepOpen = false) =>
+    public ApiUiBaseGump CreateGump(bool acceptMouseInput = true, bool canMove = true, bool keepOpen = false, uint gumpId = 0) =>
         OnMain(() =>
         {
-            var g = new Gump(api.World, 0, 0)
+            var g = new Gump(api.World, gumpId != 0 ? gumpId : GetNextScriptGumpLocalSerial(), 0)
             {
                 AcceptMouseInput = acceptMouseInput,
                 CanMove = canMove,
