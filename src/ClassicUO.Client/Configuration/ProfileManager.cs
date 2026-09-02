@@ -140,6 +140,13 @@ namespace ClassicUO.Configuration
                 CurrentProfile.Save();
             }
 
+            // Load the backpack notification rules for this profile.
+            BackpackNotificationsConfig.LoadForProfile(ProfilePath);
+
+            // Load health and debuff notification settings for this profile.
+            HealthNotificationsConfig.LoadForProfile(ProfilePath);
+
+            // Load the grid-container band layout rules for this profile.
             GridContainerBandsConfig.LoadForProfile(ProfilePath);
 
             // Load the screen overlay effects and their profiles.
@@ -195,6 +202,8 @@ namespace ClassicUO.Configuration
         {
             CurrentProfile = null;
             // Drop profile-scoped caches so edits can't be saved against the previous profile's path.
+            BackpackNotificationsConfig.Unload();
+            HealthNotificationsConfig.Unload();
             GridContainerBandsConfig.Reset();
             // Leaving the world means leaving the server/account too, so persist their scoped settings.
             SaveServerSettings();
