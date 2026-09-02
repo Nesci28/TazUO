@@ -1,544 +1,947 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using ClassicUO.Common;
 using ClassicUO.Configuration;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
+using ClassicUO.Game.UI.Controls.ResizableComponents;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
+using ClassicUO.Game.UI.MyraWindows;
+using ClassicUO.Game.UI.MyraWindows.Widgets;
+using ClassicUO.Game.UI.MyraWindows.Widgets.ArtTexture;
 using ClassicUO.Input;
-using ClassicUO.Renderer;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+using Myra.Events;
+using Myra.Graphics2D;
+using Myra.Graphics2D.Brushes;
+using Myra.Graphics2D.UI;
 using SDL3;
-using static ClassicUO.Game.UI.Gumps.GridHighLight.GridHighlightMenu;
 
-namespace ClassicUO.Game.UI
+namespace ClassicUO.Game.UI;
+
+public sealed class NearbyLootGump : MyraControl
 {
-    public class NearbyLootGump : Gump
+    private const int DefaultWidth = 300;
+    private const int DefaultHeight = 550;
+    private const int MinimumWidth = 250;
+    private const int MinimumHeight = 200;
+    private const int ItemIconSize = 32;
+    private const int GroupIconSize = 30;
+    private const int ExpandedItemIconSize = 28;
+    private const string CollapsedChevron = "›";
+    private const string ExpandedChevron = "▾";
+    private const string CollapseAllChevron = "▴";
+    private const long ContentRefreshInterval = 200;
+    private const long VisualRefreshInterval = 100;
+    private const long CorpseCacheLifetime = 120_000;
+
+    private static readonly HashSet<uint> _corpsesRequested = [];
+    private static readonly HashSet<uint> _openedCorpses = [];
+
+    private readonly World _world;
+    private readonly HashSet<LootGroupKey> _duplicateGroupKeys = [];
+    private readonly HashSet<LootGroupKey> _expandedGroups = [];
+    private readonly List<NavigationEntry> _navigationEntries = [];
+    private readonly List<NearbyLootIconFrame> _iconFrames = [];
+    private readonly List<NearbyLootRow> _lootRows = [];
+    private readonly List<Item> _visibleLootItems = [];
+    private readonly VerticalStackPanel _lootList = new()
     {
-        public const int WIDTH = 250;
+        Spacing = 2,
+        Padding = new Thickness(2)
+    };
 
-        public static int SelectedIndex
+    private MyraButton _lootButton;
+    private MyraButton _expandCollapseButton;
+    private bool _refreshRequested;
+    private bool _eventsSubscribed;
+    private bool? _lootAllSelected;
+    private int _selectedIndex = -1;
+    private long _nextContentRefresh;
+    private long _nextVisualRefresh;
+    private long _nextClean;
+
+    public NearbyLootGump(World world)
+        : base(TazLang.Get("nearbyloot_title", "Nearby corpse loot"))
+    {
+        UIManager.GetGump<NearbyLootGump>()?.Dispose();
+
+        _world = world ?? throw new ArgumentNullException(nameof(world));
+        CanBeSaved = true;
+        AcceptKeyboardInput = true;
+        AcceptMouseInput = true;
+
+        ConfigureWindow();
+        BuildWindow();
+        CenterInViewPort();
+        SubscribeEvents();
+        RequestUpdateContents();
+    }
+
+    private void ConfigureWindow()
+    {
+        _rootWindow.Props.Resize.MinWidth = MinimumWidth;
+        _rootWindow.Props.Resize.MinHeight = MinimumHeight;
+        _rootWindow.Props.Resize.ScrollerMode = ScrollViewerMode.None;
+        _rootWindow.Props.InitialSizeStore = new Accessor<Point?>(GetStoredSize, StoreSize);
+    }
+
+    private Point? GetStoredSize()
+    {
+        Profile profile = ProfileManager.CurrentProfile;
+        int width = Math.Max(MinimumWidth, profile?.NearbyLootGumpWidth ?? DefaultWidth);
+        int height = Math.Max(MinimumHeight, profile?.NearbyLootGumpHeight ?? DefaultHeight);
+        return new Point(width, height);
+    }
+
+    private static void StoreSize(Point? size)
+    {
+        Profile profile = ProfileManager.CurrentProfile;
+        if (profile == null)
+            return;
+
+        Point stored = size ?? new Point(DefaultWidth, DefaultHeight);
+        profile.NearbyLootGumpWidth = Math.Max(MinimumWidth, stored.X);
+        profile.NearbyLootGumpHeight = Math.Max(MinimumHeight, stored.Y);
+    }
+
+    private void BuildWindow()
+    {
+        var root = new Grid { Padding = new Thickness(4) };
+        root.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+        root.RowsProportions.Add(new Proportion(ProportionType.Auto));
+        root.RowsProportions.Add(new Proportion(ProportionType.Part));
+
+        var commands = new Grid
         {
-            get => _selectedIndex; set
+            ColumnSpacing = MyraStyle.STANDARD_SPACING,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        commands.RowsProportions.Add(new Proportion(ProportionType.Auto));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.1f));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 0.9f));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.3f));
+        commands.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1f));
+
+        _lootButton = new MyraButton(
+            TazLang.Get("nearbyloot_lootall", "Loot All"),
+            LootAll
+        );
+        AddGridWidget(commands, _lootButton, 0, 0);
+        AddGridWidget(
+            commands,
+            new MyraButton(
+                TazLang.Get("nearbyloot_set", "Set"),
+                SetLootBag
+            )
             {
-                if (value < -1)
-                    _selectedIndex = -1;
-                else
-                    _selectedIndex = value;
-            }
-        }
-
-        private readonly ModernScrollArea _scrollArea;
-        private readonly VBoxContainer _dataBox;
-        private readonly NiceButton _lootButton;
-        private readonly AlphaBlendControl _alphaBg;
-        private int _itemCount = 0;
-
-        private readonly HitBox _resizeDrag;
-        private bool _dragging = false;
-        private int _dragStartH = 0;
-
-        private static readonly HashSet<uint> _corpsesRequested = new HashSet<uint>();
-        private static readonly HashSet<uint> _openedCorpses = new HashSet<uint>();
-        private static int _selectedIndex;
-        private static Point _lastLocation;
-        private World world;
-        private long _nextClean = 0;
-
-        public NearbyLootGump(World world) : base(world, 0, 0)
+                Tooltip = TazLang.Get("nearbyloot_setlootbag", "Set Loot Bag")
+            },
+            0,
+            1
+        );
+        _expandCollapseButton = new MyraButton(
+            $"{TazLang.Get("nearbyloot_expand", "Expand")} {ExpandedChevron}",
+            ToggleAllGroups
+        )
         {
-            UIManager.GetGump<NearbyLootGump>()?.Dispose();
-            this.world = world;
-            CanMove = true;
-            AcceptMouseInput = true;
-            AcceptKeyboardInput = true;
-            CanCloseWithRightClick = true;
-            Width = WIDTH;
-            Height = ProfileManager.CurrentProfile.NearbyLootGumpHeight;
+            Enabled = false,
+            Tooltip = TazLang.Get("nearbyloot_expandall", "Expand All")
+        };
+        AddGridWidget(commands, _expandCollapseButton, 0, 2);
+        AddGridWidget(
+            commands,
+            new MyraButton(
+                TazLang.Get("nearbyloot_options", "Options"),
+                ShowOptions
+            ),
+            0,
+            3
+        );
 
-            if (_lastLocation == default)
-            {
-                CenterXInViewPort();
-                CenterYInViewPort();
-            }
-            else
-                Location = _lastLocation;
+        var scrollViewer = new ScrollViewer
+        {
+            Content = _lootList,
+            ShowHorizontalScrollBar = false,
+            ShowVerticalScrollBar = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
 
-            Add(_alphaBg = new AlphaBlendControl() { Width = Width, Height = Height });
+        AddGridWidget(root, commands, 0, 0);
+        AddGridWidget(root, scrollViewer, 1, 0);
+        SetRootContent(root);
+    }
 
-            Control c;
-            c = TextBox.GetOne("Nearby corpse loot", Assets.TrueTypeLoader.EMBEDDED_FONT, 24, Color.OrangeRed, TextBox.RTLOptions.DefaultCentered(WIDTH));
-            c.AcceptMouseInput = false;
-            Add(c);
+    private static void AddGridWidget(Grid grid, Widget widget, int row, int column)
+    {
+        grid.Widgets.Add(widget);
+        Grid.SetRow(widget, row);
+        Grid.SetColumn(widget, column);
+    }
 
-            Add(c = new NiceButton(Width - 20, 0, 20, 20, ButtonAction.Default, "+"));
-            c.SetTooltip("Options");
-            c.MouseUp += (s, e) =>
-            {
-                if (e.Button == MouseButtonType.Left)
-                    GenOptionsContext().Show();
-            };
+    private void SubscribeEvents()
+    {
+        if (_eventsSubscribed)
+            return;
 
-            Add(_lootButton = new NiceButton(0, c.Height, WIDTH >> 1, 20, ButtonAction.Default, "Loot All"));
-            _lootButton.MouseUp += (sender, e) =>
-            {
-                if (e.Button == MouseButtonType.Left)
-                {
-                    foreach (Control control in _dataBox.Children)
-                    {
-                        if (control is NearbyItemDisplay display)
-                        {
-                            AutoLootManager.Instance.LootItem(display.LocalSerial);
-                        }
-                    }
-                }
-            };
+        EventSink.OnCorpseCreated += EventSink_OnCorpseCreated;
+        EventSink.OnPositionChanged += EventSink_OnPositionChanged;
+        EventSink.OPLOnReceive += EventSink_OPLOnReceive;
+        _eventsSubscribed = true;
+    }
 
-            Add(c = new NiceButton(WIDTH >> 1, c.Height, WIDTH >> 1, 20, ButtonAction.Default, "Set Loot Bag"));
-            c.MouseUp += (sender, e) =>
-            {
-                if (e.Button != MouseButtonType.Left) return;
-
-                GameActions.Print(World, TazLang.Get("target_container_to_grab_items_into"));
-                World.TargetManager.SetTargeting(CursorTarget.SetGrabBag, 0, TargetType.Neutral);
-            };
-
-            Add(_scrollArea = new ModernScrollArea(0, _lootButton.Y + _lootButton.Height, Width, Height - _lootButton.Y - _lootButton.Height)
-            {
-                ScrollbarBehaviour = ScrollbarBehaviour.ShowAlways
-            });
-
-            _scrollArea.Add(_dataBox = new(Width - 12));//ModernScrollArea uses 12px wide scrollbar
-
-            Add(_resizeDrag = new HitBox(Width / 2 - 10, Height - 10, 20, 10, "Drag to resize", 0.50f));
-            _resizeDrag.Add(new AlphaBlendControl(0.25f) { Width = 20, Height = 10, BaseColor = Color.OrangeRed });
-            _resizeDrag.MouseDown += ResizeDrag_MouseDown;
-            _resizeDrag.MouseUp += ResizeDrag_MouseUp;
-
-            EventSink.OnCorpseCreated += EventSink_OnCorpseCreated;
-            EventSink.OnPositionChanged += EventSink_OnPositionChanged;
-            EventSink.OPLOnReceive += EventSink_OPLOnReceive;
+    private void EventSink_OPLOnReceive(object sender, OPLEventArgs e)
+    {
+        Item item = _world.Items.Get(e.Serial);
+        if (item != null && _openedCorpses.Contains(item.RootContainer))
             RequestUpdateContents();
-        }
+    }
 
-        public override GumpType GumpType => GumpType.NearbyCorpseLoot;
+    private void EventSink_OnPositionChanged(object sender, PositionChangedArgs e) => RequestUpdateContents();
 
-        private void EventSink_OPLOnReceive(object sender, OPLEventArgs e)
+    private void EventSink_OnCorpseCreated(object sender, EventArgs e)
+    {
+        if (sender is Item { IsDestroyed: false, IsCorpse: true } corpse &&
+            corpse.Distance <= ProfileManager.CurrentProfile.AutoOpenCorpseRange)
         {
-            Item i = World.Items.Get(e.Serial);
-
-            if (i != null && _openedCorpses.Contains(i.RootContainer))
-                RequestUpdateContents();
-        }
-
-        private void EventSink_OnPositionChanged(object sender, PositionChangedArgs e) => RequestUpdateContents();
-
-        private void ResizeDrag_MouseUp(object sender, MouseEventArgs e) => _dragging = false;
-
-        private void ResizeDrag_MouseDown(object sender, MouseEventArgs e)
-        {
-            _dragStartH = Height;
-            _dragging = true;
-        }
-
-        private void EventSink_OnCorpseCreated(object sender, System.EventArgs e)
-        {
-            var item = (Item)sender;
-            if (!item.IsDestroyed && item.IsCorpse && item.Distance <= ProfileManager.CurrentProfile.AutoOpenCorpseRange)
-            {
-                TryRequestOpenCorpse(item);
-            }
-        }
-
-        private ContextMenuControl GenOptionsContext()
-        {
-            var c = new ContextMenuControl(this);
-            c.Add(new ContextMenuItemEntry("Open human corpses?", () =>
-            {
-                ProfileManager.CurrentProfile.NearbyLootOpensHumanCorpses = !ProfileManager.CurrentProfile.NearbyLootOpensHumanCorpses;
-                RequestUpdateContents();
-            }, true, ProfileManager.CurrentProfile.NearbyLootOpensHumanCorpses));
-
-            c.Add(new ContextMenuItemEntry("Hide containers when opening corpses?", () =>
-            {
-               ProfileManager.CurrentProfile.NearbyLootConcealsContainerOnOpen = !ProfileManager.CurrentProfile.NearbyLootConcealsContainerOnOpen;
-            }, true, ProfileManager.CurrentProfile.NearbyLootConcealsContainerOnOpen));
-
-            return c;
-        }
-        private void UpdateNearbyLoot()
-        {
-            _itemCount = 0;
-
-            _dataBox.Clear();
-            _openedCorpses.Clear();
-
-            var finalItemList = new List<Item>();
-
-            foreach (Item item in World.Items.Values)
-            {
-                if (!item.IsDestroyed && item.IsCorpse && item.Distance <= ProfileManager.CurrentProfile.AutoOpenCorpseRange)
-                {
-                    ProcessCorpse(item, ref finalItemList);
-                }
-            }
-
-            finalItemList = finalItemList
-                .OrderBy(item => !item.IsCoin) // Items that are coins come first
-                .ThenBy(item => item.Graphic)           // Sort by Graphic
-                .ThenBy(item => item.Hue)               // Sort by Hue
-                .ToList();
-
-            foreach (Item lootItem in finalItemList)
-            {
-                _dataBox.Add(new NearbyItemDisplay(world, lootItem, _itemCount));
-                _itemCount++;
-            }
-
-            if (SelectedIndex >= _itemCount)
-                SelectedIndex = _itemCount - 1;
-        }
-        private void ProcessCorpse(Item corpse, ref List<Item> itemList)
-        {
-            if (corpse == null || !corpse.IsCorpse || (corpse.IsHumanCorpse && !ProfileManager.CurrentProfile.NearbyLootOpensHumanCorpses))
-                return;
-
-            if (corpse.Items != null)
-            {
-                corpse.Hue = 53;
-
-                if (_corpsesRequested.Contains(corpse))
-                    _corpsesRequested.Remove(corpse);
-
-                _openedCorpses.Add(corpse);
-                for (LinkedObject i = corpse.Items; i != null; i = i.Next)
-                {
-                    var item = (Item)i;
-
-                    if (item.IsCorpse)
-                        ProcessCorpse(item, ref itemList);
-
-                    if (item.Graphic == 0 || !item.IsLootable)
-                        continue;
-
-                    itemList.Add(item);
-                    GridHighlightData.ProcessItemOpl(world, item);
-                }
-
-            }
-            else
-            {
-                TryRequestOpenCorpse(corpse);
-            }
-        }
-        private void TryRequestOpenCorpse(Item corpse)
-        {
-            if (_openedCorpses.Contains(corpse))
-                return;
-            if (corpse.Distance > ProfileManager.CurrentProfile.AutoOpenCorpseRange)
-                return;
-            if (ProfileManager.ServerSettings is { DoNotReopenCorpses: true }
-                && CorpseManager.IsCorpseOpened(corpse.Serial))
-                return;
-            if(ProfileManager.CurrentProfile.NearbyLootConcealsContainerOnOpen)
-                _corpsesRequested.Add(corpse.Serial);
-
-            GameActions.QueueOpenCorpse(corpse.Serial);
-        }
-        private void LootSelectedIndex()
-        {
-            if (SelectedIndex == -1)
-                _lootButton.InvokeMouseUp(_lootButton.Location, MouseButtonType.Left);
-            else if (_dataBox.Children.Count > SelectedIndex)
-                ObjectActionQueue.Instance.Enqueue(ObjectActionQueueItem.QuickLoot(_dataBox.Children[SelectedIndex].LocalSerial), ActionPriority.MoveItem);
-        }
-
-        public static bool IsCorpseRequested(uint serial, bool remove = true)
-        {
-            if (_corpsesRequested.Contains(serial))
-            {
-                if (remove) _corpsesRequested.Remove(serial);
-                return true;
-            }
-
-            return false;
-        }
-
-        public override void Dispose()
-        {
-            base.Dispose();
-            _corpsesRequested.Clear();
-            EventSink.OnCorpseCreated -= EventSink_OnCorpseCreated;
-            _resizeDrag.MouseUp -= ResizeDrag_MouseUp;
-            _resizeDrag.MouseDown -= ResizeDrag_MouseDown;
-            EventSink.OPLOnReceive -= EventSink_OPLOnReceive;
-            _lastLocation = Location;
-        }
-        public override void OnKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod)
-        {
-            base.OnKeyDown(key, mod);
-
-            switch (key)
-            {
-                case SDL.SDL_Keycode.SDLK_UP:
-                    SelectedIndex--;
-                    break;
-                case SDL.SDL_Keycode.SDLK_DOWN:
-                    SelectedIndex++;
-                    break;
-                case SDL.SDL_Keycode.SDLK_RETURN:
-                    LootSelectedIndex();
-                    break;
-
-            }
-        }
-        protected override void OnControllerButtonDown(SDL.SDL_GamepadButton button)
-        {
-            base.OnControllerButtonDown(button);
-            switch (button)
-            {
-                case SDL.SDL_GamepadButton.SDL_GAMEPAD_BUTTON_DPAD_UP:
-                    SelectedIndex--;
-                    break;
-                case SDL.SDL_GamepadButton.SDL_GAMEPAD_BUTTON_DPAD_DOWN:
-                    SelectedIndex++;
-                    break;
-                case SDL.SDL_GamepadButton.SDL_GAMEPAD_BUTTON_SOUTH:
-                    LootSelectedIndex();
-                    break;
-            }
-        }
-        public override void Update()
-        {
-            base.Update();
-
-            if (_selectedIndex == -1)
-                _lootButton.IsSelected = true;
-            else
-                _lootButton.IsSelected = false;
-
-            if (_dragging)
-            {
-                int steps = Mouse.LDragOffset.Y;
-                if(steps != 0)
-                {
-                    Height = _dragStartH + steps;
-                    if (Height < 200)
-                        Height = 200;
-                    ProfileManager.CurrentProfile.NearbyLootGumpHeight = Height;
-
-
-                    _scrollArea.UpdateHeight(Height - _lootButton.Y - _lootButton.Height);
-                    _alphaBg.Height = Height;
-                    _resizeDrag.Y = Height - 10;
-                    _scrollArea.UpdateScrollbarPosition();//Update scrollbar position for new dimensions
-                }
-            }
-
-            if (Time.Ticks > _nextClean)
-            {
-                _openedCorpses.Clear();
-                _corpsesRequested.Clear();
-                _nextClean = Time.Ticks + 120000;
-            }
-        }
-        protected override void UpdateContents()
-        {
-            base.UpdateContents();
-            UpdateNearbyLoot();
+            TryRequestOpenCorpse(corpse);
         }
     }
 
-    public class NearbyItemDisplay : Control
+    private void ShowOptions()
     {
-        private const int ITEM_SIZE = 40;
-        private Label itemLabel;
-        private AlphaBlendControl alphaBG;
-        private Item currentItem;
-        private int index;
-        private World world;
+        Profile profile = ProfileManager.CurrentProfile;
+        bool opensHumanCorpses = profile.NearbyLootOpensHumanCorpses;
+        bool concealsContainers = profile.NearbyLootConcealsContainerOnOpen;
 
-        private ushort bgHue
+        ShowContextMenu(
+            (
+                ContextMenuLabelToggle(
+                    opensHumanCorpses,
+                    TazLang.Get("nearbyloot_openhumancorpses", "Open human corpses")
+                ),
+                () =>
+                {
+                    profile.NearbyLootOpensHumanCorpses = !opensHumanCorpses;
+                    RequestUpdateContents();
+                }
+            ),
+            (
+                ContextMenuLabelToggle(
+                    concealsContainers,
+                    TazLang.Get("nearbyloot_hidecontainers", "Hide containers when opening corpses")
+                ),
+                () => profile.NearbyLootConcealsContainerOnOpen = !concealsContainers
+            )
+        );
+    }
+
+    public void RequestUpdateContents() => _refreshRequested = true;
+
+    private void RebuildLootList()
+    {
+        string selectedIdentity = _selectedIndex >= 0 && _selectedIndex < _navigationEntries.Count
+            ? _navigationEntries[_selectedIndex].Identity
+            : null;
+
+        _lootList.Widgets.Clear();
+        _navigationEntries.Clear();
+        _iconFrames.Clear();
+        _lootRows.Clear();
+        _visibleLootItems.Clear();
+        _openedCorpses.Clear();
+
+        foreach (Item item in _world.Items.Values)
         {
-            get
+            if (!item.IsDestroyed && item.IsCorpse &&
+                item.Distance <= ProfileManager.CurrentProfile.AutoOpenCorpseRange)
             {
-                if (AutoLootManager.Instance.IsBeingLooted(LocalSerial))
-                    return 32;
-
-                if (NearbyLootGump.SelectedIndex == index)
-                    return 53;
-
-                return 0;
+                ProcessCorpse(item, _visibleLootItems);
             }
         }
 
-        public NearbyItemDisplay(World world, Item item, int index)
+        List<LootGroup> groups = _visibleLootItems
+            .GroupBy(item => new LootGroupKey(item.Graphic, item.Hue, NormalizeGroupName(item)))
+            .Select(group => new LootGroup(
+                group.Key,
+                group.OrderBy(item => item.Serial).ToList(),
+                GetItemName(group.First(), false)
+            ))
+            .OrderBy(group => !group.Items[0].IsCoin)
+            .ThenBy(group => group.Key.Graphic)
+            .ThenBy(group => group.Key.Hue)
+            .ThenBy(group => group.Key.NormalizedName, StringComparer.Ordinal)
+            .ToList();
+
+        _duplicateGroupKeys.Clear();
+        foreach (LootGroup group in groups)
         {
-            if (item == null)
+            if (group.Items.Count > 1)
+                _duplicateGroupKeys.Add(group.Key);
+        }
+
+        _expandedGroups.RemoveWhere(key => !_duplicateGroupKeys.Contains(key));
+        UpdateExpandCollapseButton();
+
+        foreach (LootGroup group in groups)
+        {
+            if (group.Items.Count == 1)
             {
-                Dispose();
+                AddItemRow(group.Items[0], false);
+                continue;
+            }
+
+            bool expanded = _expandedGroups.Contains(group.Key);
+            AddGroupHeader(group, expanded);
+            if (expanded)
+            {
+                foreach (Item item in group.Items)
+                    AddItemRow(item, true);
+            }
+        }
+
+        if (_lootList.Widgets.Count == 0)
+        {
+            _lootList.Widgets.Add(new MyraLabel(
+                TazLang.Get("nearbyloot_noitems", "No nearby loot"),
+                MyraLabel.TextStyle.P,
+                MyraLabel.AlignMode.Center
+            ));
+        }
+
+        if (selectedIdentity != null)
+        {
+            int restoredIndex = _navigationEntries.FindIndex(entry => entry.Identity == selectedIdentity);
+            _selectedIndex = restoredIndex >= 0 ? restoredIndex : Math.Min(_selectedIndex, _navigationEntries.Count - 1);
+        }
+        else
+        {
+            _selectedIndex = Math.Min(_selectedIndex, _navigationEntries.Count - 1);
+        }
+
+        RefreshRowVisuals();
+        _nextVisualRefresh = Time.Ticks + VisualRefreshInterval;
+    }
+
+    private void ProcessCorpse(Item corpse, List<Item> itemList)
+    {
+        if (corpse == null || !corpse.IsCorpse ||
+            corpse.IsHumanCorpse && !ProfileManager.CurrentProfile.NearbyLootOpensHumanCorpses)
+        {
+            return;
+        }
+
+        if (corpse.Items == null)
+        {
+            TryRequestOpenCorpse(corpse);
+            return;
+        }
+
+        corpse.Hue = 53;
+        _corpsesRequested.Remove(corpse.Serial);
+        _openedCorpses.Add(corpse.Serial);
+
+        for (LinkedObject linked = corpse.Items; linked != null; linked = linked.Next)
+        {
+            var item = (Item)linked;
+
+            // Corpse objects are containers, not loot. Recurse into them and never add the
+            // corpse itself to the visible/lootable list (OSI exposes these as "Corpse").
+            if (item.IsCorpse)
+            {
+                ProcessCorpse(item, itemList);
+                continue;
+            }
+
+            if (item.Graphic == 0 || !item.IsLootable)
+                continue;
+
+            itemList.Add(item);
+            GridHighlightData.ProcessItemOpl(_world, item);
+        }
+    }
+
+    private void TryRequestOpenCorpse(Item corpse)
+    {
+        if (_openedCorpses.Contains(corpse.Serial) ||
+            corpse.Distance > ProfileManager.CurrentProfile.AutoOpenCorpseRange)
+        {
+            return;
+        }
+
+        if (ProfileManager.ServerSettings is { DoNotReopenCorpses: true }
+            && CorpseManager.IsCorpseOpened(corpse.Serial))
+        {
+            return;
+        }
+
+        if (ProfileManager.CurrentProfile.NearbyLootConcealsContainerOnOpen)
+            _corpsesRequested.Add(corpse.Serial);
+
+        GameActions.QueueOpenCorpse(corpse.Serial);
+    }
+
+    private void AddGroupHeader(LootGroup group, bool expanded)
+    {
+        int entryCount = group.Items.Count;
+        int totalAmount = group.Items.Sum(item => Math.Max(1, (int)item.Amount));
+        string count = totalAmount == entryCount
+            ? FormatLocalized("nearbyloot_groupitems", "{0} items", entryCount)
+            : FormatLocalized("nearbyloot_groupstacks", "{0} stacks · {1} total", entryCount, totalAmount);
+        string label = $"{group.DisplayName} — {count}";
+        string identity = $"group:{group.Key.Graphic:X4}:{group.Key.Hue:X4}:{group.Key.NormalizedName}";
+        int index = _navigationEntries.Count;
+
+        NearbyLootRow row = CreateRow(
+            group.Items[0],
+            label,
+            false,
+            () => ToggleGroup(group.Key),
+            () => SelectRow(index, group.Items[0].Serial),
+            () => ClearItemTooltip(group.Items[0].Serial),
+            () => group.Items.Any(IsBeingLooted),
+            () => GetGroupHighlight(group.Items),
+            () => GetGroupHighlightColors(group.Items),
+            iconSize: GroupIconSize,
+            labelStyle: MyraLabel.TextStyle.H4,
+            disclosure: expanded ? ExpandedChevron : CollapsedChevron,
+            emphasized: true,
+            compact: true
+        );
+
+        _navigationEntries.Add(new NavigationEntry(identity, row, () => ToggleGroup(group.Key)));
+    }
+
+    private void AddItemRow(Item item, bool indented)
+    {
+        int index = _navigationEntries.Count;
+        string identity = $"item:{item.Serial:X8}";
+        NearbyLootRow row = CreateRow(
+            item,
+            GetItemName(item, true),
+            indented,
+            () => QuickLoot(item),
+            () => SelectRow(index, item.Serial),
+            () => ClearItemTooltip(item.Serial),
+            () => IsBeingLooted(item),
+            () => GetItemHighlight(item),
+            () => GetItemHighlightColors(item),
+            iconSize: indented ? ExpandedItemIconSize : ItemIconSize,
+            labelStyle: indented ? MyraLabel.TextStyle.H5 : MyraLabel.TextStyle.P,
+            disclosure: indented ? null : CollapsedChevron,
+            compact: indented
+        );
+
+        _navigationEntries.Add(new NavigationEntry(identity, row, () => QuickLoot(item)));
+    }
+
+    private NearbyLootRow CreateRow(
+        Item item,
+        string label,
+        bool indented,
+        Action activate,
+        Action hover,
+        Action leave,
+        Func<bool> isBeingLooted,
+        Func<Color?> highlightColor,
+        Func<IReadOnlyList<Color>> highlightColors,
+        int iconSize = ItemIconSize,
+        MyraLabel.TextStyle labelStyle = MyraLabel.TextStyle.P,
+        string disclosure = null,
+        bool emphasized = false,
+        bool compact = false
+    )
+    {
+        var icon = new NearbyLootIconFrame(
+            item.DisplayedGraphic,
+            item.Hue,
+            iconSize,
+            highlightColor,
+            highlightColors
+        );
+        var content = new Grid
+        {
+            ColumnSpacing = MyraStyle.STANDARD_SPACING,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        content.RowsProportions.Add(new Proportion(ProportionType.Auto));
+        content.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+        content.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+        content.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
+
+        AddGridWidget(content, icon, 0, 0);
+        AddGridWidget(content, new MyraLabel(label, labelStyle)
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center
+        }, 0, 1);
+
+        if (!string.IsNullOrEmpty(disclosure))
+        {
+            AddGridWidget(content, new MyraLabel(disclosure, MyraLabel.TextStyle.H4)
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 0, 2, 0)
+            }, 0, 2);
+        }
+
+        var row = new NearbyLootRow(activate, hover, leave, isBeingLooted, emphasized)
+        {
+            Content = content,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = indented ? new Thickness(22, 0, 0, 0) : new Thickness(0),
+            Padding = compact ? new Thickness(2, 0) : new Thickness(3, 1)
+        };
+
+        _lootList.Widgets.Add(row);
+        _iconFrames.Add(icon);
+        _lootRows.Add(row);
+        return row;
+    }
+
+    private static string NormalizeGroupName(Item item) => GetItemName(item, false).Trim().ToUpperInvariant();
+
+    private static string GetItemName(Item item, bool showAmount)
+    {
+        string name = item?.GetNormalizedName(showAmount);
+        return string.IsNullOrWhiteSpace(name)
+            ? TazLang.Get("nearbyloot_unknownitem", "Unknown item")
+            : name;
+    }
+
+    private static string FormatLocalized(string key, string fallback, params object[] values) =>
+        string.Format(CultureInfo.CurrentCulture, TazLang.Get(key, fallback), values);
+
+    private void ToggleGroup(LootGroupKey key)
+    {
+        if (!_expandedGroups.Add(key))
+            _expandedGroups.Remove(key);
+
+        UpdateExpandCollapseButton();
+        RequestUpdateContents();
+    }
+
+    private void ToggleAllGroups()
+    {
+        if (_duplicateGroupKeys.Count == 0)
+            return;
+
+        if (AreAllGroupsExpanded())
+            _expandedGroups.Clear();
+        else
+            _expandedGroups.UnionWith(_duplicateGroupKeys);
+
+        UpdateExpandCollapseButton();
+        RequestUpdateContents();
+    }
+
+    private bool AreAllGroupsExpanded() =>
+        _duplicateGroupKeys.Count > 0 && _expandedGroups.IsSupersetOf(_duplicateGroupKeys);
+
+    private void UpdateExpandCollapseButton()
+    {
+        if (_expandCollapseButton == null)
+            return;
+
+        _expandCollapseButton.Enabled = _duplicateGroupKeys.Count > 0;
+        bool collapse = AreAllGroupsExpanded();
+        _expandCollapseButton.Text = collapse
+            ? $"{TazLang.Get("nearbyloot_collapse", "Collapse")} {CollapseAllChevron}"
+            : $"{TazLang.Get("nearbyloot_expand", "Expand")} {ExpandedChevron}";
+        _expandCollapseButton.Tooltip = collapse
+            ? TazLang.Get("nearbyloot_collapseall", "Collapse All")
+            : TazLang.Get("nearbyloot_expandall", "Expand All");
+    }
+
+    private void SelectRow(int index, uint serial)
+    {
+        _selectedIndex = index;
+        SetTooltip(serial);
+        RefreshRowVisuals();
+    }
+
+    private void ClearItemTooltip(uint serial)
+    {
+        if (Tooltip is uint tooltipSerial && tooltipSerial == serial)
+            ClearTooltip();
+    }
+
+    private bool IsBeingLooted(Item item) =>
+        item != null && !item.IsDestroyed && AutoLootManager.Instance.IsBeingLooted(item.Serial);
+
+    private static Color? GetItemHighlight(Item item) =>
+        item is { IsDestroyed: false, MatchesHighlightData: true } ? item.HighlightColor : null;
+
+    private static IReadOnlyList<Color> GetItemHighlightColors(Item item) =>
+        item is { IsDestroyed: false, MatchesHighlightData: true }
+            ? item.HighlightColors
+            : Array.Empty<Color>();
+
+    private static Color? GetGroupHighlight(IReadOnlyList<Item> items)
+    {
+        foreach (GridHighlightData config in GridHighlightData.AllConfigs)
+        {
+            if (!config.Enabled)
+                continue;
+
+            foreach (Item item in items)
+            {
+                if (item is { IsDestroyed: false, MatchesHighlightData: true } &&
+                    string.Equals(item.HighlightName, config.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.HighlightColor;
+                }
+            }
+        }
+
+        Item fallback = null;
+        foreach (Item item in items)
+        {
+            if (item is { IsDestroyed: false, MatchesHighlightData: true } &&
+                (fallback == null || item.Serial < fallback.Serial))
+            {
+                fallback = item;
+            }
+        }
+
+        return fallback?.HighlightColor;
+    }
+
+    private static IReadOnlyList<Color> GetGroupHighlightColors(IReadOnlyList<Item> items)
+    {
+        Color? primary = GetGroupHighlight(items);
+        if (!primary.HasValue)
+            return Array.Empty<Color>();
+
+        foreach (Item item in items)
+        {
+            if (item is { IsDestroyed: false, MatchesHighlightData: true } &&
+                item.HighlightColor == primary.Value)
+            {
+                return item.HighlightColors;
+            }
+        }
+
+        return Array.Empty<Color>();
+    }
+
+    private void QuickLoot(Item item)
+    {
+        if (item == null || item.IsDestroyed || item.IsCorpse)
+            return;
+
+        Profile profile = ProfileManager.CurrentProfile;
+        if (Keyboard.Shift && profile.EnableAutoLoot && !profile.HoldShiftForContext && !profile.HoldShiftToSplitStack)
+        {
+            AutoLootManager.Instance.AddAutoLootEntry(item.Graphic, item.Hue, GetItemName(item, false));
+            GameActions.Print(_world, TazLang.Get("nearbyloot_addedautoloot", "Added this item to auto loot."));
+        }
+
+        ObjectActionQueueItem action = ObjectActionQueueItem.QuickLoot(item);
+        if (action != null)
+            ObjectActionQueue.Instance.Enqueue(action, ActionPriority.MoveItem);
+    }
+
+    private void LootAll()
+    {
+        foreach (Item item in _visibleLootItems.ToArray())
+        {
+            if (item is { IsDestroyed: false, IsCorpse: false })
+                AutoLootManager.Instance.LootItem(item.Serial);
+        }
+    }
+
+    private void SetLootBag()
+    {
+        GameActions.Print(_world, TazLang.Get("target_container_to_grab_items_into"));
+        _world.TargetManager.SetTargeting(CursorTarget.SetGrabBag, 0, TargetType.Neutral);
+    }
+
+    private void MoveSelection(int direction)
+    {
+        _selectedIndex = Math.Clamp(_selectedIndex + direction, -1, _navigationEntries.Count - 1);
+        RefreshRowVisuals();
+    }
+
+    private void ActivateSelection()
+    {
+        if (_selectedIndex < 0)
+            LootAll();
+        else if (_selectedIndex < _navigationEntries.Count)
+            _navigationEntries[_selectedIndex].Activate();
+    }
+
+    private void RefreshRowVisuals()
+    {
+        for (int i = 0; i < _lootRows.Count; i++)
+            _lootRows[i].Refresh(i == _selectedIndex);
+
+        bool lootAllSelected = _selectedIndex == -1;
+        if (_lootAllSelected == lootAllSelected)
+            return;
+
+        _lootAllSelected = lootAllSelected;
+        _lootButton.Border = lootAllSelected ? NearbyLootRow.SelectionBrush : null;
+        _lootButton.BorderThickness = lootAllSelected ? new Thickness(1) : new Thickness(0);
+    }
+
+    public override void Update()
+    {
+        base.Update();
+        if (IsDisposed)
+            return;
+
+        long now = Time.Ticks;
+        if (_refreshRequested && now >= _nextContentRefresh)
+        {
+            _refreshRequested = false;
+            _nextContentRefresh = now + ContentRefreshInterval;
+            RebuildLootList();
+        }
+
+        if (now >= _nextVisualRefresh)
+        {
+            foreach (NearbyLootIconFrame icon in _iconFrames)
+                icon.RefreshHighlight();
+            RefreshRowVisuals();
+            _nextVisualRefresh = now + VisualRefreshInterval;
+        }
+
+        if (now > _nextClean)
+        {
+            _openedCorpses.Clear();
+            _corpsesRequested.Clear();
+            _nextClean = now + CorpseCacheLifetime;
+        }
+    }
+
+    public override void OnKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod)
+    {
+        switch (key)
+        {
+            case SDL.SDL_Keycode.SDLK_UP:
+                MoveSelection(-1);
+                break;
+            case SDL.SDL_Keycode.SDLK_DOWN:
+                MoveSelection(1);
+                break;
+            case SDL.SDL_Keycode.SDLK_RETURN:
+                ActivateSelection();
+                break;
+        }
+    }
+
+    protected override void OnControllerButtonDown(SDL.SDL_GamepadButton button)
+    {
+        switch (button)
+        {
+            case SDL.SDL_GamepadButton.SDL_GAMEPAD_BUTTON_DPAD_UP:
+                MoveSelection(-1);
+                break;
+            case SDL.SDL_GamepadButton.SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+                MoveSelection(1);
+                break;
+            case SDL.SDL_GamepadButton.SDL_GAMEPAD_BUTTON_SOUTH:
+                ActivateSelection();
+                break;
+        }
+    }
+
+    public static bool IsCorpseRequested(uint serial, bool remove = true)
+    {
+        if (!_corpsesRequested.Contains(serial))
+            return false;
+
+        if (remove)
+            _corpsesRequested.Remove(serial);
+        return true;
+    }
+
+    public override void Dispose()
+    {
+        if (_eventsSubscribed)
+        {
+            EventSink.OnCorpseCreated -= EventSink_OnCorpseCreated;
+            EventSink.OnPositionChanged -= EventSink_OnPositionChanged;
+            EventSink.OPLOnReceive -= EventSink_OPLOnReceive;
+            _eventsSubscribed = false;
+        }
+
+        _corpsesRequested.Clear();
+        _openedCorpses.Clear();
+        base.Dispose();
+    }
+
+    private readonly record struct LootGroupKey(ushort Graphic, ushort Hue, string NormalizedName);
+
+    private sealed record LootGroup(LootGroupKey Key, List<Item> Items, string DisplayName);
+
+    private sealed record NavigationEntry(string Identity, NearbyLootRow Row, Action Activate);
+
+    private sealed class NearbyLootRow : Myra.Graphics2D.UI.Button
+    {
+        internal static readonly SolidBrush SelectionBrush = new(new Color(255, 110, 45, 220));
+        private static readonly SolidBrush GroupBrush = new(new Color(185, 100, 35, 190));
+        private static readonly SolidBrush LootingBrush = new(new Color(50, 180, 80, 220));
+
+        private readonly Action _activate;
+        private readonly Action _hover;
+        private readonly Action _leave;
+        private readonly Func<bool> _isBeingLooted;
+        private readonly bool _emphasized;
+        private bool? _lastBeingLooted;
+        private bool? _lastSelected;
+
+        public NearbyLootRow(
+            Action activate,
+            Action hover,
+            Action leave,
+            Func<bool> isBeingLooted,
+            bool emphasized
+        )
+        {
+            _activate = activate;
+            _hover = hover;
+            _leave = leave;
+            _isBeingLooted = isBeingLooted;
+            _emphasized = emphasized;
+
+            if (emphasized)
+            {
+                Background = MyraStyle.NinePatchButtonDown;
+                OverBackground = MyraStyle.NinePatchButtonDown;
+                PressedBackground = MyraStyle.NinePatchButtonDown;
+            }
+
+            DisabledBackground = Background;
+        }
+
+        public void Refresh(bool selected)
+        {
+            bool beingLooted = _isBeingLooted?.Invoke() == true;
+            if (_lastBeingLooted == beingLooted && _lastSelected == selected)
                 return;
-            }
-            this.world = world;
 
-            CanMove = true;
-            AcceptMouseInput = true;
-            Width = NearbyLootGump.WIDTH - 12; //-12 for modern scroll bar
-            Height = ITEM_SIZE;
-            this.index = index;
-
-            Add(alphaBG = new AlphaBlendControl() { Width = Width, Height = Height, Hue = bgHue });
-
-            SetItem(item, index);
+            _lastBeingLooted = beingLooted;
+            _lastSelected = selected;
+            Border = beingLooted
+                ? LootingBrush
+                : selected ? SelectionBrush : _emphasized ? GroupBrush : null;
+            BorderThickness = beingLooted || selected
+                ? new Thickness(2)
+                : _emphasized ? new Thickness(1) : new Thickness(0);
         }
 
-        public void SetItem(Item item, int index)
+        public override void OnMouseEntered()
         {
-            currentItem = item;
-            this.index = index;
-            if (item == null) return;
+            base.OnMouseEntered();
+            _hover?.Invoke();
+        }
 
-            LocalSerial = item.Serial;
+        public override void OnTouchEntered()
+        {
+            base.OnTouchEntered();
+            _hover?.Invoke();
+        }
 
-            alphaBG.Hue = bgHue; //Prevent weird flashing
+        public override void OnMouseLeft()
+        {
+            base.OnMouseLeft();
+            _leave?.Invoke();
+        }
 
-            string name = item.Name;
-            if (string.IsNullOrEmpty(name))
+        public override void OnTouchLeft()
+        {
+            base.OnTouchLeft();
+            _leave?.Invoke();
+        }
+
+        public override void OnTouchDown(TouchEventArgs args)
+        {
+            base.OnTouchDown(args);
+            if (Enabled)
+                _activate?.Invoke();
+        }
+    }
+
+    private sealed class NearbyLootIconFrame : Panel
+    {
+        private readonly Func<Color?> _highlightColor;
+        private readonly Func<IReadOnlyList<Color>> _highlightColors;
+        private readonly List<Panel> _markers = [];
+        private Color? _lastColor;
+        private Color[] _lastColors = Array.Empty<Color>();
+        private int _lastThickness = -1;
+
+        public NearbyLootIconFrame(
+            uint graphic,
+            ushort hue,
+            int iconSize,
+            Func<Color?> highlightColor,
+            Func<IReadOnlyList<Color>> highlightColors
+        )
+        {
+            _highlightColor = highlightColor;
+            _highlightColors = highlightColors;
+            Width = iconSize + 4;
+            Height = iconSize + 4;
+            Padding = new Thickness(2);
+            VerticalAlignment = VerticalAlignment.Center;
+
+            Widgets.Add(new MyraArtTexture(graphic, hue, iconSize)
             {
-                name = StringHelper.CapitalizeAllWords(
-                            StringHelper.GetPluralAdjustedString(
-                                item.ItemData.Name,
-                                item.Amount > 1
-                            )
-                        );
-            }
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            RefreshHighlight();
+        }
 
-            if (itemLabel == null)
+        public void RefreshHighlight()
+        {
+            Color? color = _highlightColor?.Invoke();
+            IReadOnlyList<Color> colors = _highlightColors?.Invoke() ?? Array.Empty<Color>();
+            int thickness = color.HasValue
+                ? Math.Max(1, ProfileManager.CurrentProfile?.GridHighlightSize ?? 1)
+                : 0;
+            if (_lastColor == color && _lastThickness == thickness && _lastColors.SequenceEqual(colors))
+                return;
+
+            _lastColor = color;
+            _lastColors = colors.ToArray();
+            _lastThickness = thickness;
+            Border = color.HasValue ? new SolidBrush(color.Value) : null;
+            BorderThickness = new Thickness(thickness);
+
+            foreach (Panel marker in _markers)
+                Widgets.Remove(marker);
+            _markers.Clear();
+
+            Rectangle[] markerBounds = GridItem.GetAdditionalHighlightMarkerBounds(
+                new Rectangle(0, 0, Width, Height),
+                Math.Max(0, colors.Count - 1)
+            );
+            for (int i = 0; i < markerBounds.Length; i++)
             {
-                Add(itemLabel = new Label(name, true, 43, ishtml: true) { X = ITEM_SIZE });
-                itemLabel.Y = (ITEM_SIZE - itemLabel.Height) >> 1;
-            }
-            else
-            {
-                itemLabel.Text = name;
-            }
-
-            world.OPL.Contains(item);
-
-            SetTooltip(item);
-        }
-
-        public override void Update()
-        {
-            base.Update();
-            if (alphaBG.Hue != bgHue)
-                alphaBG.Hue = bgHue;
-        }
-
-        protected override void OnMouseEnter(int x, int y)
-        {
-            base.OnMouseEnter(x, y);
-            NearbyLootGump.SelectedIndex = index;
-        }
-
-        protected override void OnDragBegin(int x, int y)
-        {
-            base.OnDragBegin(x, y);
-            Parent?.InvokeDragBegin(new Point(x, y));
-        }
-
-        protected override void OnDragEnd(int x, int y)
-        {
-            base.OnDragEnd(x, y);
-            Parent?.InvokeDragEnd(new Point(x, y));
-        }
-
-        public override void OnMouseUp(int x, int y, MouseButtonType button)
-        {
-            base.OnMouseUp(x, y, button);
-
-            if (button != MouseButtonType.Left || !MouseIsOver) return;
-
-            if (Keyboard.Shift && currentItem != null && ProfileManager.CurrentProfile.EnableAutoLoot && !ProfileManager.CurrentProfile.HoldShiftForContext && !ProfileManager.CurrentProfile.HoldShiftToSplitStack)
-            {
-                AutoLootManager.Instance.AddAutoLootEntry(currentItem.Graphic, currentItem.Hue, currentItem.Name);
-                GameActions.Print(world, $"Added this item to auto loot.");
-            }
-
-            ObjectActionQueue.Instance.Enqueue(ObjectActionQueueItem.QuickLoot(currentItem), ActionPriority.MoveItem);
-        }
-
-        public override bool Draw(UltimaBatcher2D batcher, int x, int y)
-        {
-            base.Draw(batcher, x, y);
-
-            Vector3 hueVector = ShaderHueTranslator.GetHueVector(currentItem.Hue, currentItem.ItemData.IsPartialHue, 1, true);
-
-            ref readonly SpriteInfo texture = ref Client.Game.UO.Arts.GetArt((uint)currentItem.DisplayedGraphic);
-            Rectangle _rect = Client.Game.UO.Arts.GetRealArtBounds((uint)currentItem.DisplayedGraphic);
-
-
-            var _originalSize = new Point(ITEM_SIZE, ITEM_SIZE);
-            var _point = new Point((ITEM_SIZE >> 1) - (_originalSize.X >> 1), (ITEM_SIZE >> 1) - (_originalSize.Y >> 1));
-
-            if (texture.Texture != null)
-            {
-                if (_rect.Width < ITEM_SIZE)
+                Rectangle bounds = markerBounds[i];
+                var marker = new Panel
                 {
-                    _originalSize.X = _rect.Width;
-                    _point.X = (ITEM_SIZE >> 1) - (_originalSize.X >> 1);
-                }
-
-                if (_rect.Height < ITEM_SIZE)
-                {
-                    _originalSize.Y = _rect.Height;
-                    _point.Y = (ITEM_SIZE >> 1) - (_originalSize.Y >> 1);
-                }
-
-                if (_rect.Width > ITEM_SIZE)
-                {
-                    _originalSize.X = ITEM_SIZE;
-                    _point.X = 0;
-                }
-
-                if (_rect.Height > ITEM_SIZE)
-                {
-                    _originalSize.Y = ITEM_SIZE;
-                    _point.Y = 0;
-                }
-
-                batcher.Draw
-                (
-                    texture.Texture,
-                    new Rectangle
-                    (
-                        x + _point.X,
-                        y + _point.Y,
-                        _originalSize.X,
-                        _originalSize.Y
-                    ),
-                    texture.GetPhysicalSourceRectangle(_rect),
-                    hueVector
-                );
+                    Left = bounds.X,
+                    Top = bounds.Y,
+                    Width = bounds.Width,
+                    Height = bounds.Height,
+                    Background = new SolidBrush(colors[i + 1])
+                };
+                _markers.Add(marker);
+                Widgets.Add(marker);
             }
-
-            if (currentItem != null && currentItem.MatchesHighlightData)
-            {
-                var itemBounds = new Rectangle(x, y, ITEM_SIZE, ITEM_SIZE);
-                GridItem.DrawHighlightBorder(
-                    batcher,
-                    itemBounds,
-                    SolidColorTextureCache.GetTexture(currentItem.HighlightColor),
-                    new Vector3(1, 0, 1),
-                    ProfileManager.CurrentProfile.GridHighlightSize
-                );
-                GridItem.DrawAdditionalHighlightMarkers(batcher, itemBounds, currentItem.HighlightColors);
-            }
-
-            return true;
         }
     }
 }

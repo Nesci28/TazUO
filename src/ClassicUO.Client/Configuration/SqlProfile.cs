@@ -170,6 +170,9 @@ public sealed partial class Profile
         [SqlSetting(SettingsScope.Global, Constants.SqlSettings.TREE_TO_STUMPS_WITHIN_RADIUS, false)]
         public partial bool OldTreeToStumpsWithinRadius { get; set; }
 
+        [JsonIgnore]
+        [SqlSetting(SettingsScope.Char, "nearby_loot_gump_width", 300)]
+        public partial int OldNearbyLootGumpWidth { get; set; }
 
         // Clamp used by the gump-scale SQL settings above (see their OnSet).
         private static double ClampGumpScale(double value) => System.Math.Clamp(value, 0.5d, 3.0d);
