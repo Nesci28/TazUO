@@ -30,6 +30,13 @@ namespace ClassicUO.Game.UI.Gumps
 
         private string[] GetNamePlatePresetOptions() => NamePlatePresets.GetOptions();
 
+        private string[] GetNamePlateDistancePresetOptions() => new[]
+        {
+            TazLang.Get("nameplate_distance_modern", "Modern"),
+            TazLang.Get("nameplate_distance_target", "Target"),
+            TazLang.Get("nameplate_distance_collector", "Collector")
+        };
+
         private string[] GetNamePlateBackgroundModeOptions() => new[]
         {
             TazLang.Get("nameplate_background_fixedcolor", "Fixed color"),
@@ -3013,7 +3020,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         private void ApplyNamePlatePreset(NamePlatePreset preset)
         {
-            NamePlatePresets.Apply(profile, preset);
+        NamePlatePresets.Apply(profile, preset);
         }
 
         private void BuildTazUO()
@@ -3551,10 +3558,31 @@ namespace ClassicUO.Game.UI.Gumps
                     (b) => { profile.NamePlateShowBuffIcons = b; SetNamePlatePresetCustom(); }), true, page
                 );
 
-                content.AddToRight
+            content.AddToRight
+            (
+                new CheckboxWithLabel(TazLang.Get("nameplate_showdistance", "Show distance"), 0, profile.NamePlateShowDistance,
+                    (b) => { profile.NamePlateShowDistance = b; SetNamePlatePresetCustom(); }), true, page
+            );
+
+            content.AddToRight
+            (
+                new ComboBoxWithLabel
                 (
+                    World,
+                    TazLang.Get("nameplate_distancepreset", "Distance preset"),
+                    0,
+                    ThemeSettings.COMBO_BOX_WIDTH,
+                    GetNamePlateDistancePresetOptions(),
+                    (int)profile.NamePlateDistancePreset,
+                    (i, s) => { profile.NamePlateDistancePreset = (NamePlateDistancePreset)i; SetNamePlatePresetCustom(); },
+                    false
+                ), true, page
+            );
+
+            content.AddToRight
+            (
                 new CheckboxWithLabel(TazLang.Get("nameplate_hidefullhealth", "Hide nameplates if full health"), 0, profile.NamePlateHideAtFullHealth,
-                    (b) => { profile.NamePlateHideAtFullHealth = b; SetNamePlatePresetCustom(); }), true, page
+                (b) => { profile.NamePlateHideAtFullHealth = b; SetNamePlatePresetCustom(); }), true, page
             );
 
             content.Indent();
