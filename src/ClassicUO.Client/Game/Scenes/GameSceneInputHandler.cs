@@ -1146,6 +1146,11 @@ namespace ClassicUO.Game.Scenes
                 {
                     if (macro.Items is MacroObject mac)
                     {
+                        if (HotKeys.GloballyDisabled && mac.Code != MacroType.ToggleHotkeys)
+                        {
+                            return false;
+                        }
+
                         if (mac.Code == MacroType.LookAtMouse)
                         {
                             Client.Game.Scene.Camera.PeekingToMouse = true;
