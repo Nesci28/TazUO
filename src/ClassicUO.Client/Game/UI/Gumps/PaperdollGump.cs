@@ -25,7 +25,7 @@ namespace ClassicUO.Game.UI.Gumps
         private GumpPic _combatBook,
             _racialAbilitiesBook;
         private HitBox _hitBox;
-        private bool _isWarMode, _isMinimized;
+        private bool _isWarMode, _isMinimized, _useLegionTheme;
 
         private PaperDollInteractable _paperDollInteractable;
         private GumpPic _partyManifestPic;
@@ -78,6 +78,8 @@ namespace ClassicUO.Game.UI.Gumps
                             : (LocalSerial == World.Player
                                 ? Settings.Graphic_Background_Player
                                 : Settings.Graphic_Background_Other);
+                    _picBase.Alpha = value || !_useLegionTheme ? 1f : 0f;
+                    _picBase.ContainsByBounds = _useLegionTheme && !value;
 
                     foreach (IGui c in Children)
                     {
@@ -91,6 +93,22 @@ namespace ClassicUO.Game.UI.Gumps
         }
 
         public bool CanLift { get; set; }
+
+        public static void UpdateAllThemes() =>
+            UIManager.ForEach<PaperDollGump>(paperdoll => paperdoll.RebuildTheme());
+
+        private void RebuildTheme()
+        {
+            bool wasMinimized = _isMinimized;
+            _isMinimized = false;
+            Clear();
+            BuildGump();
+
+            if (wasMinimized)
+            {
+                IsMinimized = true;
+            }
+        }
 
         public override void Dispose()
         {
@@ -137,7 +155,7 @@ namespace ClassicUO.Game.UI.Gumps
 
             if (LocalSerial == World.Player)
             {
-                Add(_picBase = new GumpPic(0, 0, Settings.Graphic_Background_Player, Settings.Hue_Background_Player));
+                AddPaperdollBase(Settings.Graphic_Background_Player, Settings.Hue_Background_Player);
                 _picBase.MouseDoubleClick += _picBase_MouseDoubleClick;
 
                 //HELP BUTTON
@@ -274,7 +292,7 @@ namespace ClassicUO.Game.UI.Gumps
             }
             else
             {
-                Add(_picBase = new GumpPic(0, 0, Settings.Graphic_Background_Other, Settings.Hue_Background_Other));
+                AddPaperdollBase(Settings.Graphic_Background_Other, Settings.Hue_Background_Other);
                 Add(_profilePic = new GumpPic(Settings.Position_X_Profile, Settings.Position_Y_Profile, Settings.Graphic_Button_Profile, 0));
                 _profilePic.MouseDoubleClick += Profile_MouseDoubleClickEvent;
             }
@@ -340,6 +358,74 @@ namespace ClassicUO.Game.UI.Gumps
             RequestUpdateContents();
 
             WantUpdateSize = true;
+        }
+
+        private void AddPaperdollBase(ushort graphic, ushort hue)
+        {
+            _useLegionTheme = false;
+
+            var basePicture = new GumpPic(0, 0, graphic, hue);
+            int baseWidth = basePicture.Width;
+            int baseHeight = basePicture.Height;
+            Add(_picBase = basePicture);
+
+            if (ProfileManager.CurrentProfile?.UseLegionPaperdollTheme != true)
+            {
+                return;
+            }
+
+            NineSliceControl window = LegionTheme.CreateWindow(0, 0, baseWidth, baseHeight);
+
+            if (window == null)
+            {
+                return;
+            }
+
+            Add(window);
+
+            NineSliceControl avatarPanel = LegionTheme.CreatePanel(
+                6,
+                17,
+                Math.Min(174, Math.Max(24, baseWidth - 86)),
+                Math.Min(238, Math.Max(24, baseHeight - 61))
+            );
+
+            if (avatarPanel != null)
+            {
+                Add(avatarPanel);
+            }
+
+            int actionX = Math.Min(181, Math.Max(8, baseWidth - 79));
+            NineSliceControl actionPanel = LegionTheme.CreatePanel(
+                actionX,
+                35,
+                Math.Max(24, baseWidth - actionX - 6),
+                Math.Min(219, Math.Max(24, baseHeight - 76))
+            );
+
+            if (actionPanel != null)
+            {
+                Add(actionPanel);
+            }
+
+            if (baseHeight > 267)
+            {
+                NineSliceControl titlePanel = LegionTheme.CreateInset(
+                    6,
+                    255,
+                    Math.Max(24, baseWidth - 12),
+                    Math.Max(12, baseHeight - 261)
+                );
+
+                if (titlePanel != null)
+                {
+                    Add(titlePanel);
+                }
+            }
+
+            _useLegionTheme = true;
+            _picBase.Alpha = 0f;
+            _picBase.ContainsByBounds = true;
         }
 
         /// <summary>
@@ -836,9 +922,20 @@ namespace ClassicUO.Game.UI.Gumps
                 _paperDollGump = paperDollGump;
                 Layer = layer;
 
-                Add(bg = new GumpPicTiled(0, 0, 19, 20, 0x243A) { AcceptMouseInput = false });
+                NineSliceControl themedSlot =
+                    ProfileManager.CurrentProfile?.UseLegionPaperdollTheme == true
+                        ? LegionTheme.CreateInset(0, 0, 19, 20)
+                        : null;
 
-                Add(border = new GumpPic(0, 0, 0x2344, 0) { AcceptMouseInput = false });
+                if (themedSlot != null)
+                {
+                    Add(bg = themedSlot);
+                }
+                else
+                {
+                    Add(bg = new GumpPicTiled(0, 0, 19, 20, 0x243A) { AcceptMouseInput = false });
+                    Add(border = new GumpPic(0, 0, 0x2344, 0) { AcceptMouseInput = false });
+                }
 
                 AcceptMouseInput = true;
 
