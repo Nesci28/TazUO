@@ -1,4 +1,6 @@
 using ClassicUO.Configuration;
+using ClassicUO.Game;
+using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
@@ -86,7 +88,7 @@ namespace ClassicUO.Game.Managers
 
         private readonly HashSet<uint> _quickContainsLookup = new ();
         private readonly HashSet<uint> _recentlyLooted = new();
-        private static readonly PriorityQueue<(uint item, AutoLootConfigEntry entry), AutoLootPriority> _lootItems = new ();
+        private static readonly PriorityQueue<(uint item, AutoLootConfigEntry entry, bool ignorePlayerEquippedSourceGuard), AutoLootPriority> _lootItems = new ();
         private readonly List<AutoLootConfigEntry> _fallbackEntries = new ();
         private AutoLootData _data = new ();
         private AutoLootList _currentList;
@@ -115,11 +117,29 @@ namespace ClassicUO.Game.Managers
 
         public void LootItem(Item item, AutoLootConfigEntry entry = null, AutoLootPriority priority = AutoLootPriority.Normal)
         {
-            if (item == null || !_recentlyLooted.Add(item.Serial) || !_quickContainsLookup.Add(item.Serial)) return;
+            QueueLootItem(item, entry, priority, false);
+        }
+
+        private void QueueLootItem(
+            Item item,
+            AutoLootConfigEntry entry,
+            AutoLootPriority priority,
+            bool ignorePlayerEquippedSourceGuard
+        )
+        {
+            if (
+                item == null
+                || (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(item))
+                || !_recentlyLooted.Add(item.Serial)
+                || !_quickContainsLookup.Add(item.Serial)
+            )
+            {
+                return;
+            }
 
             if (entry != null)
                 priority = entry.Priority;
-            _lootItems.Enqueue((item, entry), priority);
+            _lootItems.Enqueue((item, entry, ignorePlayerEquippedSourceGuard), priority);
             _currentLootTotalCount++;
             _nextClearRecents = Time.Ticks + (ProfileManager.CurrentProfile?.AutoLootRetryDelay ?? 5000);
         }
@@ -130,7 +150,31 @@ namespace ClassicUO.Game.Managers
 
             if (cont == null) return;
 
-            for (LinkedObject i = cont.Items; i != null; i = i.Next) CheckAndLoot((Item)i);
+            for (LinkedObject i = cont.Items; i != null; i = i.Next) CheckAndLoot((Item)i, true);
+        }
+
+        private bool IsPlayerEquippedLootSource(Item item)
+        {
+            if (item == null || _world.Player == null) return false;
+
+            uint backpackSerial = _world.Player.Backpack?.Serial ?? 0;
+            return item.Container == _world.Player.Serial && item.Serial != backpackSerial && item.Layer != Layer.Bank;
+        }
+
+        private bool IsFromPlayerEquippedLootSource(Item item)
+        {
+            if (IsPlayerEquippedLootSource(item)) return true;
+
+            while (item != null && SerialHelper.IsItem(item.Container))
+            {
+                Item container = _world.Items.Get(item.Container);
+
+                if (IsPlayerEquippedLootSource(container)) return true;
+
+                item = container;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -158,9 +202,9 @@ namespace ClassicUO.Game.Managers
         /// <summary>
         /// Check an item against the loot list, if it needs to be auto looted it will be.
         /// </summary>
-        private void CheckAndLoot(Item i)
+        private void CheckAndLoot(Item i, bool ignorePlayerEquippedSourceGuard = false)
         {
-            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial)) return;
+            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial) || (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(i))) return;
 
             if(i.IsCorpse)
             {
@@ -171,12 +215,12 @@ namespace ClassicUO.Game.Managers
 
             if (i.ShouldAutoLoot)
             {
-                LootItem(i, null);
+                QueueLootItem(i, null, AutoLootPriority.Normal, ignorePlayerEquippedSourceGuard);
                 return;
             }
 
             AutoLootConfigEntry entry = IsOnLootList(i);
-            if (entry != null) LootItem(i, entry);
+            if (entry != null) QueueLootItem(i, entry, AutoLootPriority.Normal, ignorePlayerEquippedSourceGuard);
         }
 
         /// <summary>
@@ -481,7 +525,7 @@ namespace ClassicUO.Game.Managers
                 return;
             }
 
-            (uint item, AutoLootConfigEntry entry) = _lootItems.Dequeue();
+            (uint item, AutoLootConfigEntry entry, bool ignorePlayerEquippedSourceGuard) = _lootItems.Dequeue();
             if (item == 0) return;
 
             if (_lootItems.Count == 0) //Que emptied out
@@ -493,6 +537,14 @@ namespace ClassicUO.Game.Managers
 
             if (moveItem == null)
                 return;
+
+            // Container/equipment state can arrive after the item was initially queued. Recheck
+            // immediately before moving it so delayed packets cannot drain an equipped quiver.
+            if (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(moveItem))
+            {
+                _recentlyLooted.Remove(item);
+                return;
+            }
 
             CreateProgressBar();
 
@@ -539,10 +591,29 @@ namespace ClassicUO.Game.Managers
                     AutoLootPriority.Low => ActionPriority.LootItem,
                     _ => ActionPriority.LootItemMedium,
                 };
-
                 ushort amount = GetAmountToMove(moveItem, entry, destinationSerial);
                 if (amount > 0)
-                    ObjectActionQueue.Instance.Enqueue(new MoveRequest(moveItem.Serial, destinationSerial, amount).ToObjectActionQueueItem(), lootPriority);
+                {
+                    MoveRequest moveRequest = new MoveRequest(moveItem.Serial, destinationSerial, amount);
+                    ObjectActionQueue.Instance.Enqueue(
+                        new ObjectActionQueueItem(() =>
+                        {
+                            Item queuedItem = _world.Items.Get(item);
+
+                            if (queuedItem == null)
+                                return;
+
+                            if (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(queuedItem))
+                            {
+                                _recentlyLooted.Remove(item);
+                                return;
+                            }
+
+                            moveRequest.Execute();
+                        }),
+                        lootPriority
+                    );
+                }
             }
             else
                 GameActions.Print("Could not find a container to loot into. Try setting a grab bag.");
