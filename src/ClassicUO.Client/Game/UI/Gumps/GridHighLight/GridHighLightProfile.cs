@@ -29,6 +29,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public GridHighlightSlot GridHighlightSlot { get; set; } = new();
         public bool LootOnMatch { get; set; } = false;
         public uint DestinationContainer { get; set; } = 0;
+        public bool IsHighlightProperties { get; set; } = true;
         public Color GetHighlightColor() => HighlightColor.FromHtmlHex(Color.Red);
 
         // Keep alpha for grid highlights. The shared ToHtmlHex helper intentionally emits RGB only.

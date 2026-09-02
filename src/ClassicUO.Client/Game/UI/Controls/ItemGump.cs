@@ -154,14 +154,16 @@ namespace ClassicUO.Game.UI.Controls
                     SerialHelper.IsItem(item.Container) &&
                     ProfileManager.CurrentProfile != null)
                 {
+                    var itemBounds = new Rectangle(x, y, Width, Height);
                     GridItem.DrawHighlightBorder(
                         batcher,
-                        new Rectangle(x, y, Width, Height),
+                        itemBounds,
                         SolidColorTextureCache.GetTexture(item.HighlightColor),
                         new Vector3(1, 0, 1),
                         ProfileManager.CurrentProfile.GridHighlightSize,
                         0
                     );
+                    GridItem.DrawAdditionalHighlightMarkers(batcher, itemBounds, item.HighlightColors);
                 }
             }
 

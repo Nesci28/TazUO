@@ -586,6 +586,118 @@ public class GridItem : Control
         batcher.Draw(borderTexture, new Rectangle(bx, by + innerHeight - bsize, innerWidth, bsize), borderHueVec);
     }
 
+    /// <summary>
+    /// Returns a compact top-left layout for the rules that matched after the primary rule.
+    /// Marker size shrinks and wraps as needed so every additional rule can be represented.
+    /// </summary>
+    internal static Rectangle[] GetAdditionalHighlightMarkerBounds(Rectangle cellBounds, int markerCount)
+    {
+        if (!TryGetAdditionalHighlightMarkerLayout(cellBounds, markerCount, out HighlightMarkerLayout layout))
+            return Array.Empty<Rectangle>();
+
+        var bounds = new Rectangle[markerCount];
+        for (int i = 0; i < markerCount; i++)
+            bounds[i] = layout.GetBounds(i);
+
+        return bounds;
+    }
+
+    private static bool TryGetAdditionalHighlightMarkerLayout(
+        Rectangle cellBounds,
+        int markerCount,
+        out HighlightMarkerLayout layout
+    )
+    {
+        layout = default;
+        if (markerCount <= 0 || cellBounds.Width <= 0 || cellBounds.Height <= 0)
+            return false;
+
+        int horizontalPadding = cellBounds.Width > 4 ? 2 : 0;
+        int verticalPadding = cellBounds.Height > 4 ? 2 : 0;
+        int availableWidth = Math.Max(1, cellBounds.Width - horizontalPadding * 2);
+        int availableHeight = Math.Max(1, cellBounds.Height - verticalPadding * 2);
+        int markerSize = Math.Min(5, Math.Min(availableWidth, availableHeight));
+        int gap = 1;
+        int columns = 1;
+
+        while (markerSize > 1)
+        {
+            columns = Math.Max(1, (availableWidth + gap) / (markerSize + gap));
+            int requiredRows = (markerCount + columns - 1) / columns;
+            int requiredHeight = requiredRows * markerSize + Math.Max(0, requiredRows - 1) * gap;
+
+            if (requiredHeight <= availableHeight)
+                break;
+
+            markerSize--;
+        }
+
+        if (markerSize == 1)
+        {
+            gap = 0;
+            columns = availableWidth;
+        }
+
+        int rows = Math.Max(1, (availableHeight + gap) / (markerSize + gap));
+        layout = new HighlightMarkerLayout(
+            cellBounds.X + horizontalPadding,
+            cellBounds.Y + verticalPadding,
+            markerSize,
+            gap,
+            columns,
+            rows
+        );
+        return true;
+    }
+
+    /// <summary>Draws one color marker for every matching rule after the primary border rule.</summary>
+    internal static void DrawAdditionalHighlightMarkers(
+        UltimaBatcher2D batcher,
+        Rectangle cellBounds,
+        IReadOnlyList<Color> highlightColors
+    )
+    {
+        if (highlightColors == null || highlightColors.Count <= 1)
+            return;
+
+        int markerCount = highlightColors.Count - 1;
+        if (!TryGetAdditionalHighlightMarkerLayout(cellBounds, markerCount, out HighlightMarkerLayout layout))
+            return;
+
+        var hueVector = new Vector3(1, 0, 1);
+
+        for (int i = 0; i < markerCount; i++)
+        {
+            batcher.Draw(
+                SolidColorTextureCache.GetTexture(highlightColors[i + 1]),
+                layout.GetBounds(i),
+                hueVector
+            );
+        }
+    }
+
+    private readonly record struct HighlightMarkerLayout(
+        int X,
+        int Y,
+        int MarkerSize,
+        int Gap,
+        int Columns,
+        int Rows
+    )
+    {
+        public Rectangle GetBounds(int index)
+        {
+            int column = index % Columns;
+            int row = Math.Min(index / Columns, Rows - 1);
+            return new Rectangle(
+                X + column * (MarkerSize + Gap),
+                Y + row * (MarkerSize + Gap),
+                MarkerSize,
+                MarkerSize
+            );
+        }
+    }
+
     private LowContrastCacheKey CreateLowContrastCacheKey()
     {
         ushort backgroundHue = _profile.Grid_UseContainerHue && _container != null
@@ -1095,6 +1207,7 @@ public class GridItem : Control
         {
             Texture2D borderTexture = SolidColorTextureCache.GetTexture(_item.HighlightColor);
             DrawHighlightBorder(batcher, itemCellBounds, borderTexture, new Vector3(1, 0, 1), _profile.GridHighlightSize);
+            DrawAdditionalHighlightMarkers(batcher, itemCellBounds, _item.HighlightColors);
         }
 
         _count?.Draw(batcher, x + _count.X, y + _count.Y);

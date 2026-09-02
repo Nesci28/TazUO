@@ -527,13 +527,15 @@ namespace ClassicUO.Game.UI
 
             if (currentItem != null && currentItem.MatchesHighlightData)
             {
+                var itemBounds = new Rectangle(x, y, ITEM_SIZE, ITEM_SIZE);
                 GridItem.DrawHighlightBorder(
                     batcher,
-                    new Rectangle(x, y, ITEM_SIZE, ITEM_SIZE),
+                    itemBounds,
                     SolidColorTextureCache.GetTexture(currentItem.HighlightColor),
                     new Vector3(1, 0, 1),
                     ProfileManager.CurrentProfile.GridHighlightSize
                 );
+                GridItem.DrawAdditionalHighlightMarkers(batcher, itemBounds, currentItem.HighlightColors);
             }
 
             return true;
