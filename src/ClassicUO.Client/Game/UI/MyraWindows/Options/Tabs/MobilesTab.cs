@@ -72,6 +72,11 @@ public static class MobilesTab
                         search: new SearchMetadata(TazLang.Get("mog_general_corpseopendistance"),
                             Keywords: [TazLang.Get("mog_kw_corpse"), TazLang.Get("mog_kw_distance")])
                     ),
+                    Option.Checkbox(
+                        TazLang.Get("mog_general_corpseskipautolooted"),
+                        new Accessor<bool>(() => profile.SkipAutoLootedCorpses),
+                        search: new SearchMetadata(TazLang.Get("mog_general_corpseskipautolooted"), Keywords: [TazLang.Get("mog_kw_corpse"), TazLang.Get("mog_kw_loot")])
+                    ),
                     Option.ComboBox(
                         TazLang.Get("mog_general_corpseopenoptions"),
                         profile.CorpseOpenOptions,
