@@ -52,6 +52,10 @@ namespace ClassicUO.Game.UI.Gumps
         private const int NAMEPLATE_BUFF_ICON_SPACING = 3;
         private const int NAMEPLATE_BUFF_MARGIN = 5;
         private const int NAMEPLATE_BUFF_MAX_VISIBLE = 8;
+        private const int HIGH_HITS_NAMEPLATE_THRESHOLD = 500;
+        private const int HIGH_HITS_NAMEPLATE_MAX_HITS = 5000;
+        private const int HIGH_HITS_NAMEPLATE_MAX_WIDTH_BONUS = 100;
+        private const int HIGH_HITS_NAMEPLATE_MAX_HEIGHT_BONUS = 8;
         private const int WORD_OF_DEATH_GUMP_ID = 0x59E5;
         private const int WORD_OF_DEATH_SPELL_ID = 614;
         private const double WORD_OF_DEATH_HEALTH_THRESHOLD = 0.30d;
@@ -208,20 +212,24 @@ namespace ClassicUO.Game.UI.Gumps
             _text.FontSize = profile.NamePlateFontSize;
             Mobile mobile = entity as Mobile;
             string collectorSuffix = GetCollectorDistanceSuffix(profile, mobile);
-            string displayName = GetDistanceNameText(name, collectorSuffix);
+            string healthValueSuffix = GetHealthValueSuffix(profile, mobile);
+            string displaySuffix = collectorSuffix + healthValueSuffix;
+            string displayName = GetNamePlateDisplayText(name, displaySuffix);
             SetMeasuredText(displayName);
             _sideAdornmentReserveWidth = GetSideAdornmentReserveWidth(profile, entity);
             int sideAdornmentReserveWidth = _sideAdornmentReserveWidth * 2;
+            int highHitsWidthBonus = GetHighHitsNamePlateWidthBonus(mobile);
+            int highHitsHeightBonus = GetHighHitsNamePlateHeightBonus(mobile);
             int nameWidth;
 
             if (profile.NamePlateUseFixedWidth)
             {
-                nameWidth = Math.Clamp(profile.NamePlateFixedWidth, 60, 300);
+                nameWidth = Math.Clamp(profile.NamePlateFixedWidth, 60, 300) + highHitsWidthBonus;
                 int maxTextWidth = Math.Max(1, nameWidth - NAMEPLATE_HORIZONTAL_PADDING - sideAdornmentReserveWidth);
 
-                if (collectorSuffix.Length != 0)
+                if (displaySuffix.Length != 0)
                 {
-                    SetFittedCollectorText(name, collectorSuffix, maxTextWidth);
+                    SetFittedNameWithSuffix(name, displaySuffix, maxTextWidth);
                 }
                 else
                 {
@@ -230,7 +238,7 @@ namespace ClassicUO.Game.UI.Gumps
             }
             else
             {
-                nameWidth = Math.Max(MIN_NAMEPLATE_WIDTH, _text.Width + sideAdornmentReserveWidth) + NAMEPLATE_HORIZONTAL_PADDING;
+                nameWidth = Math.Max(MIN_NAMEPLATE_WIDTH, _text.Width + sideAdornmentReserveWidth) + NAMEPLATE_HORIZONTAL_PADDING + highHitsWidthBonus;
             }
 
             int healthBarWidth = GetHealthBarWidth(profile, nameWidth, entity);
@@ -239,7 +247,7 @@ namespace ClassicUO.Game.UI.Gumps
             int minimumNameBandHeight = Math.Max(Constants.OBJECT_HANDLES_GUMP_HEIGHT, _text.Height) + NAMEPLATE_VERTICAL_PADDING;
             _namePlateWidth = nameWidth;
             _healthBarWidth = healthBarWidth;
-            _nameBandHeight = minimumNameBandHeight;
+            _nameBandHeight = minimumNameBandHeight + highHitsHeightBonus;
             _resourceBarCount = 0;
             _resourceBarHeight = 0;
             _resourceBarCount = GetSplitResourceBarCount(profile, entity);
@@ -251,13 +259,13 @@ namespace ClassicUO.Game.UI.Gumps
             }
 
             int automaticHeight = _nameBandHeight + (_useSplitLayout ? _resourceBarHeight * _resourceBarCount + 2 : 0);
-            int height = profile.NamePlateHeight > 0 ? Math.Max(profile.NamePlateHeight, minimumNameBandHeight) : automaticHeight;
+            int height = profile.NamePlateHeight > 0 ? Math.Max(profile.NamePlateHeight + highHitsHeightBonus, _nameBandHeight) : automaticHeight;
 
             if (_useSplitLayout && profile.NamePlateHeight > 0)
             {
                 int minimumBarHeight = Math.Max(3, _resourceBarCount);
-                height = Math.Max(height, minimumNameBandHeight + minimumBarHeight + 2);
-                int barAreaHeight = Math.Max(minimumBarHeight, height - minimumNameBandHeight - 2);
+                height = Math.Max(height, _nameBandHeight + minimumBarHeight + 2);
+                int barAreaHeight = Math.Max(minimumBarHeight, height - _nameBandHeight - 2);
                 _resourceBarHeight = Math.Max(1, barAreaHeight / Math.Max(1, _resourceBarCount));
                 _nameBandHeight = height - _resourceBarHeight * _resourceBarCount - 2;
             }
@@ -283,6 +291,7 @@ namespace ClassicUO.Game.UI.Gumps
                 hash = hash * 31 + profile.NamePlateHeight;
                 hash = hash * 31 + profile.NamePlateSplitHealthBar.GetHashCode();
                 hash = hash * 31 + profile.NamePlateHealthBar.GetHashCode();
+                hash = hash * 31 + profile.NamePlateShowHealthValues.GetHashCode();
                 hash = hash * 31 + profile.NamePlateCornerRadius;
                 hash = hash * 31 + profile.NamePlateFontSize;
                 hash = hash * 31 + (profile.NamePlateFont?.GetHashCode() ?? 0);
@@ -291,6 +300,7 @@ namespace ClassicUO.Game.UI.Gumps
                 hash = hash * 31 + profile.NamePlateDistancePreset.GetHashCode();
                 hash = hash * 31 + GetDistanceValueForLayoutSignature(profile, entity);
                 hash = hash * 31 + GetSideAdornmentReserveWidth(profile, entity);
+                hash = hash * 31 + GetHealthValuesLayoutSignature(profile, entity);
                 hash = hash * 31 + GetSplitResourceBarCount(profile, entity);
                 return hash;
             }
@@ -349,12 +359,12 @@ namespace ClassicUO.Game.UI.Gumps
 
         private static int GetHealthBarWidth(Profile profile, int nameWidth, Entity entity)
         {
-            if (!profile.NamePlateHealthBar || entity is not Mobile || !profile.NamePlateUseFixedHealthBarWidth)
+            if (!profile.NamePlateHealthBar || entity is not Mobile mobile || !profile.NamePlateUseFixedHealthBarWidth)
             {
                 return nameWidth;
             }
 
-            return Math.Clamp(profile.NamePlateHealthBarFixedWidth, 60, 300);
+            return Math.Clamp(profile.NamePlateHealthBarFixedWidth, 60, 300) + GetHighHitsNamePlateWidthBonus(mobile);
         }
 
         private void SetFittedText(string text, int maxWidth)
@@ -397,10 +407,16 @@ namespace ClassicUO.Game.UI.Gumps
             SetMeasuredText(text.Substring(0, low) + ellipsis);
         }
 
-        private void SetFittedCollectorText(string name, string suffix, int maxWidth)
+        private void SetFittedNameWithSuffix(string name, string suffix, int maxWidth)
         {
             name ??= string.Empty;
             suffix ??= string.Empty;
+
+            if (name.Length == 0)
+            {
+                SetFittedText(suffix.TrimStart(), maxWidth);
+                return;
+            }
 
             SetMeasuredText(name + suffix);
 
@@ -445,6 +461,69 @@ namespace ClassicUO.Game.UI.Gumps
             }
 
             SetMeasuredText(name.Substring(0, low) + ellipsis + suffix);
+        }
+
+        private static string GetNamePlateDisplayText(string name, string suffix)
+        {
+            if (string.IsNullOrEmpty(suffix))
+            {
+                return name ?? string.Empty;
+            }
+
+            return string.IsNullOrEmpty(name) ? suffix.TrimStart() : $"{name}{suffix}";
+        }
+
+        private static string GetHealthValueSuffix(Profile profile, Mobile mobile)
+        {
+            if (profile?.NamePlateShowHealthValues != true || mobile == null || mobile.HitsMax == 0)
+            {
+                return string.Empty;
+            }
+
+            return $" {mobile.Hits}/{mobile.HitsMax}";
+        }
+
+        private static int GetHealthValuesLayoutSignature(Profile profile, Entity entity)
+        {
+            if (entity is not Mobile mobile)
+            {
+                return -1;
+            }
+
+            unchecked
+            {
+                int hash = mobile.HitsMax;
+
+                if (profile?.NamePlateShowHealthValues == true)
+                {
+                    hash = hash * 31 + mobile.Hits;
+                }
+
+                return hash;
+            }
+        }
+
+        private static int GetHighHitsNamePlateWidthBonus(Mobile mobile)
+        {
+            return (int)Math.Round(HIGH_HITS_NAMEPLATE_MAX_WIDTH_BONUS * GetHighHitsNamePlateScale(mobile));
+        }
+
+        private static int GetHighHitsNamePlateHeightBonus(Mobile mobile)
+        {
+            return (int)Math.Round(HIGH_HITS_NAMEPLATE_MAX_HEIGHT_BONUS * GetHighHitsNamePlateScale(mobile));
+        }
+
+        private static double GetHighHitsNamePlateScale(Mobile mobile)
+        {
+            if (mobile == null || mobile.HitsMax <= HIGH_HITS_NAMEPLATE_THRESHOLD)
+            {
+                return 0d;
+            }
+
+            double scale = (mobile.HitsMax - HIGH_HITS_NAMEPLATE_THRESHOLD)
+                           / (double)(HIGH_HITS_NAMEPLATE_MAX_HITS - HIGH_HITS_NAMEPLATE_THRESHOLD);
+
+            return Math.Sqrt(Math.Clamp(scale, 0d, 1d));
         }
 
         private void SetMeasuredText(string text)
@@ -1626,11 +1705,6 @@ namespace ClassicUO.Game.UI.Gumps
                    && profile.NamePlateDistancePreset == NamePlateDistancePreset.Collector
                 ? $" ({GetDistanceText(mobile)})"
                 : string.Empty;
-        }
-
-        private static string GetDistanceNameText(string name, string collectorSuffix)
-        {
-            return string.IsNullOrEmpty(collectorSuffix) ? name : $"{name}{collectorSuffix}";
         }
 
         private int GetDistanceValueForLayoutSignature(Profile profile, Entity entity)

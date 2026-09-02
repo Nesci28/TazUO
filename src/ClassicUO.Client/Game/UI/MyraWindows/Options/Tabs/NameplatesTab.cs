@@ -317,6 +317,7 @@ public static class NameplatesTab
         string healthBarWidthLabel = TazLang.Get("nameplate_healthbarwidth", TazLang.Get("mog_tazuo_healthbarwidth"));
         string splitHealthBarLabel = TazLang.Get("nameplate_splithealthbar", TazLang.Get("mog_tazuo_splithealthbar"));
         string presetLabel = TazLang.Get("nameplate_preset", TazLang.Get("mog_kw_preset"));
+        string showHealthValuesLabel = TazLang.Get("nameplate_showhealthvalues", "Show health values");
 
         return OptionsUi.Vertical(
             OptionsUi.VisualContainer(
@@ -406,6 +407,11 @@ public static class NameplatesTab
                     new Accessor<NamePlateHealthBarMode>(() => profile.NamePlateHealthBarMode),
                     LocNameplatesHealth,
                     search: new SearchMetadata(TazLang.Get("mog_kw_mode"), Keywords: [TazLang.Get("mog_kw_healthbar"), TazLang.Get("mog_kw_mode")])
+                ),
+                Option.Checkbox(
+                    showHealthValuesLabel,
+                    new Accessor<bool>(() => profile.NamePlateShowHealthValues),
+                    search: new SearchMetadata(showHealthValuesLabel, Keywords: [TazLang.Get("mog_kw_healthbar"), TazLang.Get("mog_kw_hp"), TazLang.Get("mog_kw_health")])
                 ),
                 Option.Checkbox(
                     separateHealthBarWidthLabel,
