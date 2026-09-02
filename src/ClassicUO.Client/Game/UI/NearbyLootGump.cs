@@ -925,7 +925,7 @@ public sealed class NearbyLootGump : MyraControl
             _markers.Clear();
 
             Rectangle[] markerBounds = GridItem.GetAdditionalHighlightMarkerBounds(
-                new Rectangle(0, 0, Width, Height),
+                new Rectangle(0, 0, Width ?? 0, Height ?? 0),
                 Math.Max(0, colors.Count - 1)
             );
             for (int i = 0; i < markerBounds.Length; i++)
