@@ -16,6 +16,40 @@ internal static class GumpsTab
     private static OptionFragment GetOptionsContent()
     {
         Profile profile = ProfileManager.CurrentProfile;
+        ClientGumpThemePreset[] themePresets =
+        [
+            ClientGumpThemePreset.Original,
+            ClientGumpThemePreset.Dark,
+            ClientGumpThemePreset.Light,
+            ClientGumpThemePreset.UOCom,
+            ClientGumpThemePreset.BritanniaParchment,
+            ClientGumpThemePreset.ShadowIron,
+            ClientGumpThemePreset.RunebookBlue,
+            ClientGumpThemePreset.GuildstoneGreen,
+            ClientGumpThemePreset.ClassicStone
+        ];
+        string[] themeLabels =
+        [
+            "Original",
+            "Dark",
+            "Light",
+            "UO.com",
+            "Britannia parchment",
+            "Shadow iron",
+            "Runebook blue",
+            "Guildstone green",
+            "Classic stone"
+        ];
+        int selectedThemeIndex = 0;
+
+        for (int i = 0; i < themePresets.Length; i++)
+        {
+            if (themePresets[i] == profile.GumpThemePreset)
+            {
+                selectedThemeIndex = i;
+                break;
+            }
+        }
 
         return OptionsUi.Vertical(
             Option.Checkbox(
@@ -35,6 +69,23 @@ internal static class GumpsTab
                 new Accessor<bool>(() => profile.CloseAllAnchoredGumpsInGroupWithRightClick),
                 null,
                 new SearchMetadata(TazLang.Get("mog_gumpstab_closeentireanchorwithrclick"), Keywords: [TazLang.Get("mog_kw_anchor"), TazLang.Get("mog_kw_right"), TazLang.Get("mog_kw_rightclick"), TazLang.Get("mog_kw_group")])
+            ),
+            Option.Spacer(),
+            Option.ComboBox(
+                "Gump theme preset",
+                selectedThemeIndex,
+                themeLabels,
+                i =>
+                {
+                    if ((uint)i >= themePresets.Length)
+                    {
+                        return;
+                    }
+
+                    profile.GumpThemePreset = themePresets[i];
+                    MyraStyle.ApplyThemePreset(profile.GumpThemePreset);
+                },
+                search: new SearchMetadata("Gump theme preset", Keywords: [TazLang.Get("mog_kw_preset"), TazLang.Get("mog_kw_gump"), TazLang.Get("mog_kw_window")])
             ),
             Option.Spacer(),
             Option.Checkbox(

@@ -21,8 +21,8 @@ public class PageControl : Container
 {
     private readonly List<Widget> _pages = [];
 
-    private readonly VerticalStackPanel _mainPanel = new();
-    private readonly Panel _contentPanel = new();
+    private readonly VerticalStackPanel _mainPanel = new MyraVerticalStackPanel();
+    private readonly Panel _contentPanel = new MyraPanel();
     private Point _contentPanelRetainedSize;
 
     private Button _firstButton;
@@ -85,11 +85,11 @@ public class PageControl : Container
     /// <param name="widgets">Zero or more widgets to register as initial pages.</param>
     public PageControl(params Widget[] widgets)
     {
-        Margin = new Thickness(4);
-        Padding = new Thickness(4, 6, 4, 12);
-        Background = new SolidBrush(new Color(0, 0, 0, 25));
-        Border = new SolidBrush(new Color(0, 0, 0, 75));
-        BorderThickness = new Thickness(2);
+        Margin = new Thickness(MyraStyle.STANDARD_SPACING);
+        Padding = new Thickness(6, 6, 6, 10);
+        Background = MyraStyle.SurfaceMutedBackgroundBrush;
+        Border = MyraStyle.Brush(MyraStyle.BorderColor);
+        BorderThickness = StyleConstantsDefaults.BorderThickness;
 
         if (widgets?.Length > 0)
         {
@@ -196,6 +196,18 @@ public class PageControl : Container
         }
 
         UpdateControlBar();
+    }
+
+    public void ApplyCurrentTheme(Action<Widget> applyTheme)
+    {
+        Background = MyraStyle.SurfaceMutedBackgroundBrush;
+        Border = MyraStyle.Brush(MyraStyle.BorderColor);
+        BorderThickness = StyleConstantsDefaults.BorderThickness;
+
+        foreach (Widget page in _pages)
+        {
+            applyTheme(page);
+        }
     }
 
     /// <inheritdoc/>

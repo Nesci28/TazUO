@@ -7,7 +7,7 @@ public static class MyraExtensions
 {
     public static HorizontalStackPanel PlaceBefore(this Widget widget, Widget rightSide)
     {
-        var panel = new HorizontalStackPanel() { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = VerticalAlignment.Center};
+        var panel = new MyraHorizontalStackPanel() { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = VerticalAlignment.Center};
         panel.Widgets.Add(widget);
         panel.Widgets.Add(rightSide);
         return panel;
@@ -15,17 +15,18 @@ public static class MyraExtensions
 
     public static HorizontalStackPanel PlaceBefore(this Widget widget, Widget[] rightSide)
     {
-        var panel = new HorizontalStackPanel() { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = VerticalAlignment.Center };
+        var panel = new MyraHorizontalStackPanel() { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = VerticalAlignment.Center };
         panel.Widgets.Add(widget);
         foreach (Widget w in rightSide)
             panel.Widgets.Add(w);
         return panel;
     }
 
-    public static ScrollViewer WrapInScroll(this Widget widget, int? maxHeight = null)
+    public static ScrollViewer WrapInScroll(this Widget widget, int? maxHeight = null, bool showHorizontal = false)
     {
-        var scroll = new ScrollViewer();
+        var scroll = new MyraScrollViewer();
         scroll.Content = widget;
+        scroll.ShowHorizontalScrollBar = showHorizontal;
 
         if(maxHeight != null)
             scroll.MaxHeight = maxHeight.Value;

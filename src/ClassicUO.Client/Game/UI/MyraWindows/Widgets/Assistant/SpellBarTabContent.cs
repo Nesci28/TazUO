@@ -62,7 +62,7 @@ public static class SpellBarTabContent
         }
 
         // === Left column: options, row management, presets, wiki ===
-        var leftCol = new VerticalStackPanel { Spacing = 6 };
+        var leftCol = new MyraVerticalStackPanel { Spacing = 6 };
 
         // Enable spellbar
         leftCol.Widgets.Add(MyraCheckButton.CreateWithCallback(
@@ -89,7 +89,7 @@ public static class SpellBarTabContent
         // Row management
         leftCol.Widgets.Add(new MyraSpacer(15, 5));
         leftCol.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_rowmanagement"), MyraLabel.TextStyle.H2));
-        var rowBtns = new HorizontalStackPanel { Spacing = 4 };
+        var rowBtns = new MyraHorizontalStackPanel { Spacing = 4 };
         rowBtns.Widgets.Add(new MyraButton(TazLang.Get("spellbar_addrow_btn"), () =>
         {
             SpellBarManager.SpellBarRows.Add(new SpellBarRow());
@@ -107,9 +107,9 @@ public static class SpellBarTabContent
         leftCol.Widgets.Add(new MyraSpacer(15, 5));
         leftCol.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_presetmanagement"), MyraLabel.TextStyle.H2));
 
-        var presetSavePanel = new VerticalStackPanel { Spacing = 4, Visible = false };
+        var presetSavePanel = new MyraVerticalStackPanel { Spacing = 4, Visible = false };
         var presetNameBox = new MyraInputBox { MinWidth = 150, HintText = TazLang.Get("spellbar_savepreset_name") };
-        var presetSaveRow = new HorizontalStackPanel { Spacing = 4 };
+        var presetSaveRow = new MyraHorizontalStackPanel { Spacing = 4 };
         presetSaveRow.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_name"), MyraLabel.TextStyle.P));
         presetSaveRow.Widgets.Add(presetNameBox);
         presetSaveRow.Widgets.Add(new MyraButton(TazLang.Get("spellbar_save"), () =>
@@ -128,12 +128,12 @@ public static class SpellBarTabContent
         }));
         presetSavePanel.Widgets.Add(presetSaveRow);
 
-        var presetLoadPanel = new VerticalStackPanel { Spacing = 4, Visible = false };
-        var presetListPanel = new VerticalStackPanel { Spacing = 2 };
+        var presetLoadPanel = new MyraVerticalStackPanel { Spacing = 4, Visible = false };
+        var presetListPanel = new MyraVerticalStackPanel { Spacing = 2 };
         presetLoadPanel.Widgets.Add(presetListPanel);
         presetLoadPanel.Widgets.Add(new MyraButton(TazLang.Get("spellbar_cancel"), () => presetLoadPanel.Visible = false));
 
-        var presetActionBtns = new HorizontalStackPanel { Spacing = 4 };
+        var presetActionBtns = new MyraHorizontalStackPanel { Spacing = 4 };
         presetActionBtns.Widgets.Add(new MyraButton(TazLang.Get("spellbar_savepreset_btn"), () =>
         {
             presetLoadPanel.Visible = false;
@@ -171,7 +171,7 @@ public static class SpellBarTabContent
         leftCol.Widgets.Add(presetLoadPanel);
 
         // === Right column: hotkey configuration ===
-        var rightCol = new VerticalStackPanel { Spacing = 6 };
+        var rightCol = new MyraVerticalStackPanel { Spacing = 6 };
         rightCol.Widgets.Add(new MyraLabel(TazLang.Get("spellbar_hotkeyconfig"), MyraLabel.TextStyle.H2));
 
         var hotkeyGrid = new MyraGrid();
@@ -187,7 +187,7 @@ public static class SpellBarTabContent
 
             keyLabels[slot] = new MyraLabel(GetKeyDisplay(slot), MyraLabel.TextStyle.P);
 
-            var actionsContainer = new HorizontalStackPanel { Spacing = 4 };
+            var actionsContainer = new MyraHorizontalStackPanel { Spacing = 4 };
             actionsContainer.Widgets.Add(new MyraButton(TazLang.Get("spellbar_set"), () => StartListening(slot)));
             actionsContainer.Widgets.Add(new MyraButton(TazLang.Get("spellbar_clear"), () =>
             {
@@ -204,7 +204,7 @@ public static class SpellBarTabContent
         rightCol.Widgets.Add(hotkeyGrid);
 
         // === Root: two columns side by side ===
-        var root = new HorizontalStackPanel { Spacing = 20 };
+        var root = new MyraHorizontalStackPanel { Spacing = 20 };
         root.Widgets.Add(leftCol);
         root.Widgets.Add(rightCol);
 

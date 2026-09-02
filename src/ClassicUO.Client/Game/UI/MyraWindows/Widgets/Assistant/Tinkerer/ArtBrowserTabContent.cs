@@ -51,10 +51,10 @@ public static class ArtBrowserTabContent
         private const int ZOOM_STEP = 32;
         private const int ZOOM_DEFAULT = 128;
 
-        private static readonly SolidBrush _selectedBorder = new(Color.Gold);
+        private static SolidBrush SelectedBorder => MyraStyle.Brush(MyraStyle.AccentColor);
 
-        private readonly VerticalStackPanel _gridPanel = new() { Spacing = 1 };
-        private readonly VerticalStackPanel _detailPanel = new() { Spacing = 4, Width = 280 };
+        private readonly VerticalStackPanel _gridPanel = new MyraVerticalStackPanel { Spacing = 1 };
+        private readonly VerticalStackPanel _detailPanel = new MyraVerticalStackPanel { Spacing = 4, Width = 280 };
 
         private readonly int _maxGraphic;
 
@@ -119,13 +119,13 @@ public static class ArtBrowserTabContent
 
         public HorizontalStackPanel BuildRoot()
         {
-            var leftColumn = new VerticalStackPanel { Spacing = 4 };
+            var leftColumn = new MyraVerticalStackPanel { Spacing = 4 };
             leftColumn.Widgets.Add(BuildJumpRow());
             leftColumn.Widgets.Add(BuildFilterRow());
             leftColumn.Widgets.Add(BuildPaginationRow());
-            leftColumn.Widgets.Add(new ScrollViewer { MaxHeight = 450, Content = _gridPanel });
+            leftColumn.Widgets.Add(new MyraScrollViewer { MaxHeight = 450, Content = _gridPanel });
 
-            var root = new HorizontalStackPanel { Spacing = 12 };
+            var root = new MyraHorizontalStackPanel { Spacing = 12 };
             root.Widgets.Add(leftColumn);
             root.Widgets.Add(_detailPanel);
 
@@ -142,7 +142,7 @@ public static class ArtBrowserTabContent
         /// </summary>
         private HorizontalStackPanel BuildJumpRow()
         {
-            var jumpRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var jumpRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
 
             _gotoPicker = new IndexedComboPicker(
                 Math.Max(_selectedGraphic, 0),
@@ -188,7 +188,7 @@ public static class ArtBrowserTabContent
                 RefreshPage();
             };
 
-            var filterRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var filterRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             filterRow.Widgets.Add(new MyraLabel(TazLang.Get("tinkerer_art_filter", "Filter:"), MyraLabel.TextStyle.P));
             filterRow.Widgets.Add(_filterBox);
             return filterRow;
@@ -234,7 +234,7 @@ public static class ArtBrowserTabContent
             }) { Enabled = false };
             _pageLabel = new MyraLabel("", MyraLabel.TextStyle.P);
 
-            var pageRow = new HorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            var pageRow = new MyraHorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
             pageRow.Widgets.Add(_prevBtn);
             pageRow.Widgets.Add(_pageLabel);
             pageRow.Widgets.Add(_nextBtn);
@@ -260,13 +260,13 @@ public static class ArtBrowserTabContent
 
             for (int r = 0; r < ROWS; r++)
             {
-                var rowPanel = new HorizontalStackPanel { Spacing = 1 };
+                var rowPanel = new MyraHorizontalStackPanel { Spacing = 1 };
                 for (int c = 0; c < COLS; c++)
                 {
                     int index = start + r * COLS + c;
                     if (index >= totalItems)
                     {
-                        rowPanel.Widgets.Add(new Panel { Width = CELL, Height = CELL });
+                        rowPanel.Widgets.Add(new MyraPanel { Width = CELL, Height = CELL });
                         continue;
                     }
 
@@ -283,10 +283,10 @@ public static class ArtBrowserTabContent
 
         private Panel BuildCell(int id)
         {
-            var cell = new Panel { Width = CELL, Height = CELL, BorderThickness = new Thickness(1), Tooltip = BuildCellTooltip(id) };
+            var cell = new MyraPanel { Width = CELL, Height = CELL, BorderThickness = new Thickness(1), Tooltip = BuildCellTooltip(id) };
 
             if (id == _selectedGraphic)
-                cell.Border = _selectedBorder;
+                cell.Border = SelectedBorder;
 
             var art = new MyraArtTexture((uint)id, maxSize: CELL - 4)
             {
@@ -385,12 +385,12 @@ public static class ArtBrowserTabContent
                 preview.MaxHeight = preview.Height;
             }
 
-            return new Panel { Width = ZOOM_MAX, Height = _zoomSize, Widgets = { Configure(preview) } };
+            return new MyraPanel { Width = ZOOM_MAX, Height = _zoomSize, Widgets = { Configure(preview) } };
         }
 
         private HorizontalStackPanel BuildZoomRow()
         {
-            var zoomRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var zoomRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             zoomRow.Widgets.Add(new MyraButton(TazLang.Get("tinkerer_art_zoomout", "-"), () => SetZoom(Math.Max(ZOOM_MIN, _zoomSize - ZOOM_STEP))));
             zoomRow.Widgets.Add(new MyraLabel(TazLang.Get("tinkerer_art_zoomlevel", [_zoomSize.ToString()]), MyraLabel.TextStyle.P));
             zoomRow.Widgets.Add(new MyraButton(TazLang.Get("tinkerer_art_zoomin", "+"), () => SetZoom(Math.Min(ZOOM_MAX, _zoomSize + ZOOM_STEP))));

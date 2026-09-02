@@ -51,10 +51,10 @@ public static class MacrosTabContent
         string filterText = "";
 
         // ── Panel references ─────────────────────────────────────────────────
-        var macroListPanel = new VerticalStackPanel { Spacing = 1 };
-        var editorPanel    = new VerticalStackPanel { Spacing = 4 };
-        var hotkeyRow      = new HorizontalStackPanel { Spacing = 4 };
-        var actionsPanel   = new VerticalStackPanel { Spacing = 2 };
+        var macroListPanel = new MyraVerticalStackPanel { Spacing = 1 };
+        var editorPanel    = new MyraVerticalStackPanel { Spacing = 4 };
+        var hotkeyRow      = new MyraHorizontalStackPanel { Spacing = 4 };
+        var actionsPanel   = new MyraVerticalStackPanel { Spacing = 2 };
 
         // ── Helpers ──────────────────────────────────────────────────────────
         void MarkDirty() => World.Instance?.Macros?.Save();
@@ -119,7 +119,7 @@ public static class MacrosTabContent
             Macro macro = selectedMacro;
 
             // Name row
-            var nameRow = new HorizontalStackPanel { Spacing = 2 };
+            var nameRow = new MyraHorizontalStackPanel { Spacing = 2 };
             nameRow.Widgets.Add(new MyraLabel(TazLang.Get("macrostab_macroname"), MyraLabel.TextStyle.P));
             var nameBox = new MyraInputBox { Text = macro.Name, Width = 200 };
             nameBox.TextChangedByUser += (_, _) =>
@@ -180,11 +180,11 @@ public static class MacrosTabContent
             editorPanel.Widgets.Add(new MyraLabel(TazLang.Get("macrostab_actions"), MyraLabel.TextStyle.P));
 
             BuildActionsPanel();
-            editorPanel.Widgets.Add(new ScrollViewer { MaxHeight = 250, Content = actionsPanel });
+            editorPanel.Widgets.Add(new MyraScrollViewer { MaxHeight = 250, Content = actionsPanel });
 
             editorPanel.Widgets.Add(new MyraSpacer(10, 1));
 
-            var bottomRow = new HorizontalStackPanel { Spacing = 2 };
+            var bottomRow = new MyraHorizontalStackPanel { Spacing = 2 };
             bottomRow.Widgets.Add(new MyraButton(TazLang.Get("macrostab_addaction"), () =>
             {
                 MacroObject newAction = Macro.Create(MacroType.Say);
@@ -352,7 +352,7 @@ public static class MacrosTabContent
             Action<MacroObject> onTextReplace,   // text typed on non-string action -> swap silently
             Action onRemove)
         {
-            var row = new HorizontalStackPanel { Spacing = 2 };
+            var row = new MyraHorizontalStackPanel { Spacing = 2 };
             row.Widgets.Add(new MyraLabel(indexLabel, MyraLabel.TextStyle.P));
 
             MacroObject capturedAction = action;
@@ -380,8 +380,7 @@ public static class MacrosTabContent
                 onTypeReplace(newAction);
                 MarkDirty();
 
-                // ContainsLevenshteinComboBox hides its popup before raising SelectedItemChanged,
-                // so a synchronous rebuild here is safe (unlike the old obsolete ComboBox).
+                // The searchable combo hides its popup before raising this event.
                 BuildActionsPanel();
             };
             row.Widgets.Add(typeCombo);
@@ -470,7 +469,7 @@ public static class MacrosTabContent
         void BuildLoopContainerWidget(MacroLoopContainer loopContainer, Macro macro, int loopIndex)
         {
             // Header row: Loop info and Edit/Remove buttons
-            var loopHeaderRow = new HorizontalStackPanel { Spacing = 4 };
+            var loopHeaderRow = new MyraHorizontalStackPanel { Spacing = 4 };
             loopHeaderRow.Widgets.Add(new MyraLabel(TazLang.Get("macrostab_loop", [(loopIndex + 1).ToString()]), MyraLabel.TextStyle.P));
 
             var loopCountBox = new MyraInputBox { Text = loopContainer.LoopCount.ToString(), Width = 50 };
@@ -507,7 +506,7 @@ public static class MacrosTabContent
             actionsPanel.Widgets.Add(loopHeaderRow);
 
             // Inner actions list (indented)
-            var loopActionsPanel = new VerticalStackPanel { Spacing = 1 };
+            var loopActionsPanel = new MyraVerticalStackPanel { Spacing = 1 };
             LinkedListNode<MacroObject>? innerAction = loopContainer.Items.First;
             int innerIndex = 0;
 
@@ -559,7 +558,7 @@ public static class MacrosTabContent
         }
 
         // ── Toolbar ───────────────────────────────────────────────────────────
-        var toolbar = new HorizontalStackPanel { Spacing = 2 };
+        var toolbar = new MyraHorizontalStackPanel { Spacing = 2 };
 
         toolbar.Widgets.Add(new MyraButton(TazLang.Get("macrostab_add"), () =>
         {
@@ -621,16 +620,16 @@ public static class MacrosTabContent
         toolbar.Widgets.Add(filterBox);
 
         // ── Main layout ───────────────────────────────────────────────────────
-        var mainArea = new HorizontalStackPanel { Spacing = 4 };
+        var mainArea = new MyraHorizontalStackPanel { Spacing = 4 };
 
-        var listScroll = new ScrollViewer { MaxHeight = 450, Content = macroListPanel };
+        var listScroll = new MyraScrollViewer { MaxHeight = 450, Content = macroListPanel };
         mainArea.Widgets.Add(listScroll);
         mainArea.Widgets.Add(editorPanel);
 
         BuildMacroList();
         BuildEditor();
 
-        var root = new VerticalStackPanel { Spacing = 2 };
+        var root = new MyraVerticalStackPanel { Spacing = 2 };
         root.Widgets.Add(toolbar);
         root.Widgets.Add(mainArea);
         return root;
