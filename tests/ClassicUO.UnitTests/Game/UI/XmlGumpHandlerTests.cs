@@ -122,6 +122,7 @@ public class XmlGumpHandlerTests
     [InlineData("LegionXmlInset.png")]
     [InlineData("LegionXmlPortraitFrame.png")]
     [InlineData("LegionXmlTitleGem.png")]
+    [InlineData("LegionModernPaperdoll.png")]
     public void LegionXmlThemeAssets_AreEmbedded(string fileName)
     {
         string resourceName = "ClassicUO.Assets.gumpartassets." + fileName;

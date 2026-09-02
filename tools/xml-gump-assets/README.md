@@ -15,3 +15,6 @@ writes 8-bit RGBA PNGs to `src/ClassicUO.Assets/gumpartassets`, where the projec
 
 `LegionXmlWindow.png`, `LegionXmlPanel.png`, and `LegionXmlInset.png` are nine-slice textures. Keep
 their documented border sizes in sync with `docs/XmlGumps.md` and the example XML files.
+
+`LegionModernPaperdoll.png` is a fixed 250×380 background whose equipment wells align with the
+native `ModernPaperdoll.ItemSlot` coordinates.
