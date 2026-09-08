@@ -13,8 +13,8 @@ internal static partial class Sextant
 {
     public static readonly Point InvalidPoint = new(-1, -1);
     
-    [GeneratedRegex(@"(?<LatDegrees>\d{1,3})[°o\s]*(?<LatMinutes>\d{2})'(?<LatDirection>[NS])[\s,]*(?<LongDegrees>\d{1,3})[°o\s]*(?<LongMinutes>\d{2})'(?<LongDirection>[EW])")]
-    private static partial Regex SextantCoordsRegex();
+    [GeneratedRegex(@"(?<LatDegrees>\d{1,3})[°o\s]*(?<LatMinutes>\d{1,2})'(?<LatDirection>[NS])[\s,]*(?<LongDegrees>\d{1,3})[°o\s]*(?<LongMinutes>\d{1,2})'(?<LongDirection>[EW])")]
+    internal static partial Regex SextantCoordsRegex();
 
     /// <summary>
     /// Converts lat/long sextant coords into X,Y point coords

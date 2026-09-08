@@ -12,6 +12,8 @@
   <ItemGroup>
     <EmbeddedResource Include="gumpartassets\*.png" />
     <EmbeddedResource Include="fonts\*.ttf" />
+    <EmbeddedResource Include="gumpartassets\lucide\LICENSE.txt" />
+    <None Update="gumpartassets\lucide\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" TargetPath="licenses\Lucide.txt" />
   </ItemGroup>
 
   <ItemGroup>
