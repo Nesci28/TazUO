@@ -21,13 +21,27 @@ namespace ClassicUO.Game.UI.Gumps
             WantUpdateSize = true;
         }
 
-        public SimpleTimedTextGump(World world, string text, uint hue, TimeSpan duration, int width) : base(world, 0, 0)
+        public SimpleTimedTextGump(
+            World world,
+            string text,
+            uint hue,
+            TimeSpan duration,
+            int width,
+            string font = null,
+            int? fontSize = null
+        ) : base(world, 0, 0)
         {
             expireAt = DateTime.Now.Add(duration);
             TextBox t;
-            Add(t = TextBox.GetOne(text, ProfileManager.CurrentProfile.OverheadChatFont, ProfileManager.CurrentProfile.OverheadChatFontSize, (int)hue, TextBox.RTLOptions.DefaultCentered(width)));
+            Add(t = TextBox.GetOne(
+                text,
+                string.IsNullOrWhiteSpace(font) ? ProfileManager.CurrentProfile.OverheadChatFont : font,
+                fontSize ?? ProfileManager.CurrentProfile.OverheadChatFontSize,
+                (int)hue,
+                TextBox.RTLOptions.DefaultCentered(width)
+            ));
             Height = t.MeasuredSize.Y;
-            Width = t.MeasuredSize.X;
+            Width = t.Width;
             WantUpdateSize = true;
         }
 
