@@ -351,9 +351,10 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 // Check if item is still valid for highlighting. OSI can parent corpse contents
                 // directly to the corpse's dead-mobile object serial, which makes Item.OnGround
                 // report true even though the item is inside a corpse.
-                if (!IsEligibleItem(World, item) || item.HighlightChecked)
+                bool isEligible = IsEligibleItem(World, item);
+                if (!isEligible || item.HighlightChecked)
                 {
-                    if (!IsEligibleItem(World, item))
+                    if (!isEligible)
                         ResetItemHighlight(item);
                     continue;
                 }
@@ -383,20 +384,25 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 {
                     data.item.MatchesHighlightData = true;
                     data.item.HighlightColor = bestMatch.HighlightColor;
+                    data.item.HighlightColors = matches.Select(match => match.HighlightColor).ToArray();
                     data.item.HighlightName = bestMatch.Name;
 
-                    GridHighlightData lootMatch = matches.FirstOrDefault(match => match.LootOnMatch);
-                    if (lootMatch != null)
+                    GridHighlightData lootMatch = GetAutoLootMatch(matches);
+                    if (lootMatch != null && AutoLootManager.GetContainingCorpse(World, data.item) != null)
                     {
-                        if (AutoLootManager.GetContainingCorpse(World, data.item) != null)
-                            AutoLootManager.Instance.LootGridHighlightItem(data.item, lootMatch.GetLootEntry());
+                        AutoLootManager.Instance.LootGridHighlightItem(
+                            data.item,
+                            lootMatch.GetLootEntry()
+                        );
                     }
                 }
                 else
                 {
                     data.item.MatchesHighlightData = false;
                     data.item.HighlightColor = Color.Transparent;
+                    data.item.HighlightColors = Array.Empty<Color>();
                     data.item.HighlightName = string.Empty;
+                    data.item.ShouldAutoLoot = false;
                 }
             }
         }
@@ -460,6 +466,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             item.MatchesHighlightData = false;
             item.HighlightName = string.Empty;
             item.HighlightColor = Color.Transparent;
+            item.HighlightColors = Array.Empty<Color>();
+            item.ShouldAutoLoot = false;
             item.HighlightChecked = false;
             item.HighlightCheckedContainer = 0;
             item.HighlightCheckedGraphic = 0;
@@ -467,7 +475,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         internal static bool IsEligibleItem(World world, Item item)
         {
-            if (world == null || item == null || item.IsMulti) return false;
+            if (world == null || item == null || item.IsMulti)
+                return false;
 
             return SerialHelper.IsItem(item.Container) ||
                    AutoLootManager.GetContainingCorpse(world, item) != null;
@@ -599,6 +608,10 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         /// <summary>The first matching rule wins, making the visible Up/Down order the priority order.</summary>
         public static GridHighlightData GetBestMatch(ItemPropertiesData itemData) => GetMatches(itemData).FirstOrDefault();
+
+        /// <summary>The first auto-loot rule in configured match order supplies the loot settings.</summary>
+        internal static GridHighlightData GetAutoLootMatch(IEnumerable<GridHighlightData> matches) =>
+            matches?.FirstOrDefault(match => match.LootOnMatch);
 
         internal bool HasSelectionCriteria()
         {

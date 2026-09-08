@@ -373,7 +373,6 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             value = default;
             return false;
         }
-
         private static void RunFileDialog(World world, bool save, string title, Action<string> onResult) => FileSelector.ShowFileBrowser(world, save ? FileSelectorType.Directory : FileSelectorType.File, null, save ? null : ["*.json"], onResult, title);
     }
 }
