@@ -460,6 +460,8 @@ namespace ClassicUO.Configuration
         public bool WorldMapShowMarkersNames { get; set => SetProperty(ref field, value); } = true;
         public bool WorldMapShowMultis { get; set => SetProperty(ref field, value); } = true;
         public string WorldMapHiddenMarkerFiles { get; set => SetProperty(ref field, value); } = string.Empty;
+        public List<MapLocation> WorldMapRecentLocations { get; set => SetProperty(ref field, value); } = [];
+        public List<MapLocation> WorldMapSavedLocations { get; set => SetProperty(ref field, value); } = [];
         public string WorldMapHiddenZoneFiles { get; set => SetProperty(ref field, value); } = string.Empty;
         public bool WorldMapShowGridIfZoomed { get; set => SetProperty(ref field, value); } = true;
         public bool WorldMapAllowPositionalTarget { get; set => SetProperty(ref field, value); } = true;
