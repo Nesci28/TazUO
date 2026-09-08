@@ -874,6 +874,7 @@ public sealed class NearbyLootGump : MyraControl
 
     private sealed class NearbyLootIconFrame : Panel
     {
+        private readonly int _frameSize;
         private readonly Func<Color?> _highlightColor;
         private readonly Func<IReadOnlyList<Color>> _highlightColors;
         private readonly List<Panel> _markers = [];
@@ -891,8 +892,9 @@ public sealed class NearbyLootGump : MyraControl
         {
             _highlightColor = highlightColor;
             _highlightColors = highlightColors;
-            Width = iconSize + 4;
-            Height = iconSize + 4;
+            _frameSize = iconSize + 4;
+            Width = _frameSize;
+            Height = _frameSize;
             Padding = new Thickness(2);
             VerticalAlignment = VerticalAlignment.Center;
 
@@ -925,7 +927,7 @@ public sealed class NearbyLootGump : MyraControl
             _markers.Clear();
 
             Rectangle[] markerBounds = GridItem.GetAdditionalHighlightMarkerBounds(
-                new Rectangle(0, 0, Width, Height),
+                new Rectangle(0, 0, _frameSize, _frameSize),
                 Math.Max(0, colors.Count - 1)
             );
             for (int i = 0; i < markerBounds.Length; i++)
