@@ -13,14 +13,14 @@ public static class MusicFilterTabContent
 {
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(new MyraLabel(
             "Music Filter allows you to mute specific in-game music tracks by their ID.",
             MyraLabel.TextStyle.H3));
 
-        var lastMusicPanel = new VerticalStackPanel { Spacing = 2 };
-        var filtersPanel = new VerticalStackPanel { Spacing = 2 };
+        var lastMusicPanel = new MyraVerticalStackPanel { Spacing = 2 };
+        var filtersPanel = new MyraVerticalStackPanel { Spacing = 2 };
 
         void BuildFilterList()
         {
@@ -69,7 +69,7 @@ public static class MusicFilterTabContent
                 };
                 grid.AddWidget(musicBox, dataRow, 0);
 
-                var actionsPanel = new HorizontalStackPanel { Spacing = 4 };
+                var actionsPanel = new MyraHorizontalStackPanel { Spacing = 4 };
                 actionsPanel.Widgets.Add(
                     new MyraButton("Play", () =>
                     {
@@ -115,7 +115,7 @@ public static class MusicFilterTabContent
 
                 int id = track.Item1;
 
-                var row = new HorizontalStackPanel { Spacing = 4 };
+                var row = new MyraHorizontalStackPanel { Spacing = 4 };
                 row.Widgets.Add(new MyraLabel($"Music ID: {id} ({track.Item2})", MyraLabel.TextStyle.P));
                 row.Widgets.Add(new MyraButton("Add Filter", () =>
                 {
@@ -139,7 +139,7 @@ public static class MusicFilterTabContent
 
             if (c == 0)
             {
-                var row = new HorizontalStackPanel { Spacing = 4 };
+                var row = new MyraHorizontalStackPanel { Spacing = 4 };
                 row.Widgets.Add(new MyraLabel("No music played yet.", MyraLabel.TextStyle.P));
                 row.Widgets.Add(new MyraButton("Refresh", () => BuildLastMusicSection())
                     { Tooltip = "Refresh last played music display" });
@@ -147,10 +147,10 @@ public static class MusicFilterTabContent
             }
         }
 
-        var addFilterPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var addFilterPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
         var newMusicBox = new MyraInputBox { HintText = "Music ID (0-149)", Width = 120 };
 
-        var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+        var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addConfirmRow.Widgets.Add(new MyraButton("Add", () =>
         {
             if (int.TryParse(newMusicBox.Text, out int musicId))
@@ -173,7 +173,7 @@ public static class MusicFilterTabContent
             newMusicBox.Text = "";
         }));
 
-        var addFieldRow = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldRow.Widgets.Add(new MyraLabel("Music ID:", MyraLabel.TextStyle.P)
             { Tooltip = "Enter the numeric ID of the music track to filter (0-149)" });
         addFieldRow.Widgets.Add(newMusicBox);
@@ -182,7 +182,7 @@ public static class MusicFilterTabContent
         addFilterPanel.Widgets.Add(addFieldRow);
         addFilterPanel.Widgets.Add(addConfirmRow);
 
-        var actionRow = new HorizontalStackPanel { Spacing = 4 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
         actionRow.Widgets.Add(new MyraButton("Add Filter Entry", () => addFilterPanel.Visible = !addFilterPanel.Visible));
         actionRow.Widgets.Add(new MyraButton("Import", () =>
         {
@@ -240,7 +240,7 @@ public static class MusicFilterTabContent
         root.Widgets.Add(addFilterPanel);
         root.Widgets.Add(new MyraLabel("Filtered Music:", MyraLabel.TextStyle.H3));
         BuildFilterList();
-        root.Widgets.Add(new ScrollViewer { Height = 250, Content = filtersPanel });
+        root.Widgets.Add(new MyraScrollViewer { Height = 250, Content = filtersPanel });
 
         return root;
     }

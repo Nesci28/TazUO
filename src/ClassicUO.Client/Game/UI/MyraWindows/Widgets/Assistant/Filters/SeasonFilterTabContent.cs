@@ -29,7 +29,7 @@ public static class SeasonFilterTabContent
 
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(new MyraLabel(
             "Override seasons sent by the server. For example, if the server sends Winter, you can display Fall instead.",
@@ -56,7 +56,7 @@ public static class SeasonFilterTabContent
 
             grid.AddWidget(new MyraLabel(incomingName, MyraLabel.TextStyle.P), i + 1, 0);
 
-            var cycleWrapper = new HorizontalStackPanel();
+            var cycleWrapper = new MyraHorizontalStackPanel();
 
             void BuildCycleBtn()
             {

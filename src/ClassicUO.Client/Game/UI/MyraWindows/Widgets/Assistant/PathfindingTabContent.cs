@@ -8,7 +8,7 @@ public static class PathfindingTabContent
 {
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var root = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
         HorizontalStackPanel zLevelSliderWidget = LabeledHorizontalSlider.SliderWithLabel(
             "Pathfinding Z level difference",

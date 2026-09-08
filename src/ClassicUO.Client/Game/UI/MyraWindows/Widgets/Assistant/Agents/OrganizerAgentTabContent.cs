@@ -17,8 +17,8 @@ public static class OrganizerAgentTabContent
     public static Widget Build()
     {
         OrganizerConfig? selectedConfig = null;
-        var leftPanel = new VerticalStackPanel { Spacing = 4 };
-        var rightPanel = new VerticalStackPanel { Spacing = 4 };
+        var leftPanel = new MyraVerticalStackPanel { Spacing = 4 };
+        var rightPanel = new MyraVerticalStackPanel { Spacing = 4 };
 
         bool suppressComboEvent = false;
         var configCombo = new ComboView();
@@ -98,7 +98,7 @@ public static class OrganizerAgentTabContent
                 grid.AddWidget(amountBox, dataRow, 2);
 
                 // Destination (rebuild the cell in-place via a container panel)
-                var destCell = new HorizontalStackPanel { Spacing = 4 };
+                var destCell = new MyraHorizontalStackPanel { Spacing = 4 };
                 OrganizerItemConfig captured = item;
 
                 void BuildDestCell()
@@ -204,7 +204,7 @@ public static class OrganizerAgentTabContent
             }
 
             // Enabled + Name
-            var topRow = new HorizontalStackPanel { Spacing = 8 };
+            var topRow = new MyraHorizontalStackPanel { Spacing = 8 };
             topRow.Widgets.Add(MyraCheckButton.CreateWithCallback(
                 selectedConfig.Enabled, b => selectedConfig.Enabled = b, "Enabled"));
             var nameBox = new MyraInputBox { Text = selectedConfig.Name, Width = 150 };
@@ -218,7 +218,7 @@ public static class OrganizerAgentTabContent
             rightPanel.Widgets.Add(topRow);
 
             // Action buttons
-            var actionRow = new HorizontalStackPanel { Spacing = 4 };
+            var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
             actionRow.Widgets.Add(new MyraButton("Run Organizer", () =>
                 OrganizerAgent.Instance.RunOrganizer(selectedConfig.Name)));
             actionRow.Widgets.Add(new MyraButton("Duplicate", () =>
@@ -264,7 +264,7 @@ public static class OrganizerAgentTabContent
             // Container settings
             rightPanel.Widgets.Add(new MyraSpacer(5, 1));
             rightPanel.Widgets.Add(new MyraLabel("Container Settings:", MyraLabel.TextStyle.H2));
-            var contRow = new HorizontalStackPanel { Spacing = 4 };
+            var contRow = new MyraHorizontalStackPanel { Spacing = 4 };
             contRow.Widgets.Add(new MyraButton("Set Source Container", () =>
             {
                 GameActions.Print("Select [SOURCE] Container", 82);
@@ -299,7 +299,7 @@ public static class OrganizerAgentTabContent
             }));
             rightPanel.Widgets.Add(contRow);
 
-            var contInfoRow = new HorizontalStackPanel { Spacing = 12 };
+            var contInfoRow = new MyraHorizontalStackPanel { Spacing = 12 };
             string sourceText = selectedConfig.SourceContSerial != 0
                 ? $"Source: (0x{selectedConfig.SourceContSerial:X4})"
                 : "Source: Your backpack";
@@ -314,14 +314,14 @@ public static class OrganizerAgentTabContent
             rightPanel.Widgets.Add(new MyraSpacer(5, 1));
             rightPanel.Widgets.Add(new MyraLabel("Items to Organize:", MyraLabel.TextStyle.H2));
 
-            var itemsPanel = new VerticalStackPanel { Spacing = 2 };
+            var itemsPanel = new MyraVerticalStackPanel { Spacing = 2 };
 
             // Add item buttons
-            var addEntryPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+            var addEntryPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
             var newGraphicBox = new MyraInputBox { HintText = "Graphic (hex, e.g. 0EED)", Width = 150 };
             var newHueBox = MyraInputBox.Hue(ushort.MaxValue, 80, "Hue (-1 = any)");
 
-            var addItemRow = new HorizontalStackPanel { Spacing = 4 };
+            var addItemRow = new MyraHorizontalStackPanel { Spacing = 4 };
             addItemRow.Widgets.Add(new MyraButton("Target Item to Add", () =>
             {
                 World.Instance.TargetManager.SetTargeting(obj =>
@@ -343,13 +343,13 @@ public static class OrganizerAgentTabContent
             rightPanel.Widgets.Add(addItemRow);
 
             // Manual add form
-            var addFieldsRow = new HorizontalStackPanel { Spacing = 4 };
+            var addFieldsRow = new MyraHorizontalStackPanel { Spacing = 4 };
             addFieldsRow.Widgets.Add(new MyraLabel("Graphic:", MyraLabel.TextStyle.P) { Tooltip = "Hex value, e.g. 0EED." });
             addFieldsRow.Widgets.Add(newGraphicBox);
             addFieldsRow.Widgets.Add(new MyraLabel("Hue:", MyraLabel.TextStyle.P) { Tooltip = "Set to -1 to match any hue." });
             addFieldsRow.Widgets.Add(newHueBox);
 
-            var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+            var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
             addConfirmRow.Widgets.Add(new MyraButton("Add", () =>
             {
                 if (ushort.TryParse(newGraphicBox.Text, NumberStyles.HexNumber, null, out ushort graphic))
@@ -379,14 +379,14 @@ public static class OrganizerAgentTabContent
             rightPanel.Widgets.Add(addEntryPanel);
 
             BuildItemsGrid(itemsPanel);
-            rightPanel.Widgets.Add(new ScrollViewer { MaxHeight = 250, Content = itemsPanel });
+            rightPanel.Widgets.Add(new MyraScrollViewer { MaxHeight = 250, Content = itemsPanel });
         }
 
         BuildConfigList();
         BuildConfigDetails();
 
-        var root = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
-        root.Widgets.Add(new ScrollViewer { Width = 160, Content = leftPanel });
+        var root = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        root.Widgets.Add(new MyraScrollViewer { Width = 160, Content = leftPanel });
         root.Widgets.Add(rightPanel);
         return root;
     }

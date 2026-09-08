@@ -11,16 +11,16 @@ public static class JournalFilterTabContent
 {
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(new MyraLabel(
             "Journal Filter hides specific messages from the journal. Messages that match exactly will be filtered out.",
             MyraLabel.TextStyle.H3));
 
-        var addFilterPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var addFilterPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
         var newFilterBox = new MyraInputBox { HintText = "Filter text (exact match)", Width = 300 };
 
-        var filtersPanel = new VerticalStackPanel { Spacing = 2 };
+        var filtersPanel = new MyraVerticalStackPanel { Spacing = 2 };
 
         void BuildFilterList()
         {
@@ -70,7 +70,7 @@ public static class JournalFilterTabContent
             filtersPanel.Widgets.Add(grid);
         }
 
-        var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+        var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addConfirmRow.Widgets.Add(new MyraButton("Add", () =>
         {
             string text = newFilterBox.Text ?? "";
@@ -89,7 +89,7 @@ public static class JournalFilterTabContent
             newFilterBox.Text = "";
         }));
 
-        var addFieldRow = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldRow.Widgets.Add(new MyraLabel("Filter Text:", MyraLabel.TextStyle.P)
             { Tooltip = "Must match the journal entry exactly. Partial matches not supported." });
         addFieldRow.Widgets.Add(newFilterBox);
@@ -98,7 +98,7 @@ public static class JournalFilterTabContent
         addFilterPanel.Widgets.Add(addFieldRow);
         addFilterPanel.Widgets.Add(addConfirmRow);
 
-        var actionRow = new HorizontalStackPanel { Spacing = 4 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
         actionRow.Widgets.Add(new MyraButton("Add Filter Entry", () => addFilterPanel.Visible = !addFilterPanel.Visible));
         actionRow.Widgets.Add(new MyraButton("Import", () =>
         {
@@ -120,7 +120,7 @@ public static class JournalFilterTabContent
         root.Widgets.Add(addFilterPanel);
         root.Widgets.Add(new MyraLabel("Current Journal Filters:", MyraLabel.TextStyle.H3));
         BuildFilterList();
-        root.Widgets.Add(new ScrollViewer { Height = 250, Content = filtersPanel });
+        root.Widgets.Add(new MyraScrollViewer { Height = 250, Content = filtersPanel });
 
         return root;
     }

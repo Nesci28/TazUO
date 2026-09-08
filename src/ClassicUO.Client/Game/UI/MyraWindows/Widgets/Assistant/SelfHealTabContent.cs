@@ -39,7 +39,7 @@ public static class SelfHealTabContent
             graceSlider.Value = grace;
         }
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(new MyraLabel("Self Heal", MyraLabel.TextStyle.H2));
         root.Widgets.Add(new MyraLabel(
@@ -67,8 +67,8 @@ public static class SelfHealTabContent
         var keyLabel = new MyraLabel("Hotkey: " + KeyDisplay(), MyraLabel.TextStyle.P);
         root.Widgets.Add(keyLabel);
 
-        var normalPanel = new HorizontalStackPanel { Spacing = 4 };
-        var editPanel = new HorizontalStackPanel { Spacing = 4, Visible = false };
+        var normalPanel = new MyraHorizontalStackPanel { Spacing = 4 };
+        var editPanel = new MyraHorizontalStackPanel { Spacing = 4, Visible = false };
 
         void StopListening()
         {

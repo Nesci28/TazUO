@@ -78,7 +78,7 @@ namespace ClassicUO.Game.UI.Gumps
             _selectedColorIndex = selectedColor;
             _selectedIconIndex = selectedIcon;
 
-            var layout = new VerticalStackPanel { Spacing = 6, Padding = new Thickness(8) };
+            var layout = new MyraVerticalStackPanel { Spacing = 6, Padding = new Thickness(8) };
 
             // X Field
             layout.Widgets.Add(BuildLabeledRow(TazLang.Get("marker_x"), _textBoxX = new MyraInputBox
@@ -134,7 +134,7 @@ namespace ClassicUO.Game.UI.Gumps
             }));
 
             // Buttons Add/Edit and Cancel depend on state
-            var btnRow = new HorizontalStackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+            var btnRow = new MyraHorizontalStackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
             btnRow.Widgets.Add(new MyraButton(isEdit ? TazLang.Get("edit") : TazLang.Get("create_marker"), isEdit ? EditMarker : (Action)AddNewMarker));
             btnRow.Widgets.Add(new MyraButton(TazLang.Get("cancel"), Dispose));
             layout.Widgets.Add(btnRow);
@@ -145,9 +145,9 @@ namespace ClassicUO.Game.UI.Gumps
             BringOnTop();
         }
 
-        private static HorizontalStackPanel BuildLabeledRow(string label, Widget widget)
+        private static MyraHorizontalStackPanel BuildLabeledRow(string label, Widget widget)
         {
-            var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var row = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             row.Widgets.Add(new MyraLabel(label, MyraLabel.TextStyle.P) { Width = 90 });
             row.Widgets.Add(widget);
             return row;
@@ -156,7 +156,7 @@ namespace ClassicUO.Game.UI.Gumps
         private static Widget BuildCombo(string[] items, int selectedIndex, Action<int> onChange)
         {
 #pragma warning disable CS0612, CS0618
-            var combo = new ComboBox { VerticalAlignment = VerticalAlignment.Center, Width = 200 };
+            var combo = new MyraComboBox { VerticalAlignment = VerticalAlignment.Center, Width = 200 };
 
             foreach (var item in items)
                 combo.Items.Add(new ListItem(item));

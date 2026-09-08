@@ -65,7 +65,7 @@ public class MyraInputBox : TextBox
         string? tooltip = null
     )
     {
-        WrapPanel row = new()
+        WrapPanel row = new MyraWrapPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalSpacing = 4,
@@ -122,7 +122,7 @@ public class MyraInputBox : TextBox
                 box.Text = normalized;
         };
 
-        var row = new HorizontalStackPanel { Spacing = 4 };
+        var row = new MyraHorizontalStackPanel { Spacing = 4 };
         row.Widgets.Add(box);
         row.Widgets.Add(new MyraLabel(labelText, MyraLabel.TextStyle.P));
         return row;

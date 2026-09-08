@@ -17,9 +17,9 @@ public static class GeneralTabContent
         Profile profile = ProfileManager.CurrentProfile;
         float gameScale = Client.Game.RenderScale;
 
-        var mainContent = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
-        var leftSide = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
-        var rightSide = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var mainContent = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var leftSide = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var rightSide = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
         mainContent.Widgets.Add(leftSide);
         mainContent.Widgets.Add(rightSide);

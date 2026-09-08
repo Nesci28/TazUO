@@ -78,7 +78,7 @@ public class PromptPopupWindow : MyraControl
         _onSubmit = onSubmit;
         _onCancel = onCancel;
 
-        var layout = new VerticalStackPanel { Spacing = 8, Padding = new Thickness(8) };
+        var layout = new MyraVerticalStackPanel { Spacing = 8, Padding = new Thickness(8) };
 
         layout.Widgets.Add(new MyraLabel(message, MyraLabel.TextStyle.P));
 
@@ -95,7 +95,7 @@ public class PromptPopupWindow : MyraControl
         if (extraWidget != null)
             layout.Widgets.Add(extraWidget);
 
-        var btnRow = new HorizontalStackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        var btnRow = new MyraHorizontalStackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         btnRow.Widgets.Add(new MyraButton(submitText, Submit));
         btnRow.Widgets.Add(new MyraButton(cancelText, Cancel));
         layout.Widgets.Add(btnRow);

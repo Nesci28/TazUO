@@ -40,28 +40,28 @@ public sealed class RulebaseStyleOptions : INotifyPropertyChanged
     {
         get;
         set => SetField(ref field, value);
-    } = new SolidBrush(MyraStyle.GridBorderColor);
+    } = MyraStyle.Brush(MyraStyle.GridBorderColor);
 
     /// <summary>Border drawn around the entire table</summary>
     public BorderStyle OuterBorder
     {
         get;
         set => SetField(ref field, value);
-    } = new(new SolidBrush(MyraStyle.GridBorderColor), new Thickness(1));
+    } = new(MyraStyle.Brush(MyraStyle.GridBorderColor), new Thickness(1));
 
     /// <summary>Border drawn between columns, or null to disable</summary>
     public UniBorderStyle? ColumnBorders
     {
         get;
         set => SetField(ref field, value);
-    } = new UniBorderStyle(new SolidBrush(MyraStyle.GridBorderColor), 1);
+    } = new UniBorderStyle(MyraStyle.Brush(MyraStyle.GridBorderColor), 1);
 
     /// <summary>Border drawn between rows, or null to disable</summary>
     public UniBorderStyle? RowBorders
     {
         get;
         set => SetField(ref field, value);
-    } = new UniBorderStyle(new SolidBrush(MyraStyle.GridBorderColor), 1);
+    } = new UniBorderStyle(MyraStyle.Brush(MyraStyle.GridBorderColor), 1);
 
     /// <summary>Whether the currently selected row is drawn with <see cref="SelectedRowBackground"/></summary>
     public bool HighlightSelectedRow
@@ -75,28 +75,28 @@ public sealed class RulebaseStyleOptions : INotifyPropertyChanged
     {
         get;
         set => SetField(ref field, value);
-    } = new(0, 0, 0, 55);
+    } = MyraStyle.TableHeaderBackgroundColor;
 
     /// <summary>Background color of odd-indexed rows when <see cref="UseStripedRows"/> is true</summary>
     public Color OddRowBackground
     {
         get;
         set => SetField(ref field, value);
-    } = new(20, 20, 45, 70);
+    } = MyraStyle.TableOddRowBackgroundColor;
 
     /// <summary>Background color of even-indexed rows when <see cref="UseStripedRows"/> is true</summary>
     public Color EvenRowBackground
     {
         get;
         set => SetField(ref field, value);
-    } = new(0, 0, 0, 20);
+    } = MyraStyle.TableEvenRowBackgroundColor;
 
     /// <summary>Background color of the selected row when <see cref="HighlightSelectedRow"/> is true</summary>
     public Color SelectedRowBackground
     {
         get;
         set => SetField(ref field, value);
-    } = new(80, 120, 180, 75);
+    } = MyraStyle.TableSelectedRowBackgroundColor;
 
     /// <summary>Raised whenever any style property changes</summary>
     public event PropertyChangedEventHandler? PropertyChanged;

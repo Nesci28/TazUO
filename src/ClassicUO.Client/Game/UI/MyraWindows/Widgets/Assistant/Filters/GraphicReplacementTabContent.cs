@@ -18,13 +18,13 @@ public static class GraphicReplacementTabContent
 
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         root.Widgets.Add(new MyraLabel(
             "Replace graphics with other graphics. Mobile = animations, Land = terrain tiles, Static = items/statics.",
             MyraLabel.TextStyle.H3));
 
-        var filtersPanel = new VerticalStackPanel { Spacing = 2 };
+        var filtersPanel = new MyraVerticalStackPanel { Spacing = 2 };
 
         void BuildFilterList()
         {
@@ -57,7 +57,7 @@ public static class GraphicReplacementTabContent
                 grid.AddWidget(new MyraLabel($"0x{filter.OriginalGraphic:X4}", MyraLabel.TextStyle.P, MyraLabel.AlignMode.Right), dataRow, 0);
 
                 // Type — cycle button using wrapper panel (key change requires rebuild)
-                var typeWrapper = new HorizontalStackPanel();
+                var typeWrapper = new MyraHorizontalStackPanel();
                 void BuildTypeBtn()
                 {
                     typeWrapper.Widgets.Clear();
@@ -79,7 +79,7 @@ public static class GraphicReplacementTabContent
                 grid.AddWidget(typeWrapper, dataRow, 1);
 
                 // Preview wrapper — rebuilt in-place when replacement changes
-                var previewWrapper = new HorizontalStackPanel { Spacing = 2 };
+                var previewWrapper = new MyraHorizontalStackPanel { Spacing = 2 };
                 void BuildPreview()
                 {
                     previewWrapper.Widgets.Clear();
@@ -137,13 +137,13 @@ public static class GraphicReplacementTabContent
         }
 
         // Add entry panel
-        var addEntryPanel = new VerticalStackPanel { Visible = false, Spacing = 4 };
+        var addEntryPanel = new MyraVerticalStackPanel { Visible = false, Spacing = 4 };
         var newOriginalBox = new MyraInputBox { HintText = "Original graphic (e.g. 0x0EED)", Width = 170 };
         var newReplacementBox = new MyraInputBox { HintText = "Replacement graphic", Width = 170 };
         var newHueBox = MyraInputBox.Hue(ushort.MaxValue, 120, "Hue (-1 = unchanged)");
         int[] newTypeIndex = { 2 }; // Default: Static
 
-        var newTypeWrapper = new HorizontalStackPanel();
+        var newTypeWrapper = new MyraHorizontalStackPanel();
         var validationLabel = new MyraLabel("", MyraLabel.TextStyle.P) { Visible = false };
 
         void BuildNewTypeBtn()
@@ -157,7 +157,7 @@ public static class GraphicReplacementTabContent
         }
         BuildNewTypeBtn();
 
-        var addConfirmRow = new HorizontalStackPanel { Spacing = 4 };
+        var addConfirmRow = new MyraHorizontalStackPanel { Spacing = 4 };
         addConfirmRow.Widgets.Add(new MyraButton("Add", () =>
         {
             string origText = newOriginalBox.Text ?? "";
@@ -200,13 +200,13 @@ public static class GraphicReplacementTabContent
             validationLabel.Visible = false;
         }));
 
-        var addFieldsRow1 = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldsRow1 = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldsRow1.Widgets.Add(new MyraLabel("Original:", MyraLabel.TextStyle.P));
         addFieldsRow1.Widgets.Add(newOriginalBox);
         addFieldsRow1.Widgets.Add(new MyraLabel("Replacement:", MyraLabel.TextStyle.P));
         addFieldsRow1.Widgets.Add(newReplacementBox);
 
-        var addFieldsRow2 = new HorizontalStackPanel { Spacing = 4 };
+        var addFieldsRow2 = new MyraHorizontalStackPanel { Spacing = 4 };
         addFieldsRow2.Widgets.Add(new MyraLabel("Type:", MyraLabel.TextStyle.P));
         addFieldsRow2.Widgets.Add(newTypeWrapper);
         addFieldsRow2.Widgets.Add(new MyraLabel("New Hue:", MyraLabel.TextStyle.P));
@@ -218,7 +218,7 @@ public static class GraphicReplacementTabContent
         addEntryPanel.Widgets.Add(validationLabel);
         addEntryPanel.Widgets.Add(addConfirmRow);
 
-        var actionRow = new HorizontalStackPanel { Spacing = 4 };
+        var actionRow = new MyraHorizontalStackPanel { Spacing = 4 };
         actionRow.Widgets.Add(new MyraButton("Add Entry", () => addEntryPanel.Visible = !addEntryPanel.Visible));
         actionRow.Widgets.Add(new MyraButton("Target Entity", () =>
         {
@@ -272,7 +272,7 @@ public static class GraphicReplacementTabContent
         root.Widgets.Add(addEntryPanel);
         root.Widgets.Add(new MyraLabel("Current Graphic Replacements:", MyraLabel.TextStyle.H3));
         BuildFilterList();
-        root.Widgets.Add(new ScrollViewer { Height = 300, Content = filtersPanel });
+        root.Widgets.Add(new MyraScrollViewer { Height = 300, Content = filtersPanel });
 
         return root;
     }
