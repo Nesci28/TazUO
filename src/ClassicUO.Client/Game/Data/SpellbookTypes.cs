@@ -1,5 +1,7 @@
 ﻿// SPDX-License-Identifier: BSD-2-Clause
 
+using ClassicUO.Configuration;
+
 namespace ClassicUO.Game.Data
 {
     public enum SpellBookType
@@ -59,6 +61,30 @@ namespace ClassicUO.Game.Data
                     return MASTERY_SPELLS_OFFSETS;
             }
             return -1;
+        }
+
+        /// <summary>
+        /// Returns the cliloc used by spellbooks for a spell's description, or 0 when the
+        /// full spell ID does not have a known description.
+        /// </summary>
+        public static int GetSpellDescriptionCliloc(int spellID)
+        {
+            return spellID switch
+            {
+                >= 1 and <= 64 => 1061290 + (spellID - 1),
+                >= 101 and <= 117 => 1061390 + (spellID - 101),
+                >= 201 and <= 210 => 1061490 + (spellID - 201),
+                >= 302 and <= 321 when Settings.GlobalSettings.CustomServer == Settings.CustomServers.Eventine =>
+                    1136632 + (spellID - 302),
+                >= 342 and <= 353 when Settings.GlobalSettings.CustomServer == Settings.CustomServers.Eventine =>
+                    1136654 + (spellID - 342),
+                >= 401 and <= 406 => 1063263 + (spellID - 401),
+                >= 501 and <= 508 => 1063279 + (spellID - 501),
+                >= 601 and <= 616 => 1072042 + (spellID - 601),
+                >= 678 and <= 693 => 1095193 + (spellID - 678),
+                >= 701 and <= 745 => SpellsMastery.GetSpellTooltipCliloc(spellID - 700),
+                _ => 0
+            };
         }
     }
 }
