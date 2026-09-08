@@ -842,6 +842,7 @@ public sealed class NearbyLootGump : MyraControl
 
     private sealed class NearbyLootIconFrame : Panel
     {
+        private readonly int _frameSize;
         private readonly Func<Color?> _highlightColor;
         private Color? _lastColor;
         private int _lastThickness = -1;
@@ -849,8 +850,9 @@ public sealed class NearbyLootGump : MyraControl
         public NearbyLootIconFrame(uint graphic, ushort hue, int iconSize, Func<Color?> highlightColor)
         {
             _highlightColor = highlightColor;
-            Width = iconSize + 4;
-            Height = iconSize + 4;
+            _frameSize = iconSize + 4;
+            Width = _frameSize;
+            Height = _frameSize;
             Padding = new Thickness(2);
             VerticalAlignment = VerticalAlignment.Center;
 
