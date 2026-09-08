@@ -524,7 +524,7 @@ namespace ClassicUO.Game.UI.Gumps.GridContainers;
             return _containerContents;
         }
 
-        private bool SearchItemNameAndProps(string search, Item item)
+        internal bool SearchItemNameAndProps(string search, Item item)
         {
             if (item == null)
                 return false;

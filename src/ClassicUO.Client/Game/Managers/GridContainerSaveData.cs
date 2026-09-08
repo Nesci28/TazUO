@@ -164,6 +164,8 @@ public class GridContainerSaveData
                 _entries = new();
                 foreach (GridContainerEntry entry in entries)
                 {
+                    entry.Filter ??= new GridContainerFilter();
+                    entry.Filter.Normalize();
                     _entries[entry.Serial] = entry;
                 }
 
@@ -360,6 +362,8 @@ public class GridContainerEntry
 
     [JsonPropertyName("m")] public bool IsMinimized { get; set; }
 
+    [JsonPropertyName("f")] public GridContainerFilter Filter { get; set; } = new();
+
     [JsonPropertyName("ls")] public Dictionary<uint, GridContainerSlotEntry> Slots { get; set; } = new();
 
     public GridContainerSlotEntry GetSlot(uint serial)
@@ -498,6 +502,9 @@ public class GridContainerSlotEntry
 [JsonSerializable(typeof(GridContainerSlotEntry))]
 [JsonSerializable(typeof(GridContainerEntry[]))]
 [JsonSerializable(typeof(Dictionary<uint, GridContainerSlotEntry>))]
+[JsonSerializable(typeof(GridContainerFilter))]
+[JsonSerializable(typeof(GridContainerFilterProperty))]
+[JsonSerializable(typeof(GridContainerFilterCurse))]
 [JsonSourceGenerationOptions(
     WriteIndented = false,
     PropertyNamingPolicy = JsonKnownNamingPolicy.Unspecified,
