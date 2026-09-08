@@ -17,8 +17,6 @@ namespace ClassicUO.Game.GameObjects
 {
     public class PlayerMobile : Mobile
     {
-        private readonly Dictionary<BuffIconType, BuffIcon> _buffIcons = new Dictionary<BuffIconType, BuffIcon>();
-
         public PlayerMobile(World world, uint serial) : base(world, serial)
         {
             Skills = new Skill[Client.Game.UO.FileManager.Skills.SkillsCount];
@@ -47,8 +45,6 @@ namespace ClassicUO.Game.GameObjects
 
         public Skill[] Skills { get; }
         public override bool InWarMode { get; set; }
-        public IReadOnlyDictionary<BuffIconType, BuffIcon> BuffIcons => _buffIcons;
-
         public ref Ability PrimaryAbility => ref Abilities[0];
         public ref Ability SecondaryAbility => ref Abilities[1];
         public override bool IsWalking => LastStepTime > Time.Ticks - Constants.PLAYER_WALKING_DELAY;
@@ -292,25 +288,24 @@ namespace ClassicUO.Game.GameObjects
             return item;
         }
 
-        public void AddBuff(BuffIconType type, ushort graphic, uint time, string text, string title = "")
+        public override void AddBuff(BuffIconType type, ushort graphic, uint time, string text, string title = "")
         {
-            _buffIcons[type] = new BuffIcon(type, graphic, time, text, title);
+            base.AddBuff(type, graphic, time, text, title);
 
             if (ProfileManager.CurrentProfile.UseImprovedBuffBar)
-                UIManager.ForEach<ImprovedBuffGump>(g => g.AddBuff(new BuffIcon(type, graphic, time, text, title)));
+                UIManager.ForEach<ImprovedBuffGump>(g => g.AddBuff(BuffIcons[type]));
 
-            EventSink.InvokeOnBuffAdded(null, new BuffEventArgs(_buffIcons[type]));
+            EventSink.InvokeOnBuffAdded(null, new BuffEventArgs(BuffIcons[type]));
         }
 
-        public bool IsBuffIconExists(BuffIconType graphic) => _buffIcons.ContainsKey(graphic);
-
-        public void RemoveBuff(BuffIconType graphic)
+        public override void RemoveBuff(BuffIconType graphic)
         {
-            if (_buffIcons.TryGetValue(graphic, out BuffIcon ev))
+            if (BuffIcons.TryGetValue(graphic, out BuffIcon ev))
             {
                 EventSink.InvokeOnBuffRemoved(null, new BuffEventArgs(ev));
-                _buffIcons.Remove(graphic);
             }
+
+            base.RemoveBuff(graphic);
 
             if (ProfileManager.CurrentProfile.UseImprovedBuffBar)
                 UIManager.ForEach<ImprovedBuffGump>(g => g.RemoveBuff(graphic));
