@@ -477,6 +477,8 @@ public static class NameplatesTab
 
         string fixedWidthLabel = TazLang.Get("nameplate_fixedwidth", TazLang.Get("mog_tazuo_fixedwidth"));
         string showWordOfDeathIconLabel = TazLang.Get("nameplate_showwordofdeathicon", TazLang.Get("mog_tazuo_showwordofdeathicon"));
+        string showDistanceLabel = TazLang.Get("nameplate_showdistance", "Show distance");
+        string distancePresetLabel = TazLang.Get("nameplate_distancepreset", "Distance preset");
         string showBuffIconsLabel = TazLang.Get("nameplate_showbufficons", "Show buff icons");
 
         return OptionsUi.Vertical(
@@ -491,6 +493,17 @@ public static class NameplatesTab
                     showWordOfDeathIconLabel,
                     NameplateSetting<bool>(() => profile.NamePlateShowWordOfDeathIcon),
                     search: new SearchMetadata(showWordOfDeathIconLabel, Keywords: [TazLang.Get("mog_kw_icon"), TazLang.Get("mog_kw_death")])
+                ),
+                Option.Checkbox(
+                    showDistanceLabel,
+                    new Accessor<bool>(() => profile.NamePlateShowDistance),
+                    search: new SearchMetadata(showDistanceLabel, Keywords: [TazLang.Get("mog_kw_distance")])
+                ),
+                Option.LComboBox(
+                    distancePresetLabel,
+                    new Accessor<NamePlateDistancePreset>(() => profile.NamePlateDistancePreset),
+                    "nameplate_distance_",
+                    search: new SearchMetadata(distancePresetLabel, Keywords: [TazLang.Get("mog_kw_distance"), TazLang.Get("mog_kw_preset")])
                 ),
                 Option.Checkbox(
                     showBuffIconsLabel,
