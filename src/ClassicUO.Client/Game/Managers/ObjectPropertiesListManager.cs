@@ -40,6 +40,8 @@ namespace ClassicUO.Game.Managers
             prop.NameCliloc = namecliloc;
             prop.Clilocs = clilocs;
 
+            VendorSearch.VendorSearchWebManager.Instance.NotifyItemProperties(serial);
+
             EventSink.InvokeOPLOnReceive(null, new OPLEventArgs(serial, name, data));
 
             Entity ent = _world.Get(serial);

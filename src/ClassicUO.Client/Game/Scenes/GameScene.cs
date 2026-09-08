@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Net.Sockets;
 using ClassicUO.Common;
 using ClassicUO.Game.Managers.SpellVisualRange;
+using ClassicUO.Game.Managers.VendorSearch;
 using ClassicUO.Game.Map;
 using ClassicUO.Game.ScreenDecorations.Manager;
 using ClassicUO.Game.ScreenDecorations.Overlays;
@@ -485,6 +486,7 @@ namespace ClassicUO.Game.Scenes
 
             ProfileManager.CurrentProfile?.Save(_world, ProfileManager.ProfilePath);
             MapWebServerManager.Instance.Stop();
+            VendorSearchWebManager.Instance.Stop();
             TileMarkerManager.Instance.Save();
             _world.CombatDamageTracker.OnSceneUnload();
             SpellVisualRangeManager.Instance.Save();
