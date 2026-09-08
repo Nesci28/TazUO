@@ -80,13 +80,7 @@ namespace ClassicUO.Game.UI.Controls
                         _originalSize.X,
                         _originalSize.Y
                     ),
-                    new Rectangle
-                    (
-                        texture.UV.X + _rect.X,
-                        texture.UV.Y + _rect.Y,
-                        _rect.Width,
-                        _rect.Height
-                    ),
+                    texture.GetPhysicalSourceRectangle(_rect),
                     hueVector
                 );
 

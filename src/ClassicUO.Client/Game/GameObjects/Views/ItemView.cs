@@ -345,14 +345,14 @@ namespace ClassicUO.Game.GameObjects
 
                 if (flipped)
                 {
-                    posX -= spriteInfo.UV.Width - spriteInfo.Center.X;
+                    posX -= spriteInfo.LogicalWidth - spriteInfo.Center.X;
                 }
                 else
                 {
                     posX -= spriteInfo.Center.X;
                 }
 
-                posY -= spriteInfo.UV.Height + spriteInfo.Center.Y;
+                posY -= spriteInfo.LogicalHeight + spriteInfo.Center.Y;
 
                 if (color == 0)
                 {
@@ -408,15 +408,20 @@ namespace ClassicUO.Game.GameObjects
                 }
 
                 var pos = new Vector2(posX, posY);
-                Rectangle rect = spriteInfo.UV;
+                var logicalRect = new Rectangle(
+                    0,
+                    0,
+                    spriteInfo.LogicalWidth,
+                    spriteInfo.LogicalHeight
+                );
 
-                int diffY = (spriteInfo.UV.Height + spriteInfo.Center.Y);
-                int value = /*!isMounted && diffX <= 44 ? spriteInfo.UV.Height * 2 :*/
+                int diffY = (spriteInfo.LogicalHeight + spriteInfo.Center.Y);
+                int value = /*!isMounted && diffX <= 44 ? spriteInfo.LogicalHeight * 2 :*/
                 Math.Max(1, diffY);
-                int count = Math.Max((spriteInfo.UV.Height / value) + 1, 2);
+                int count = Math.Max((spriteInfo.LogicalHeight / value) + 1, 2);
 
-                rect.Height = Math.Min(value, rect.Height);
-                int remains = spriteInfo.UV.Height - rect.Height;
+                logicalRect.Height = Math.Min(value, logicalRect.Height);
+                int remains = spriteInfo.LogicalHeight - logicalRect.Height;
 
                 int tiles = (byte)owner.Direction % 2 == 0 ? 2 : 2;
 
@@ -428,20 +433,20 @@ namespace ClassicUO.Game.GameObjects
                     batcher.Draw(
                         spriteInfo.Texture,
                         pos,
-                        rect,
+                        spriteInfo.GetPhysicalSourceRectangle(logicalRect),
                         hueVec,
                         0f,
                         Vector2.Zero,
-                        1f,
+                        spriteInfo.InverseSourceScale,
                         flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None,
                         depth + 1f + (i * tiles)
                     //depth + (i * tiles) + (owner.PriorityZ * 0.001f)
                     );
 
-                    pos.Y += rect.Height;
-                    rect.Y += rect.Height;
-                    rect.Height = remains; // Math.Min(value, remains);
-                    remains -= rect.Height;
+                    pos.Y += logicalRect.Height;
+                    logicalRect.Y += logicalRect.Height;
+                    logicalRect.Height = remains; // Math.Min(value, remains);
+                    remains -= logicalRect.Height;
                 }
             }
         }
@@ -637,10 +642,10 @@ namespace ClassicUO.Game.GameObjects
                             position.X
                             - (
                                 IsFlipped
-                                    ? spriteInfo.UV.Width - spriteInfo.Center.X
+                                    ? spriteInfo.LogicalWidth - spriteInfo.Center.X
                                     : spriteInfo.Center.X
                             );
-                        int y = position.Y - (spriteInfo.UV.Height + spriteInfo.Center.Y);
+                        int y = position.Y - (spriteInfo.LogicalHeight + spriteInfo.Center.Y);
 
                         if (
                             animations.PixelCheck(
@@ -651,7 +656,7 @@ namespace ClassicUO.Game.GameObjects
                                 animIndex,
                                 IsFlipped
                                     ? x
-                                        + spriteInfo.UV.Width
+                                        + spriteInfo.LogicalWidth
                                         - SelectedObject.TranslatedMousePositionByViewport.X
                                     : SelectedObject.TranslatedMousePositionByViewport.X - x,
                                 SelectedObject.TranslatedMousePositionByViewport.Y - y

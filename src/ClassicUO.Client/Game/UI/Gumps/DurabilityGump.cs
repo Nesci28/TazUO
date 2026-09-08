@@ -130,7 +130,7 @@ namespace ClassicUO.Game.UI.Gumps
         protected override void UpdateContents()
         {
             _dataBox.Clear();
-            Rectangle barBounds = Client.Game.UO.Gumps.GetGump((uint)DurabilityColors.RED).UV;
+            Rectangle barBounds = Client.Game.UO.Gumps.GetGump((uint)DurabilityColors.RED).LogicalBounds;
 
             List<DurabiltyProp> items = World.DurabilityManager?.Durabilities ?? new List<DurabiltyProp>();
 

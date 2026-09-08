@@ -44,7 +44,7 @@ namespace ClassicUO.Game.UI.Gumps
             ref readonly Renderer.SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(0x098B);
             if (gumpInfo.Texture != null)
             {
-                smallWidth = gumpInfo.UV.Width;
+                smallWidth = gumpInfo.LogicalWidth;
             }
 
             int largeWidth = 100;
@@ -52,7 +52,7 @@ namespace ClassicUO.Game.UI.Gumps
             gumpInfo = ref Client.Game.UO.Gumps.GetGump(0x098D);
             if (gumpInfo.Texture != null)
             {
-                largeWidth = gumpInfo.UV.Width;
+                largeWidth = gumpInfo.LogicalWidth;
             }
 
             int[][] textTable =

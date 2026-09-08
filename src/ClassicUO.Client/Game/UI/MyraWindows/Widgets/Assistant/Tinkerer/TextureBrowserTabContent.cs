@@ -78,8 +78,8 @@ public static class TextureBrowserTabContent
             if (hasArt)
             {
                 var preview = new MyraTexmapTexture(id, zoomSize);
-                int natW = tex.UV.Width;
-                int natH = tex.UV.Height;
+                int natW = tex.LogicalWidth;
+                int natH = tex.LogicalHeight;
                 if (natW > 0 && natH > 0)
                 {
                     float scale = (float)zoomSize / Math.Max(natW, natH);
@@ -125,7 +125,7 @@ public static class TextureBrowserTabContent
                 TazLang.Get("tinkerer_texture_texid", new[] { id.ToString(), $"0x{id:X4}" }), MyraLabel.TextStyle.P));
             detailPanel.Widgets.Add(new MyraLabel(
                 hasArt
-                    ? TazLang.Get("tinkerer_texture_dimensions", new[] { tex.UV.Width.ToString(), tex.UV.Height.ToString() })
+                    ? TazLang.Get("tinkerer_texture_dimensions", new[] { tex.LogicalWidth.ToString(), tex.LogicalHeight.ToString() })
                     : TazLang.Get("tinkerer_texture_dimensions_noart", "Dimensions: No texture"),
                 MyraLabel.TextStyle.P));
 

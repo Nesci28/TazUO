@@ -191,14 +191,14 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (artInfo.Texture != null)
                 {
-                    if (x + artInfo.UV.Width > BOX_WIDTH)
+                    if (x + artInfo.LogicalWidth > BOX_WIDTH)
                     {
-                        x = BOX_WIDTH - artInfo.UV.Width;
+                        x = BOX_WIDTH - artInfo.LogicalWidth;
                     }
 
-                    if (y + artInfo.UV.Height > BOX_HEIGHT)
+                    if (y + artInfo.LogicalHeight > BOX_HEIGHT)
                     {
-                        y = BOX_HEIGHT - artInfo.UV.Height;
+                        y = BOX_HEIGHT - artInfo.LogicalHeight;
                     }
                 }
 
@@ -257,14 +257,14 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (artInfo.Texture != null)
                 {
-                    if (x + artInfo.UV.Width > BOX_WIDTH)
+                    if (x + artInfo.LogicalWidth > BOX_WIDTH)
                     {
-                        x = BOX_WIDTH - artInfo.UV.Width;
+                        x = BOX_WIDTH - artInfo.LogicalWidth;
                     }
 
-                    if (y + artInfo.UV.Height > BOX_HEIGHT)
+                    if (y + artInfo.LogicalHeight > BOX_HEIGHT)
                     {
-                        y = BOX_HEIGHT - artInfo.UV.Height;
+                        y = BOX_HEIGHT - artInfo.LogicalHeight;
                     }
                 }
 
@@ -313,17 +313,17 @@ namespace ClassicUO.Game.UI.Gumps
 
                         if (artInfo.Texture != null)
                         {
-                            x -= artInfo.UV.Width >> 1;
-                            y -= artInfo.UV.Height >> 1;
+                            x -= artInfo.LogicalWidth >> 1;
+                            y -= artInfo.LogicalHeight >> 1;
 
-                            if (x + artInfo.UV.Width > BOX_WIDTH)
+                            if (x + artInfo.LogicalWidth > BOX_WIDTH)
                             {
-                                x = BOX_WIDTH - artInfo.UV.Width;
+                                x = BOX_WIDTH - artInfo.LogicalWidth;
                             }
 
-                            if (y + artInfo.UV.Height > BOX_HEIGHT)
+                            if (y + artInfo.LogicalHeight > BOX_HEIGHT)
                             {
-                                y = BOX_HEIGHT - artInfo.UV.Height;
+                                y = BOX_HEIGHT - artInfo.LogicalHeight;
                             }
                         }
 
@@ -801,7 +801,7 @@ namespace ClassicUO.Game.UI.Gumps
                 batcher.Draw(
                     texture.Texture,
                     new Rectangle(x + point.X, y + point.Y, size.X, size.Y),
-                    new Rectangle(texture.UV.X + rect.X, texture.UV.Y + rect.Y, rect.Width, rect.Height),
+                    texture.GetPhysicalSourceRectangle(rect),
                     hueVector
                 );
             }

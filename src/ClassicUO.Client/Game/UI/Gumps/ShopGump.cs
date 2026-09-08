@@ -92,12 +92,12 @@ namespace ClassicUO.Game.UI.Gumps
             ref readonly SpriteInfo artInfoLeft = ref Client.Game.UO.Gumps.GetGump(graphicLeft);
             ref readonly SpriteInfo artInfoRight = ref Client.Game.UO.Gumps.GetGump(graphicRight);
 
-            var offset = new Rectangle(0, 0, artInfoLeft.UV.Width, LEFT_TOP_HEIGHT);
+            var offset = new Rectangle(0, 0, artInfoLeft.LogicalWidth, LEFT_TOP_HEIGHT);
             var leftTop = new GumpPicTexture(graphicLeft, 0, 0, offset, false);
             Add(leftTop);
 
             offset.Y += LEFT_TOP_HEIGHT;
-            offset.Height = artInfoLeft.UV.Height - (LEFT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
+            offset.Height = artInfoLeft.LogicalHeight - (LEFT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
             _leftMiddle = new GumpPicTexture(graphicLeft, 0, LEFT_TOP_HEIGHT, offset, true);
             int diff = height - _leftMiddle.Height;
             _leftMiddle.Height = height;
@@ -114,9 +114,9 @@ namespace ClassicUO.Game.UI.Gumps
             );
             Add(_leftBottom);
 
-            int rightX = artInfoLeft.UV.Width - RIGHT_OFFSET;
-            int rightY = artInfoLeft.UV.Height / 2 - RIGHT_OFFSET;
-            offset = new Rectangle(0, 0, artInfoRight.UV.Width, LEFT_TOP_HEIGHT);
+            int rightX = artInfoLeft.LogicalWidth - RIGHT_OFFSET;
+            int rightY = artInfoLeft.LogicalHeight / 2 - RIGHT_OFFSET;
+            offset = new Rectangle(0, 0, artInfoRight.LogicalWidth, LEFT_TOP_HEIGHT);
             var rightTop = new GumpPicTexture(
                 graphicRight,
                 rightX,
@@ -127,7 +127,7 @@ namespace ClassicUO.Game.UI.Gumps
             Add(rightTop);
 
             offset.Y += LEFT_TOP_HEIGHT;
-            offset.Height = artInfoRight.UV.Height - (RIGHT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
+            offset.Height = artInfoRight.LogicalHeight - (RIGHT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
             _rightMiddle = new GumpPicTexture(
                 graphicRight,
                 rightX,
@@ -152,7 +152,7 @@ namespace ClassicUO.Game.UI.Gumps
             _shopScrollArea = new ScrollArea(
                 RIGHT_OFFSET,
                 _leftMiddle.Y,
-                artInfoLeft.UV.Width - RIGHT_OFFSET * 2 + 5,
+                artInfoLeft.LogicalWidth - RIGHT_OFFSET * 2 + 5,
                 _leftMiddle.Height + 50,
                 false,
                 _leftMiddle.Height
@@ -163,7 +163,7 @@ namespace ClassicUO.Game.UI.Gumps
             _transactionScrollArea = new ScrollArea(
                 RIGHT_OFFSET / 2 + rightTop.X,
                 LEFT_TOP_HEIGHT + rightTop.Y,
-                artInfoRight.UV.Width - RIGHT_OFFSET * 2 + RIGHT_OFFSET / 2 + 5,
+                artInfoRight.LogicalWidth - RIGHT_OFFSET * 2 + RIGHT_OFFSET / 2 + 5,
                 _rightMiddle.Height,
                 false
             );
@@ -200,7 +200,7 @@ namespace ClassicUO.Game.UI.Gumps
             _expander = new Button(2, 0x082E, 0x82F)
             {
                 ButtonAction = ButtonAction.Activate,
-                X = artInfoLeft.UV.Width / 2 - 10,
+                X = artInfoLeft.LogicalWidth / 2 - 10,
                 Y = _leftBottom.Y + _leftBottom.Height - 5
             };
 
@@ -287,8 +287,8 @@ namespace ClassicUO.Game.UI.Gumps
             Add(rightUp);
             Add(_rightDown);
 
-            _minHeight = artInfoLeft.UV.Height - (LEFT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
-            _minHeightRight = artInfoRight.UV.Height - (RIGHT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
+            _minHeight = artInfoLeft.LogicalHeight - (LEFT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
+            _minHeightRight = artInfoRight.LogicalHeight - (RIGHT_BOTTOM_HEIGHT + LEFT_TOP_HEIGHT);
 
             _expander.MouseDown += (sender, args) =>
             {
@@ -808,8 +808,8 @@ namespace ClassicUO.Game.UI.Gumps
                                 new Rectangle(
                                     x - 3,
                                     y + 5 + 15,
-                                    Math.Min(spriteInfo.UV.Width, 45),
-                                    Math.Min(spriteInfo.UV.Height, 45)
+                                    Math.Min(spriteInfo.LogicalWidth, 45),
+                                    Math.Min(spriteInfo.LogicalHeight, 45)
                                 ),
                                 spriteInfo.UV,
                                 hueVector
@@ -855,12 +855,7 @@ namespace ClassicUO.Game.UI.Gumps
                                 originalSize.X,
                                 originalSize.Y
                             ),
-                            new Rectangle(
-                                artInfo.UV.X + rect.X,
-                                artInfo.UV.Y + rect.Y,
-                                rect.Width,
-                                rect.Height
-                            ),
+                            artInfo.GetPhysicalSourceRectangle(rect),
                             hueVector
                         );
                     }
@@ -1085,8 +1080,8 @@ namespace ClassicUO.Game.UI.Gumps
                 ref readonly SpriteInfo gumpInfo2 = ref Client.Game.UO.Gumps.GetGump((uint)(_graphic + 2));
 
                 Height = Math.Max(
-                    gumpInfo0.UV.Height,
-                    Math.Max(gumpInfo1.UV.Height, gumpInfo2.UV.Height)
+                    gumpInfo0.LogicalHeight,
+                    Math.Max(gumpInfo1.LogicalHeight, gumpInfo2.LogicalHeight)
                 );
             }
 
@@ -1098,20 +1093,31 @@ namespace ClassicUO.Game.UI.Gumps
 
                 Vector3 hueVector = ShaderHueTranslator.GetHueVector(0, false, Alpha, true);
 
-                int middleWidth = Width - gumpInfo0.UV.Width - gumpInfo2.UV.Width;
+                int middleWidth = Width - gumpInfo0.LogicalWidth - gumpInfo2.LogicalWidth;
 
-                batcher.Draw(gumpInfo0.Texture, new Vector2(x, y), gumpInfo0.UV, hueVector);
+                batcher.Draw(
+                    gumpInfo0.Texture,
+                    new Rectangle(x, y, gumpInfo0.LogicalWidth, gumpInfo0.LogicalHeight),
+                    gumpInfo0.UV,
+                    hueVector
+                );
 
                 batcher.DrawTiled(
                     gumpInfo1.Texture,
-                    new Rectangle(x + gumpInfo0.UV.Width, y, middleWidth, gumpInfo1.UV.Height),
+                    new Rectangle(x + gumpInfo0.LogicalWidth, y, middleWidth, gumpInfo1.LogicalHeight),
                     gumpInfo1.UV,
-                    hueVector
+                    hueVector,
+                    gumpInfo1.InverseSourceScale
                 );
 
                 batcher.Draw(
                     gumpInfo2.Texture,
-                    new Vector2(x + Width - gumpInfo2.UV.Width, y),
+                    new Rectangle(
+                        x + Width - gumpInfo2.LogicalWidth,
+                        y,
+                        gumpInfo2.LogicalWidth,
+                        gumpInfo2.LogicalHeight
+                    ),
                     gumpInfo2.UV,
                     hueVector
                 );
@@ -1151,13 +1157,9 @@ namespace ClassicUO.Game.UI.Gumps
                     batcher.DrawTiled(
                         gumpInfo.Texture,
                         new Rectangle(x, y, Width, Height),
-                        new Rectangle(
-                            gumpInfo.UV.X + _rect.X,
-                            gumpInfo.UV.Y + _rect.Y,
-                            _rect.Width,
-                            _rect.Height
-                        ),
-                        hueVector
+                        gumpInfo.GetPhysicalSourceRectangle(_rect),
+                        hueVector,
+                        gumpInfo.InverseSourceScale
                     );
                 }
                 else
@@ -1165,12 +1167,7 @@ namespace ClassicUO.Game.UI.Gumps
                     batcher.Draw(
                         gumpInfo.Texture,
                         new Rectangle(x, y, Width, Height),
-                        new Rectangle(
-                            gumpInfo.UV.X + _rect.X,
-                            gumpInfo.UV.Y + _rect.Y,
-                            _rect.Width,
-                            _rect.Height
-                        ),
+                        gumpInfo.GetPhysicalSourceRectangle(_rect),
                         hueVector
                     );
                 }

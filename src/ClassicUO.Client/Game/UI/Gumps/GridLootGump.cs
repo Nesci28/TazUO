@@ -514,12 +514,7 @@ namespace ClassicUO.Game.UI.Gumps
                             originalSize.X,
                             originalSize.Y
                         ),
-                        new Rectangle(
-                            artInfo.UV.X + rect.X,
-                            artInfo.UV.Y + rect.Y,
-                            rect.Width,
-                            rect.Height
-                        ),
+                        artInfo.GetPhysicalSourceRectangle(rect),
                         hueVector
                     );
                 }

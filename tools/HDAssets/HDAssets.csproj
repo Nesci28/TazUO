@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseDeployedAssemblies)' != 'true'">
+    <ProjectReference Include="..\..\src\ClassicUO.Assets\ClassicUO.Assets.csproj" />
+    <ProjectReference Include="..\..\src\ClassicUO.IO\ClassicUO.IO.csproj" />
+    <ProjectReference Include="..\..\src\ClassicUO.Utility\ClassicUO.Utility.csproj" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseDeployedAssemblies)' == 'true'">
+    <Reference Include="ClassicUO.Assets" HintPath="$(TazUOAssembliesPath)/ClassicUO.Assets.dll" />
+    <Reference Include="ClassicUO.IO" HintPath="$(TazUOAssembliesPath)/ClassicUO.IO.dll" />
+    <Reference Include="ClassicUO.Utility" HintPath="$(TazUOAssembliesPath)/ClassicUO.Utility.dll" />
+    <Reference Include="FNA" HintPath="$(TazUOAssembliesPath)/FNA.dll" />
+    <Reference Include="MP3Sharp" HintPath="$(TazUOAssembliesPath)/MP3Sharp.dll" />
+    <Reference Include="SixLabors.Fonts" HintPath="$(TazUOAssembliesPath)/SixLabors.Fonts.dll" />
+    <Reference Include="SixLabors.ImageSharp" HintPath="$(TazUOAssembliesPath)/SixLabors.ImageSharp.dll" />
+  </ItemGroup>
+</Project>

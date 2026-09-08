@@ -107,10 +107,10 @@ namespace ClassicUO.Game.UI.Gumps
                 if (gumpInfo.Texture != null)
                 {
                     if (
-                        x >= Width - gumpInfo.UV.Width
+                        x >= Width - gumpInfo.LogicalWidth
                         && x < Width
                         && y >= 0
-                        && y <= gumpInfo.UV.Height
+                        && y <= gumpInfo.LogicalHeight
                     )
                     {
                         UIManager.AnchorManager.DetachControl(this);
@@ -148,7 +148,12 @@ namespace ClassicUO.Game.UI.Gumps
 
                     batcher.Draw(
                         gumpInfo.Texture,
-                        new Vector2(x + (Width - gumpInfo.UV.Width), y),
+                        new Rectangle(
+                            x + (Width - gumpInfo.LogicalWidth),
+                            y,
+                            gumpInfo.LogicalWidth,
+                            gumpInfo.LogicalHeight
+                        ),
                         gumpInfo.UV,
                         hueVector
                     );

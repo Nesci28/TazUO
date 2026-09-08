@@ -195,6 +195,7 @@ public class GridItem : Control
             ItemGridLocked = false;
             CanMove = true;
             _hasItem = false;
+            _sourceScale = 1;
             _shouldDraw = !_gridContainer.IsCorpse;
             _hasLastLowContrastCacheKey = false;
             BandGroup = -1;
@@ -208,6 +209,7 @@ public class GridItem : Control
         ref readonly SpriteInfo text = ref Client.Game.UO.Arts.GetArt((uint)_item.DisplayedGraphic);
         _texture = text.Texture;
         _bounds = text.UV;
+        _sourceScale = text.EffectiveSourceScale;
         _rect = Client.Game.UO.Arts.GetRealArtBounds(_item.DisplayedGraphic);
         _shouldDraw = _texture != null;
         _hasLastLowContrastCacheKey = false;
@@ -482,6 +484,7 @@ public class GridItem : Control
     private Texture2D _texture;
     private Rectangle _rect = Rectangle.Empty;
     private Rectangle _bounds;
+    private int _sourceScale = 1;
     private readonly Profile _profile = ProfileManager.CurrentProfile;
     private readonly Texture2D _whiteTexture = SolidColorTextureCache.GetTexture(Color.White);
     private static readonly Dictionary<LowContrastCacheKey, bool> _lowContrastCache = new();
@@ -645,11 +648,17 @@ public class GridItem : Control
             double minimumContrastRatio = LOW_CONTRAST_BASE_RATIO
                 + key.MinimumContrastLevel * key.MinimumContrastLevel * LOW_CONTRAST_LEVEL_RATIO_SCALE;
             ArtInfo artInfo = Client.Game.UO.Arts.GetArtPixels(key.Graphic);
+            int sourceScale = Math.Max(1, artInfo.SourceScale);
             result = HasLowContrastSample(
                 artInfo.Pixels,
                 artInfo.Width,
                 artInfo.Height,
-                _rect,
+                new Rectangle(
+                    _rect.X * sourceScale,
+                    _rect.Y * sourceScale,
+                    _rect.Width * sourceScale,
+                    _rect.Height * sourceScale
+                ),
                 key.Hue,
                 key.PartialHue,
                 key.SpectralHue,
@@ -1058,10 +1067,10 @@ public class GridItem : Control
         );
 
         Rectangle source = new(
-            _bounds.X + _rect.X,
-            _bounds.Y + _rect.Y,
-            _rect.Width,
-            _rect.Height
+            _bounds.X + _rect.X * _sourceScale,
+            _bounds.Y + _rect.Y * _sourceScale,
+            _rect.Width * _sourceScale,
+            _rect.Height * _sourceScale
         );
 
         if (_profile.GridHighlightLowContrastItems && IsLowContrastItem())

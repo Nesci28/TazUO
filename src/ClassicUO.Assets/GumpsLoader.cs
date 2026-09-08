@@ -202,5 +202,7 @@ namespace ClassicUO.Assets
         public Span<uint> Pixels;
         public int Width;
         public int Height;
+        public int SourceScale;
+        public bool IsTrusted;
     }
 }
