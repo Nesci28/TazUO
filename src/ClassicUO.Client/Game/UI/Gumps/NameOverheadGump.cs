@@ -608,6 +608,11 @@ namespace ClassicUO.Game.UI.Gumps
                             }
                         }
                     }
+                    else if (World.Get(LocalSerial) is Mobile mobile && MobileDefaultContextActionManager.TryStartDefaultAction(mobile))
+                    {
+                        Mouse.LastLeftButtonClickTime = 0;
+                        Mouse.CancelDoubleClick = true;
+                    }
                     else if (
                         HotKeys.IsPressed(HotKeyRegistrar.FollowMobileId)
                         && !ProfileManager.CurrentProfile.DisableAutoFollowAlt
