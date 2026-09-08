@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using ClassicUO.Configuration;
 using ClassicUO.Game.GameObjects;
@@ -204,9 +206,25 @@ namespace ClassicUO.Game.Managers
 
             RawLines = formattedData.Split(new string[] { "\n", "<br>" }, StringSplitOptions.None);
 
-            foreach (string line in RawLines)
+            int[] clilocs = item != null ? world.OPL.GetClilocs(serial) : Array.Empty<int>();
+            for (int i = 0; i < RawLines.Length; i++)
             {
-                singlePropertyData.Add(new SinglePropertyData(line));
+                var property = new SinglePropertyData(RawLines[i]);
+
+                // The first OPL cliloc is the item name; RawLines starts at the following entry.
+                int clilocIndex = i + 1;
+                if (clilocIndex < clilocs.Length)
+                {
+                    string english = Client.Game.UO.FileManager.Clilocs.GetEnglishString(clilocs[clilocIndex]);
+                    if (!string.IsNullOrWhiteSpace(english))
+                    {
+                        var englishProperty = new SinglePropertyData(english);
+                        property.EnglishName = englishProperty.Name;
+                        property.EnglishOriginalString = englishProperty.OriginalString;
+                    }
+                }
+
+                singlePropertyData.Add(property);
             }
 
             if (itemComparedTo != null)
@@ -311,6 +329,8 @@ namespace ClassicUO.Game.Managers
         {
             public string OriginalString;
             public string Name = "";
+            public string EnglishOriginalString = "";
+            public string EnglishName = "";
             public double? FirstValue = null;
             public double? SecondValue = null;
             public double FirstDiff = 0;
@@ -324,23 +344,52 @@ namespace ClassicUO.Game.Managers
                 string cleaned = RegexHelper.GetRegex(@"/c\[[#a-zA-Z0-9]+\]", RegexOptions.IgnoreCase).Replace(line, "").Replace("/cd", "").Trim();
 
                 // Extract numbers
-                MatchCollection matches = RegexHelper.GetRegex(@"-?\d+(\.\d+)?").Matches(cleaned);
+                MatchCollection matches = RegexHelper.GetRegex(@"-?\d+(?:[\.,]\d+)*").Matches(cleaned);
 
                 if (matches.Count > 0)
                 {
-                    if (double.TryParse(matches[0].Value, out double firstValue))
+                    if (TryParseNumber(matches[0].Value, out double firstValue))
                         FirstValue = firstValue;
 
-                    if (matches.Count > 1 && double.TryParse(matches[1].Value, out double secondValue))
+                    if (matches.Count > 1 && TryParseNumber(matches[1].Value, out double secondValue))
                         SecondValue = secondValue;
                 }
 
                 // Remove all numbers and symbols from the cleaned string to isolate the name
-                Name = RegexHelper.GetRegex(@"[-+]?\d+(\.\d+)?[%]?([- ]*\d+)?", RegexOptions.IgnoreCase).Replace(cleaned, "").Trim();
+                Name = RegexHelper.GetRegex(@"[-+]?\d+(?:[\.,]\d+)*[%]?([- ]*\d+)?", RegexOptions.IgnoreCase).Replace(cleaned, "").Trim();
 
                 // Fallback if something went wrong
                 if (string.IsNullOrWhiteSpace(Name))
                     Name = line;
+            }
+
+            private static bool TryParseNumber(string value, out double result)
+            {
+                int lastComma = value.LastIndexOf(',');
+                int lastDot = value.LastIndexOf('.');
+
+                if (lastComma >= 0 && lastDot >= 0)
+                {
+                    char decimalSeparator = lastComma > lastDot ? ',' : '.';
+                    char groupSeparator = decimalSeparator == ',' ? '.' : ',';
+                    value = value.Replace(groupSeparator.ToString(), string.Empty)
+                                 .Replace(decimalSeparator, '.');
+                }
+                else
+                {
+                    char separator = lastComma >= 0 ? ',' : lastDot >= 0 ? '.' : '\0';
+                    if (separator != '\0')
+                    {
+                        string[] parts = value.Split(separator);
+                        bool isGroupedInteger = parts.Length > 1 &&
+                                                parts.Skip(1).All(part => part.Length == 3);
+                        value = isGroupedInteger
+                            ? string.Concat(parts)
+                            : string.Concat(parts.Take(parts.Length - 1)) + "." + parts[^1];
+                    }
+                }
+
+                return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
             }
 
             public override string ToString()

@@ -58,11 +58,13 @@ namespace ClassicUO.Configuration
             if (file != null && File.Exists(file))
             {
                 _current = Load();
+                _current.Normalize();
                 return false;
             }
 
             bool migrated = MigrateFromProfile(profile, out GridHighlightsConfig config);
             _current = config;
+            _current.Normalize();
             _current.Save();
             return migrated;
         }
@@ -71,6 +73,20 @@ namespace ClassicUO.Configuration
         {
             LoadForProfile(ProfileManager.ProfilePath, ProfileManager.CurrentProfile);
             return _current;
+        }
+
+        public new void Save()
+        {
+            Normalize();
+            base.Save();
+        }
+
+        public void Normalize()
+        {
+            Highlights ??= new List<GridHighlightSetupEntry>();
+            Highlights = Highlights.Where(entry => entry != null).ToList();
+            foreach (GridHighlightSetupEntry entry in Highlights)
+                entry.Normalize();
         }
 
         /// <summary>
@@ -86,6 +102,8 @@ namespace ClassicUO.Configuration
 
             if (profile == null)
                 return false;
+
+            profile.GridHighlightSetup ??= new List<GridHighlightSetupEntry>();
 
             // Pull the even-older per-list storage into GridHighlightSetup first, if that hasn't happened yet.
             if (profile.GridHighlightSetup.Count == 0)
