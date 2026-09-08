@@ -1489,6 +1489,18 @@ namespace ClassicUO.Game.Scenes
                 return;
             }
 
+            if (
+                UIManager.SystemChat.IsActive
+                && !ProfileManager.CurrentProfile.DisableChatHistoryArrowKeys
+                && !Keyboard.Ctrl
+                && !Keyboard.Alt
+                && !Keyboard.Shift
+                && (key == SDL.SDL_Keycode.SDLK_UP || key == SDL.SDL_Keycode.SDLK_DOWN)
+            )
+            {
+                return;
+            }
+
             if (CanExecuteMacro())
             {
                 SpellBarManager.KeyPress(key, e.mod);
