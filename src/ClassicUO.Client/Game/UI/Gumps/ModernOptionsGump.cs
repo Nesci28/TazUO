@@ -28,6 +28,13 @@ namespace ClassicUO.Game.UI.Gumps
         private List<SettingsOption> _options = new List<SettingsOption>();
         private Profile profile;
 
+        private string[] GetNamePlateDistancePresetOptions() => new[]
+        {
+            TazLang.Get("nameplate_distance_modern", "Modern"),
+            TazLang.Get("nameplate_distance_target", "Target"),
+            TazLang.Get("nameplate_distance_collector", "Collector")
+        };
+
         private string[] GetNamePlateBackgroundModeOptions() => new[]
         {
             TazLang.Get("nameplate_background_fixedcolor", "Fixed color"),
@@ -3530,6 +3537,21 @@ namespace ClassicUO.Game.UI.Gumps
             (
                 new CheckboxWithLabel(TazLang.Get("nameplate_showdistance", "Show distance"), 0, profile.NamePlateShowDistance,
                     (b) => { profile.NamePlateShowDistance = b; SetNamePlatePresetCustom(); }), true, page
+            );
+
+            content.AddToRight
+            (
+                new ComboBoxWithLabel
+                (
+                    World,
+                    TazLang.Get("nameplate_distancepreset", "Distance preset"),
+                    0,
+                    ThemeSettings.COMBO_BOX_WIDTH,
+                    GetNamePlateDistancePresetOptions(),
+                    (int)profile.NamePlateDistancePreset,
+                    (i, s) => { profile.NamePlateDistancePreset = (NamePlateDistancePreset)i; SetNamePlatePresetCustom(); },
+                    false
+                ), true, page
             );
 
             content.AddToRight

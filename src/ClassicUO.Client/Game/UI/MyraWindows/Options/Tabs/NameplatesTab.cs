@@ -342,7 +342,6 @@ public static class NameplatesTab
     private static OptionFragment GeneralSettingsLeftSide()
     {
         Profile profile = ProfileManager.CurrentProfile;
-        const string locNameplatesHealth = "nameplate_health_";
         string nameWidthLabel = TazLang.Get("nameplate_width", "Name width");
         string heightLabel = TazLang.Get("nameplate_height", "Height");
         string cornerRadiusLabel = TazLang.Get("nameplate_cornerradius", "Corner radius");
@@ -449,7 +448,7 @@ public static class NameplatesTab
                 Option.LComboBox(
                     TazLang.Get("mog_kw_mode"),
                     NameplateSetting<NamePlateHealthBarMode>(() => profile.NamePlateHealthBarMode),
-                    locNameplatesHealth,
+                    LocNameplatesHealth,
                     search: new SearchMetadata(TazLang.Get("mog_kw_mode"), Keywords: [TazLang.Get("mog_kw_healthbar"), TazLang.Get("mog_kw_mode")])
                 ),
                 Option.Checkbox(
@@ -505,12 +504,6 @@ public static class NameplatesTab
                     new Accessor<NamePlateDistancePreset>(() => profile.NamePlateDistancePreset),
                     "nameplate_distance_",
                     search: new SearchMetadata(distancePresetLabel, Keywords: [TazLang.Get("mog_kw_distance"), TazLang.Get("mog_kw_preset")])
-                ),
-                Option.LComboBox(
-                    presetLabel,
-                    new Accessor<NamePlatePreset>(() => profile.NamePlatePreset),
-                    locNameplatesHealth,
-                    search: new SearchMetadata(presetLabel, Keywords: [TazLang.Get("mog_kw_preset")])
                 ),
                 Option.Checkbox(
                     TazLang.Get("mog_general_incomingmobiles"),
