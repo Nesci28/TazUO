@@ -505,7 +505,10 @@ internal static class ExtendedCommand
                     byte damage = p.ReadUInt8();
 
                     if (damage > 0)
+                    {
                         world.WorldTextManager.AddDamage(en, damage);
+                        EventSink.InvokeOnEntityDamage(en, damage);
+                    }
                 }
 
                 break;

@@ -14,23 +14,24 @@ internal static class Swing
 
         p.Skip(1);
 
-        uint attackers = p.ReadUInt32BE();
+        uint attacker = p.ReadUInt32BE();
+        uint defender = p.ReadUInt32BE();
 
-        if (attackers != world.Player)
+        world.CombatDamageTracker.RecordSwing(attacker, defender);
+
+        if (attacker != world.Player)
             return;
-
-        uint defenders = p.ReadUInt32BE();
 
         const int TIME_TURN_TO_LASTTARGET = 2000;
 
         if (
-            world.TargetManager.LastAttack == defenders
+            world.TargetManager.LastAttack == defender
             && world.Player.InWarMode
             && world.Player.Walker.LastStepRequestTime + TIME_TURN_TO_LASTTARGET < Time.Ticks
             && world.Player.Steps.Count == 0
         )
         {
-            Mobile enemy = world.Mobiles.Get(defenders);
+            Mobile enemy = world.Mobiles.Get(defender);
 
             if (enemy != null)
             {
