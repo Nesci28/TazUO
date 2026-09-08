@@ -28,6 +28,13 @@ namespace ClassicUO.Game.UI.Gumps
         private List<SettingsOption> _options = new List<SettingsOption>();
         private Profile profile;
 
+        private string[] GetNamePlateDistancePresetOptions() => new[]
+        {
+            TazLang.Get("nameplate_distance_modern", "Modern"),
+            TazLang.Get("nameplate_distance_target", "Target"),
+            TazLang.Get("nameplate_distance_collector", "Collector")
+        };
+
         private string[] GetNamePlateBackgroundModeOptions() => new[]
         {
             TazLang.Get("nameplate_background_fixedcolor", "Fixed color"),
@@ -3570,19 +3577,40 @@ namespace ClassicUO.Game.UI.Gumps
             );
             c.SetTooltip(TazLang.Get("nameplate_resourceopacity_tooltip"));
 
-                content.AddToRight
-                (
-                    new CheckboxWithLabel(TazLang.Get("nameplate_showwordofdeathicon", "Show Word of Death icon at 30% health"), 0, profile.NamePlateShowWordOfDeathIcon,
+            content.AddToRight
+            (
+                new CheckboxWithLabel(TazLang.Get("nameplate_showwordofdeathicon", "Show Word of Death icon at 30% health"), 0, profile.NamePlateShowWordOfDeathIcon,
                     (b) => { profile.NamePlateShowWordOfDeathIcon = b; SetNamePlatePresetCustom(); }), true, page
-                );
-                content.AddToRight
-                (
-                    new CheckboxWithLabel(TazLang.Get("nameplate_showbufficons", "Show buff icons"), 0, profile.NamePlateShowBuffIcons,
+            );
+            content.AddToRight
+            (
+                new CheckboxWithLabel(TazLang.Get("nameplate_showbufficons", "Show buff icons"), 0, profile.NamePlateShowBuffIcons,
                     (b) => { profile.NamePlateShowBuffIcons = b; SetNamePlatePresetCustom(); }), true, page
-                );
+            );
 
-                content.AddToRight
+            content.AddToRight
+            (
+                new CheckboxWithLabel(TazLang.Get("nameplate_showdistance", "Show distance"), 0, profile.NamePlateShowDistance,
+                    (b) => { profile.NamePlateShowDistance = b; SetNamePlatePresetCustom(); }), true, page
+            );
+
+            content.AddToRight
+            (
+                new ComboBoxWithLabel
                 (
+                    World,
+                    TazLang.Get("nameplate_distancepreset", "Distance preset"),
+                    0,
+                    ThemeSettings.COMBO_BOX_WIDTH,
+                    GetNamePlateDistancePresetOptions(),
+                    (int)profile.NamePlateDistancePreset,
+                    (i, s) => { profile.NamePlateDistancePreset = (NamePlateDistancePreset)i; SetNamePlatePresetCustom(); },
+                    false
+                ), true, page
+            );
+
+            content.AddToRight
+            (
                 new CheckboxWithLabel(TazLang.Get("nameplate_hidefullhealth", "Hide nameplates if full health"), 0, profile.NamePlateHideAtFullHealth,
                     (b) => { profile.NamePlateHideAtFullHealth = b; SetNamePlatePresetCustom(); }), true, page
             );

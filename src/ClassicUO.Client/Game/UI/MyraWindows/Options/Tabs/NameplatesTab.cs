@@ -21,6 +21,7 @@ namespace ClassicUO.Game.UI.MyraWindows.Options.Tabs;
 /// <summary>Options tab source for nameplate display settings and profile-based nameplate configuration</summary>
 public static class NameplatesTab
 {
+    private const string LocNameplatesHealth = "nameplate_health_";
     /// <summary>Returns the tab group containing general nameplate settings and profile sub-tabs</summary>
     internal static IOptionSource GetContent() => GetNameplatesMenuTabs();
 
@@ -340,7 +341,6 @@ public static class NameplatesTab
     private static OptionFragment GeneralSettingsLeftSide()
     {
         Profile profile = ProfileManager.CurrentProfile;
-        const string locNameplatesHealth = "nameplate_health_";
         string nameWidthLabel = TazLang.Get("nameplate_width", "Name width");
         string heightLabel = TazLang.Get("nameplate_height", "Height");
         string cornerRadiusLabel = TazLang.Get("nameplate_cornerradius", "Corner radius");
@@ -448,7 +448,7 @@ public static class NameplatesTab
                 Option.LComboBox(
                     TazLang.Get("mog_kw_mode"),
                     NameplateSetting<NamePlateHealthBarMode>(() => profile.NamePlateHealthBarMode),
-                    locNameplatesHealth,
+                    LocNameplatesHealth,
                     search: new SearchMetadata(TazLang.Get("mog_kw_mode"), Keywords: [TazLang.Get("mog_kw_healthbar"), TazLang.Get("mog_kw_mode")])
                 ),
                 Option.Checkbox(
