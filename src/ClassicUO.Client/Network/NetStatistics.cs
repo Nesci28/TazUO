@@ -7,10 +7,7 @@ namespace ClassicUO.Network
     public sealed class NetStatistics(AsyncNetClient socket)
     {
         private uint _lastTotalBytesReceived, _lastTotalBytesSent, _lastTotalPacketsReceived, _lastTotalPacketsSent;
-        private byte _pingIdx;
-
-        private readonly uint[] _pings = new uint[5];
-        private uint _startTickValue, _statisticsTimer;
+        private uint _statisticsTimer;
 
 
         public DateTime ConnectedFrom { get; set; }
@@ -31,57 +28,17 @@ namespace ClassicUO.Network
 
         public uint DeltaPacketsSent { get; private set; }
 
-        public uint LastPingReceived { get; private set; } = Time.Ticks;
+        public uint LastPingReceived => socket.PingManager.LastProtocolPingReceived;
 
-        public uint Ping
-        {
-            get
-            {
-                byte count = 0;
-                uint sum = 0;
+        public uint Ping => socket.PingManager.Ping;
 
-                for (byte i = 0; i < 5; i++)
-                {
-                    if (_pings[i] != 0)
-                    {
-                        count++;
-                        sum += _pings[i];
-                    }
-                }
+        public void PingReceived(byte idx) => socket.PingManager.ProtocolPingReceived(idx);
 
-                if (count == 0)
-                {
-                    return 0;
-                }
-
-                return sum / count;
-            }
-        }
-
-        public void PingReceived(byte idx)
-        {
-            _pings[idx % _pings.Length] = Time.Ticks - _startTickValue;
-            LastPingReceived = Time.Ticks;
-        }
-
-        public void SendPing()
-        {
-            if (socket != null)
-            {
-                 if (!socket.IsConnected)
-                 {
-                     return;
-                 }
-
-                 _startTickValue = Time.Ticks;
-                 socket.Send_Ping(_pingIdx);
-                 _pingIdx = (byte)((_pingIdx + 1) % _pings.Length);
-            }
-        }
+        public void SendPing() => socket.PingManager.SendPing();
 
         public void Reset()
         {
-            _startTickValue = 0;
+            socket.PingManager.Reset();
             ConnectedFrom = DateTime.MinValue;
             _lastTotalBytesReceived = _lastTotalBytesSent = _lastTotalPacketsReceived = _lastTotalPacketsSent = 0;
             TotalBytesReceived = TotalBytesSent = TotalPacketsReceived = TotalPacketsSent = 0;
