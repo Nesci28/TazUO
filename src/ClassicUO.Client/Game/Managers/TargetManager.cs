@@ -171,6 +171,8 @@ namespace ClassicUO.Game.Managers
             set
             {
                 _lastAttack = value;
+                HealthbarGrabberGump.OnTargetSelected(_world, value, TargetType.Harmful);
+
                 if (ProfileManager.CurrentProfile != null && ProfileManager.CurrentProfile.OpenHealthBarForLastAttack)
                 {
                     if (ProfileManager.CurrentProfile.UseOneHPBarForLastAttack)
@@ -205,6 +207,10 @@ namespace ClassicUO.Game.Managers
         }
 
         public readonly LastTargetInfo LastTargetInfo = new LastTargetInfo();
+
+        public uint LastHarmfulTarget { get; private set; }
+
+        public uint LastBeneficialTarget { get; private set; }
 
         public static readonly AutoTargetInfo NextAutoTarget = new AutoTargetInfo();
 
@@ -274,6 +280,33 @@ namespace ClassicUO.Game.Managers
         }
 
         public static void SetAutoTarget(uint serial, TargetType targetType, bool matchAnyTargetType = false) => NextAutoTarget.Set(serial, targetType, matchAnyTargetType);
+
+        internal void RecordTypedTarget(uint serial, TargetType targetType)
+        {
+            switch (targetType)
+            {
+                case TargetType.Harmful:
+                    LastHarmfulTarget = serial;
+                    break;
+
+                case TargetType.Beneficial:
+                    LastBeneficialTarget = serial;
+                    break;
+            }
+        }
+
+        internal void ClearTypedTarget(uint serial)
+        {
+            if (LastHarmfulTarget == serial)
+            {
+                LastHarmfulTarget = 0;
+            }
+
+            if (LastBeneficialTarget == serial)
+            {
+                LastBeneficialTarget = 0;
+            }
+        }
 
         public void CancelTarget()
         {
@@ -395,12 +428,13 @@ namespace ClassicUO.Game.Managers
                                             {
                                                 _world.CombatDamageTracker.RecordHarmfulTargetIntent(serial, TargetingType);
                                                 AsyncNetClient.Socket.Send_TargetObject(entity,
-                                                                                   entity.Graphic,
-                                                                                   entity.X,
-                                                                                   entity.Y,
-                                                                                   entity.Z,
-                                                                                   _targetCursorId,
-                                                                                   (byte)TargetingType);
+                                                                                      entity.Graphic,
+                                                                                      entity.X,
+                                                                                      entity.Y,
+                                                                                      entity.Z,
+                                                                                      _targetCursorId,
+                                                                                      (byte)TargetingType);
+                                                HealthbarGrabberGump.OnTargetSelected(_world, serial, TargetingType);
 
                                                 ClearTargetingWithoutTargetCancelPacket();
 
@@ -451,12 +485,13 @@ namespace ClassicUO.Game.Managers
 
                             _world.CombatDamageTracker.RecordHarmfulTargetIntent(serial, TargetingType);
                             AsyncNetClient.Socket.Send_TargetObject(entity,
-                                                               entity.Graphic,
-                                                               entity.X,
-                                                               entity.Y,
-                                                               entity.Z,
-                                                               _targetCursorId,
-                                                               (byte)TargetingType);
+                                                                    entity.Graphic,
+                                                                    entity.X,
+                                                                    entity.Y,
+                                                                    entity.Z,
+                                                                    _targetCursorId,
+                                                                    (byte)TargetingType);
+                            HealthbarGrabberGump.OnTargetSelected(_world, serial, TargetingType);
 
                             if (SerialHelper.IsMobile(serial) && LastTargetInfo.Serial != serial)
                             {
