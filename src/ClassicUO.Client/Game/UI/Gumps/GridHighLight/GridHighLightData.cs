@@ -483,7 +483,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             if (!HasSelectionCriteria() || !IsItemNameMatch(itemData.Name))
                 return false;
 
-            if (itemData.item != null && !MatchesSlot(itemData.item.ItemData.Layer))
+            if (itemData.ItemLayer != 0 && !MatchesSlot(itemData.ItemLayer))
                 return false;
 
             List<ItemPropertiesData.SinglePropertyData> lines = itemData.singlePropertyData

@@ -6,8 +6,10 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.Managers.Hotkeys;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Renderer;
@@ -68,6 +70,9 @@ namespace ClassicUO.Game
         private readonly List<Multi> _temp = new List<Multi>();
         private readonly Tooltip _tooltip;
         private readonly World _world;
+        private HotKeyEntry _compareItemHotkey;
+        private MultipleToolTipGump _comparisonTooltip;
+        private string _lastItemComparisonFailure;
 
         /// <summary>
         ///     The game cursor's visual style override.
@@ -557,6 +562,11 @@ namespace ClassicUO.Game
                 }
                 else
                 {
+                    if (TryShowItemComparison())
+                    {
+                        return;
+                    }
+
                     if (
                         UIManager.IsMouseOverWorld
                         && SelectedObject.Object is Entity item
@@ -624,6 +634,788 @@ namespace ClassicUO.Game
                 _tooltip.Clear();
             }
         }
+
+        private bool TryShowItemComparison()
+        {
+            if (UIManager.MouseOverControl is not Control hoveredControl)
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            bool isServerGump = hoveredControl.RootParent is Gump { IsFromServer: true };
+            bool isOtherPaperDoll = TryResolveOtherPaperDollItem(
+                hoveredControl,
+                _world.Player?.Serial ?? 0,
+                out uint paperDollSerial,
+                out uint paperDollItemSerial
+            );
+
+            if (!isServerGump && !isOtherPaperDoll)
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            if (_comparisonTooltip is { IsDisposed: false })
+            {
+                _tooltip.Clear();
+                return true;
+            }
+
+            _compareItemHotkey ??= HotKeys.Get(HotKeyRegistrar.GridCompareId);
+            // Vendor Search and inspected paperdolls support Ctrl+hover even when the shared grid
+            // hotkey registry has not been initialized or a profile failed to restore the binding.
+            if (!IsItemComparisonPressed(_compareItemHotkey))
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            return isOtherPaperDoll
+                ? TryShowPaperDollItemComparison(
+                    hoveredControl,
+                    paperDollSerial,
+                    paperDollItemSerial
+                )
+                : TryShowServerGumpItemComparison(hoveredControl);
+        }
+
+        private bool TryShowPaperDollItemComparison(
+            Control hoveredControl,
+            uint paperDollSerial,
+            uint itemSerial
+        )
+        {
+            Item candidate = _world.Items.Get(itemSerial);
+
+            if (
+                candidate == null
+                || candidate.IsDestroyed
+                || candidate.Container != paperDollSerial
+            )
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            // Hovering a real item normally requests its OPL. Keep doing that when Ctrl is already
+            // held before entering the paperdoll so the comparison appears as soon as it arrives.
+            if (!_world.OPL.TryGetNameAndData(itemSerial, out _, out _))
+            {
+                _world.OPL.Contains(itemSerial);
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            Layer layer = candidate.Layer;
+            if (layer == Layer.Invalid)
+                layer = (Layer)candidate.ItemData.Layer;
+
+            if (layer == Layer.Invalid)
+            {
+                ReportItemComparisonFailure(
+                    itemSerial,
+                    $"item 0x{itemSerial:X8} has no equipment layer",
+                    "Paperdoll"
+                );
+                return false;
+            }
+
+            // Backpacks are containers rather than interchangeable equipment in the comparison UI.
+            if (layer == Layer.Backpack)
+            {
+                _lastItemComparisonFailure = null;
+                return false;
+            }
+
+            MultipleToolTipGump tooltip = ItemComparisonTooltips.Create(
+                _world,
+                itemSerial,
+                (byte)layer,
+                hoveredControl
+            );
+
+            if (tooltip == null)
+            {
+                ReportItemComparisonFailure(
+                    itemSerial,
+                    $"you have no equipped item on layer {layer}",
+                    "Paperdoll"
+                );
+                return false;
+            }
+
+            return ShowItemComparison(tooltip);
+        }
+
+        private bool TryShowServerGumpItemComparison(Control hoveredControl)
+        {
+            bool itemPropertyResolved = TryResolveItemProperty(
+                hoveredControl,
+                out uint serial,
+                out ushort graphic
+            );
+            string rawTooltip = null;
+
+            if (
+                !itemPropertyResolved
+                && serial == 0
+                && graphic != 0
+            )
+            {
+                TryResolveItemTooltipText(hoveredControl, out rawTooltip);
+            }
+
+            if (!itemPropertyResolved && string.IsNullOrWhiteSpace(rawTooltip))
+            {
+                string controlType = hoveredControl.GetType().Name;
+                string controlDetails = hoveredControl is ButtonTileArt buttonTileArt
+                    ? $", graphic 0x{buttonTileArt.Graphic:X4}, button {buttonTileArt.ButtonID}, position {buttonTileArt.X},{buttonTileArt.Y}"
+                    : string.Empty;
+                string tooltipType = hoveredControl.Tooltip?.GetType().Name ?? "none";
+                ReportItemComparisonFailure(
+                    serial,
+                    serial == 0
+                        ? $"item serial could not be resolved (control {controlType}{controlDetails}, tooltip {tooltipType})"
+                        : $"item art could not be resolved (serial 0x{serial:X8}, control {controlType})",
+                    "Vendor"
+                );
+                return false;
+            }
+
+            if (
+                string.IsNullOrWhiteSpace(rawTooltip)
+                && !_world.OPL.TryGetNameAndData(serial, out _, out _)
+            )
+            {
+                ReportItemComparisonFailure(serial, "item properties are not loaded", "Vendor");
+                return false;
+            }
+
+            byte layer = Client.Game.UO.FileManager.TileData.StaticData[graphic].Layer;
+            if (layer == 0)
+            {
+                ReportItemComparisonFailure(
+                    serial,
+                    $"graphic 0x{graphic:X4} has no equipment layer",
+                    "Vendor"
+                );
+                return false;
+            }
+
+            MultipleToolTipGump tooltip = string.IsNullOrWhiteSpace(rawTooltip)
+                ? ItemComparisonTooltips.Create(_world, serial, layer, hoveredControl)
+                : ItemComparisonTooltips.Create(_world, rawTooltip, layer, hoveredControl);
+
+            if (tooltip == null)
+            {
+                ReportItemComparisonFailure(
+                    serial,
+                    $"no equipped item was found on layer {(Layer)layer}",
+                    "Vendor"
+                );
+                return false;
+            }
+
+            return ShowItemComparison(tooltip);
+        }
+
+        private bool ShowItemComparison(MultipleToolTipGump tooltip)
+        {
+            _lastItemComparisonFailure = null;
+            _tooltip.Clear();
+            _comparisonTooltip = tooltip;
+            UIManager.Add(_comparisonTooltip);
+            return true;
+        }
+
+        private void ReportItemComparisonFailure(uint serial, string reason, string source)
+        {
+            string failure = $"{source}:{serial:X8}:{reason}";
+            if (_lastItemComparisonFailure == failure)
+                return;
+
+            _lastItemComparisonFailure = failure;
+            GameActions.PrintUserWarn(_world, $"{source} comparison unavailable: {reason}.");
+        }
+
+        /// <summary>
+        /// Resolves a real equipped item hovered in another mobile's paperdoll. The owning
+        /// paperdoll is returned as well so callers can reject stale or unrelated world items.
+        /// </summary>
+        internal static bool TryResolveOtherPaperDollItem(
+            Control hoveredControl,
+            uint playerSerial,
+            out uint paperDollSerial,
+            out uint itemSerial
+        )
+        {
+            paperDollSerial = 0;
+            itemSerial = 0;
+
+            if (
+                playerSerial == 0
+                || hoveredControl?.RootParent is not PaperDollGump paperDoll
+                || paperDoll.LocalSerial == playerSerial
+                || !SerialHelper.IsMobile(paperDoll.LocalSerial)
+                || !SerialHelper.IsItem(hoveredControl.LocalSerial)
+            )
+            {
+                return false;
+            }
+
+            paperDollSerial = paperDoll.LocalSerial;
+            itemSerial = hoveredControl.LocalSerial;
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves the serial and art attached to an itemproperty entry. Server gumps do not have
+        /// to place the itemproperty command directly on the tile-art control, so the normal uint
+        /// tooltip and the nearest preceding item art are also accepted as fallbacks.
+        /// </summary>
+        internal static bool TryResolveItemProperty(
+            Control hoveredControl,
+            out uint serial,
+            out ushort graphic
+        )
+        {
+            serial = hoveredControl?.ItemPropertySerial ?? 0;
+            graphic = hoveredControl?.ItemPropertyGraphic ?? 0;
+
+            if (hoveredControl == null)
+                return false;
+
+            if (serial == 0 && hoveredControl.Tooltip is uint tooltipSerial)
+                serial = tooltipSerial;
+
+            if (graphic == 0)
+                graphic = GetItemArtGraphic(hoveredControl);
+
+            IGui current = hoveredControl;
+
+            while ((serial == 0 || graphic == 0) && current.Parent != null)
+            {
+                List<IGui> siblings = current.Parent.Children;
+                int currentIndex = siblings.IndexOf(current);
+
+                for (int distance = 0; distance < siblings.Count; distance++)
+                {
+                    int beforeIndex = currentIndex - distance;
+                    int afterIndex = currentIndex + distance;
+
+                    if (beforeIndex >= 0 && siblings[beforeIndex] is Control beforeControl)
+                        ResolveItemPropertyFromSibling(beforeControl, ref serial, ref graphic);
+
+                    if (
+                        distance != 0
+                        && afterIndex < siblings.Count
+                        && siblings[afterIndex] is Control afterControl
+                    )
+                        ResolveItemPropertyFromSibling(afterControl, ref serial, ref graphic);
+
+                    if (serial != 0 && graphic != 0)
+                        break;
+                }
+
+                current = current.Parent;
+            }
+
+            if (hoveredControl.RootParent is Gump rootGump)
+            {
+                if (serial == 0)
+                {
+                    TryResolveItemSerialFromGumpText(
+                        rootGump.PacketGumpText,
+                        hoveredControl,
+                        out serial
+                    );
+                }
+
+                if (graphic == 0 && serial != 0)
+                {
+                    graphic = FindAssociatedItemPropertyGraphic(rootGump, serial);
+
+                    if (graphic == 0)
+                    {
+                        TryResolveItemGraphicFromGumpText(
+                            rootGump.PacketGumpText,
+                            serial,
+                            out graphic
+                        );
+                    }
+                }
+            }
+
+            return serial != 0 && graphic != 0;
+        }
+
+        internal static bool TryResolveItemTooltipText(
+            Control hoveredControl,
+            out string tooltipText
+        )
+        {
+            tooltipText = null;
+
+            if (hoveredControl == null)
+                return false;
+
+            if (TryGetItemTooltipText(hoveredControl, out tooltipText))
+                return true;
+
+            IGui current = hoveredControl;
+
+            while (current.Parent != null)
+            {
+                List<IGui> siblings = current.Parent.Children;
+                int currentIndex = siblings.IndexOf(current);
+
+                for (int distance = 1; distance < siblings.Count; distance++)
+                {
+                    int beforeIndex = currentIndex - distance;
+                    int afterIndex = currentIndex + distance;
+
+                    if (
+                        beforeIndex >= 0
+                        && siblings[beforeIndex] is Control beforeControl
+                        && TryGetItemTooltipText(beforeControl, out tooltipText)
+                    )
+                    {
+                        return true;
+                    }
+
+                    if (
+                        afterIndex >= 0
+                        && afterIndex < siblings.Count
+                        && siblings[afterIndex] is Control afterControl
+                        && TryGetItemTooltipText(afterControl, out tooltipText)
+                    )
+                    {
+                        return true;
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetItemTooltipText(Control control, out string tooltipText)
+        {
+            tooltipText = control.Tooltip as string;
+
+            return !string.IsNullOrWhiteSpace(tooltipText)
+                && (
+                    tooltipText.Contains('\n')
+                    || tooltipText.Contains("<br", StringComparison.OrdinalIgnoreCase)
+                );
+        }
+
+        private static void ResolveItemPropertyFromSibling(
+            Control control,
+            ref uint serial,
+            ref ushort graphic
+        )
+        {
+            uint candidateSerial = control.ItemPropertySerial;
+
+            if (candidateSerial == 0 && control.Tooltip is uint tooltipSerial)
+                candidateSerial = tooltipSerial;
+
+            if (serial == 0 && candidateSerial != 0)
+                serial = candidateSerial;
+
+            if (graphic != 0)
+                return;
+
+            if (
+                control.ItemPropertyGraphic != 0
+                && (serial == 0 || candidateSerial == 0 || candidateSerial == serial)
+            )
+            {
+                graphic = control.ItemPropertyGraphic;
+                return;
+            }
+
+            graphic = GetItemArtGraphic(control);
+        }
+
+        private static ushort FindAssociatedItemPropertyGraphic(IGui root, uint serial)
+        {
+            for (int i = 0; i < root.Children.Count; i++)
+            {
+                IGui child = root.Children[i];
+
+                if (
+                    child is Control control
+                    && control.ItemPropertySerial == serial
+                    && control.ItemPropertyGraphic != 0
+                )
+                {
+                    return control.ItemPropertyGraphic;
+                }
+
+                ushort nestedGraphic = FindAssociatedItemPropertyGraphic(child, serial);
+                if (nestedGraphic != 0)
+                    return nestedGraphic;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Resolves the itemproperty serial nearest the exact tile-art command represented by the
+        /// hovered control. OSI Vendor Search can emit itemproperty before its ButtonTileArt, so
+        /// there may be no serial-bearing sibling for normal control-tree lookup to discover.
+        /// </summary>
+        internal static bool TryResolveItemSerialFromGumpText(
+            string packetGumpText,
+            Control itemArtControl,
+            out uint serial
+        )
+        {
+            serial = 0;
+
+            if (
+                itemArtControl == null
+                || string.IsNullOrWhiteSpace(packetGumpText)
+            )
+            {
+                return false;
+            }
+
+            string[] lines = packetGumpText.Split(
+                '\n',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            );
+
+            if (!TryFindItemArtCommand(lines, itemArtControl, out int itemArtIndex))
+                return false;
+
+            if (TryResolveItemSerialByOrdinal(lines, itemArtIndex, out serial))
+                return true;
+
+            bool searchBefore = true;
+            bool searchAfter = true;
+
+            for (
+                int distance = 1;
+                searchBefore || searchAfter;
+                distance++
+            )
+            {
+                int beforeIndex = itemArtIndex - distance;
+                int afterIndex = itemArtIndex + distance;
+
+                if (searchBefore)
+                {
+                    if (beforeIndex < 0)
+                    {
+                        searchBefore = false;
+                    }
+                    else
+                    {
+                        string[] command = SplitGumpCommand(lines[beforeIndex]);
+
+                        if (TryGetItemPropertySerial(command, out serial))
+                            return true;
+
+                        if (IsItemArtCommand(command))
+                            searchBefore = false;
+                    }
+                }
+
+                if (searchAfter)
+                {
+                    if (afterIndex >= lines.Length)
+                    {
+                        searchAfter = false;
+                    }
+                    else
+                    {
+                        string[] command = SplitGumpCommand(lines[afterIndex]);
+
+                        if (TryGetItemPropertySerial(command, out serial))
+                            return true;
+
+                        if (IsItemArtCommand(command))
+                            searchAfter = false;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveItemSerialByOrdinal(
+            string[] lines,
+            int itemArtIndex,
+            out uint serial
+        )
+        {
+            serial = 0;
+            int artCount = 0;
+            int itemArtOrdinal = -1;
+            var itemPropertySerials = new List<uint>();
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string[] command = SplitGumpCommand(lines[i]);
+
+                if (
+                    command.Length != 0
+                    && string.Equals(
+                        command[0],
+                        "buttontileart",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    if (i == itemArtIndex)
+                        itemArtOrdinal = artCount;
+
+                    artCount++;
+                }
+
+                if (TryGetItemPropertySerial(command, out uint itemSerial))
+                    itemPropertySerials.Add(itemSerial);
+            }
+
+            if (
+                itemArtOrdinal < 0
+                || artCount != itemPropertySerials.Count
+                || itemArtOrdinal >= itemPropertySerials.Count
+            )
+            {
+                return false;
+            }
+
+            serial = itemPropertySerials[itemArtOrdinal];
+            return serial != 0;
+        }
+
+        private static bool TryFindItemArtCommand(
+            string[] lines,
+            Control itemArtControl,
+            out int commandIndex
+        )
+        {
+            commandIndex = -1;
+
+            if (itemArtControl is not ButtonTileArt buttonTileArt)
+                return false;
+
+            int fallbackIndex = -1;
+            int fallbackCount = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string[] command = SplitGumpCommand(lines[i]);
+
+                if (
+                    command.Length <= 8
+                    || !string.Equals(
+                        command[0],
+                        "buttontileart",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                    || ClassicUO.Utility.UInt16Converter.Parse(command[8])
+                        != buttonTileArt.Graphic
+                    || !int.TryParse(command[7], out int buttonID)
+                    || buttonID != buttonTileArt.ButtonID
+                )
+                {
+                    continue;
+                }
+
+                fallbackIndex = i;
+                fallbackCount++;
+
+                if (
+                    int.TryParse(command[1], out int x)
+                    && int.TryParse(command[2], out int y)
+                    && (
+                        x == buttonTileArt.X
+                        || (int)(x * buttonTileArt.InternalScale) == buttonTileArt.X
+                    )
+                    && (
+                        y == buttonTileArt.Y
+                        || (int)(y * buttonTileArt.InternalScale) == buttonTileArt.Y
+                    )
+                )
+                {
+                    commandIndex = i;
+                    return true;
+                }
+            }
+
+            if (fallbackCount == 1)
+            {
+                commandIndex = fallbackIndex;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetItemPropertySerial(string[] command, out uint serial)
+        {
+            serial = 0;
+
+            return command.Length > 1
+                && string.Equals(
+                    command[0],
+                    "itemproperty",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && TryParseSerial(command[1], out serial)
+                && serial != 0;
+        }
+
+        private static bool IsItemArtCommand(string[] command) =>
+            GetItemGraphicFromGumpCommand(command) != 0;
+
+        /// <summary>
+        /// Resolves item art directly from a server gump's normalized command text. This is the
+        /// final fallback for Vendor Search gumps whose itemproperty tooltip is attached to an
+        /// overlay rather than to the control that rendered the item art.
+        /// </summary>
+        internal static bool TryResolveItemGraphicFromGumpText(
+            string packetGumpText,
+            uint serial,
+            out ushort graphic
+        )
+        {
+            graphic = 0;
+
+            if (serial == 0 || string.IsNullOrWhiteSpace(packetGumpText))
+                return false;
+
+            string[] lines = packetGumpText.Split(
+                '\n',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            );
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string[] parts = SplitGumpCommand(lines[i]);
+
+                if (
+                    parts.Length < 2
+                    || !string.Equals(parts[0], "itemproperty", StringComparison.OrdinalIgnoreCase)
+                    || !TryParseSerial(parts[1], out uint itemSerial)
+                    || itemSerial != serial
+                )
+                {
+                    continue;
+                }
+
+                // itemproperty normally applies to the preceding visual command. Stop at another
+                // itemproperty so an adjacent Vendor Search result can never donate its art.
+                for (int commandIndex = i - 1; commandIndex >= 0; commandIndex--)
+                {
+                    string[] command = SplitGumpCommand(lines[commandIndex]);
+
+                    if (IsItemPropertyCommand(command))
+                        break;
+
+                    graphic = GetItemGraphicFromGumpCommand(command);
+                    if (graphic != 0)
+                        return true;
+                }
+
+                // A few server implementations emit itemproperty immediately before the visual.
+                for (int commandIndex = i + 1; commandIndex < lines.Length; commandIndex++)
+                {
+                    string[] command = SplitGumpCommand(lines[commandIndex]);
+
+                    if (IsItemPropertyCommand(command))
+                        break;
+
+                    graphic = GetItemGraphicFromGumpCommand(command);
+                    if (graphic != 0)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string[] SplitGumpCommand(string command) =>
+            command.Split(
+                new[] { ' ', ',' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            );
+
+        private static bool IsItemPropertyCommand(string[] parts) =>
+            parts.Length != 0
+            && string.Equals(parts[0], "itemproperty", StringComparison.OrdinalIgnoreCase);
+
+        private static bool TryParseSerial(string value, out uint serial)
+        {
+            try
+            {
+                serial = SerialHelper.Parse(value);
+                return true;
+            }
+            catch (FormatException)
+            {
+                serial = 0;
+                return false;
+            }
+            catch (OverflowException)
+            {
+                serial = 0;
+                return false;
+            }
+        }
+
+        private static ushort GetItemGraphicFromGumpCommand(string[] parts)
+        {
+            if (parts.Length == 0)
+                return 0;
+
+            if (
+                parts.Length > 3
+                && (
+                    string.Equals(parts[0], "tilepic", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(parts[0], "tilepichue", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(
+                        parts[0],
+                        "tilepicasgumppic",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+            )
+            {
+                return ClassicUO.Utility.UInt16Converter.Parse(parts[3]);
+            }
+
+            if (
+                parts.Length > 8
+                && string.Equals(parts[0], "buttontileart", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return ClassicUO.Utility.UInt16Converter.Parse(parts[8]);
+            }
+
+            return 0;
+        }
+
+        internal static bool IsItemComparisonPressed(HotKeyEntry compareHotkey) =>
+            Keyboard.Ctrl || compareHotkey?.IsPressed() == true;
+
+        private static ushort GetItemArtGraphic(Control control) => control switch
+        {
+            StaticPic staticPic => staticPic.Graphic,
+            ButtonTileArt buttonTileArt => buttonTileArt.Graphic,
+            // OSI Vendor Search uses tilepicasgumppic, parsed as a GumpPic. Only treat it as
+            // item art when itemproperty has attached a serial tooltip to that same control.
+            GumpPic gumpPic when gumpPic.Tooltip is uint => gumpPic.Graphic,
+            _ => 0
+        };
 
         private ushort AssignGraphicByState()
         {

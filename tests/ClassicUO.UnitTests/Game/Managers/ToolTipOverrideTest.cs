@@ -113,6 +113,91 @@ namespace ClassicUO.UnitTests.Game.Managers
             world.Clear();
         }
 
+        [Fact]
+        public void ProcessTooltipText_OPLOnlyItem_ComparesAgainstEquippedItem()
+        {
+            const uint equippedSerial = ITEM_SERIAL + 1;
+
+            SetTooltipOverrides(
+                new ToolTipOverrideData(
+                    0,
+                    "Fire Resist",
+                    "FIRERES={1}{4}",
+                    -1,
+                    100,
+                    -1,
+                    100,
+                    (byte)TooltipLayers.Any
+                )
+            );
+
+            var world = new World();
+            world.OPL.Add(ITEM_SERIAL, 1, "Vendor Sword", "Fire Resist 15", 0);
+            world.OPL.Add(equippedSerial, 1, "Equipped Sword", "Fire Resist 10", 0);
+
+            // This test only needs an item identity for the equipped OPL. Avoid constructing a
+            // renderable Item, which would require the game asset manager and global test state.
+            var equipped = (ClassicUO.Game.GameObjects.Item)
+                System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+                    typeof(ClassicUO.Game.GameObjects.Item)
+                );
+            equipped.Serial = equippedSerial;
+
+            string result = ToolTipOverrideData.ProcessTooltipText(
+                world,
+                ITEM_SERIAL,
+                (byte)Layer.OneHanded,
+                out _,
+                equipped
+            );
+
+            result.Should().Contain("FIRERES=15(5)");
+            world.Items.ContainsKey(ITEM_SERIAL).Should().BeFalse(
+                "Vendor Search results must remain OPL-only and must not be inserted into the world"
+            );
+
+            world.Clear();
+        }
+
+        [Fact]
+        public void ProcessTooltipText_RawVendorItem_ComparesAgainstEquippedItem()
+        {
+            const uint equippedSerial = ITEM_SERIAL + 1;
+
+            SetTooltipOverrides(
+                new ToolTipOverrideData(
+                    0,
+                    "Fire Resist",
+                    "FIRERES={1}{4}",
+                    -1,
+                    100,
+                    -1,
+                    100,
+                    (byte)TooltipLayers.Any
+                )
+            );
+
+            var world = new World();
+            world.OPL.Add(equippedSerial, 1, "Equipped Earrings", "Fire Resist 10", 0);
+
+            var equipped = (ClassicUO.Game.GameObjects.Item)
+                System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+                    typeof(ClassicUO.Game.GameObjects.Item)
+                );
+            equipped.Serial = equippedSerial;
+
+            string result = ToolTipOverrideData.ProcessTooltipText(
+                world,
+                "Vendor Earrings\nFire Resist 15",
+                (byte)Layer.Earrings,
+                out _,
+                equipped
+            );
+
+            result.Should().Contain("FIRERES=15(5)");
+            world.Clear();
+        }
+
         #endregion
 
         #region Fallback / no-override behaviour
