@@ -25,7 +25,9 @@ internal static class LoginComplete
             AsyncNetClient.Socket.Send_OpenChat("");
 
             AsyncNetClient.Socket.Send_SkillsRequest(world.Player);
+#if !TAZUO_IOS
             ObjectActionQueue.Instance.Enqueue(ObjectActionQueueItem.DoubleClick(world.Player | 0x8000_0000), ActionPriority.UseItem);
+#endif
 
             if (Client.Game.UO.Version >= ClassicUO.Utility.ClientVersion.CV_306E)
                 AsyncNetClient.Socket.Send_ClientType();
@@ -44,7 +46,21 @@ internal static class LoginComplete
 
             if (gumps != null)
                 foreach (Gump gump in gumps)
+#if TAZUO_IOS
+                {
+                    // Do not restore desktop-positioned paperdolls over the
+                    // first mobile frame. They are still available from the
+                    // Character tab and can be positioned for touch later.
+                    if (gump is PaperDollGump || gump is ModernPaperdoll)
+                    {
+                        gump.Dispose();
+                        continue;
+                    }
                     UIManager.Add(gump);
+                }
+#else
+                    UIManager.Add(gump);
+#endif
         }
     }
 }

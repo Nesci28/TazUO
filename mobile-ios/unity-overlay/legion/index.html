@@ -1,0 +1,28 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="module">
+  import { loadPyodide } from "./pyodide/pyodide.mjs";
+  const pyodide = await loadPyodide({ indexURL: "./pyodide/" });
+  const pending = new Map();
+  window.__tazuoResolve = (id, encoded) => {
+    const resolve = pending.get(id);
+    if (!resolve) return;
+    pending.delete(id);
+    const response = JSON.parse(encoded);
+    response.ok ? resolve(response.result) : resolve(Promise.reject(new Error(response.error)));
+  };
+  let sequence = 0;
+  const call = (name, args) => new Promise((resolve) => {
+    const id = ++sequence;
+    pending.set(id, resolve);
+    window.webkit.messageHandlers.unity.postMessage(JSON.stringify({ type: "api", id, name, args }));
+  });
+  pyodide.globals.set("API", {
+    Walk: (direction) => call("walk", [direction]),
+    Msg: (text) => call("say", [text]),
+    Say: (text) => call("say", [text]),
+    RequestTarget: () => call("target", [])
+  });
+  window.TazUOLegionReady = true;
+  window.TazUORun = async (source) => pyodide.runPythonAsync(source);
+</script>

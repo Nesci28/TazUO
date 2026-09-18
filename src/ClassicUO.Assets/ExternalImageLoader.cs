@@ -31,6 +31,17 @@ namespace ClassicUO.Assets
         public static ExternalImageLoader _instance;
         public static ExternalImageLoader Instance => _instance ?? (_instance = new ExternalImageLoader());
 
+        private static bool IsIosBundlePath(string path)
+        {
+            return path.StartsWith("/var/containers/Bundle/Application/", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/private/var/containers/Bundle/Application/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string ExternalImagePath(string folder)
+        {
+            return Path.Combine(exePath, IMAGES_FOLDER, folder);
+        }
+
         public bool TryGetEmbeddedTexture(string name, out Texture2D texture)
         {
             if (EmbeddedArt.TryGetValue(name, out texture))
@@ -275,9 +286,20 @@ namespace ClassicUO.Assets
         public void Load(string uoDirectory = null)
         {
             exePath = AppContext.BaseDirectory;
+            // AppContext.BaseDirectory is the signed .app bundle on iOS and is
+            // read-only. External images are optional/generated assets, so put
+            // their root in the writable Documents container before any path is
+            // constructed. This avoids every bundle write, including the first
+            // Directory.CreateDirectory call.
+            if (OperatingSystem.IsIOS() || IsIosBundlePath(exePath))
+            {
+                // The app temporary directory is always writable on iOS and
+                // is sufficient for optional image caches.
+                exePath = Path.GetTempPath();
+            }
             _uoDirectory = uoDirectory;
 
-            string gumpPath = Path.Combine(exePath, IMAGES_FOLDER, GUMP_EXTERNAL_FOLDER);
+            string gumpPath = ExternalImagePath(GUMP_EXTERNAL_FOLDER);
 
             if (Directory.Exists(gumpPath))
             {
@@ -296,7 +318,7 @@ namespace ClassicUO.Assets
                 Directory.CreateDirectory(gumpPath);
             }
 
-            string artPath = Path.Combine(exePath, IMAGES_FOLDER, ART_EXTERNAL_FOLDER);
+            string artPath = ExternalImagePath(ART_EXTERNAL_FOLDER);
 
             if (Directory.Exists(artPath))
             {

@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>TazUO.iOS</AssemblyName>
+    <RootNamespace>TazUO.iOS</RootNamespace>
+    <ApplicationTitle>TazUO</ApplicationTitle>
+    <ApplicationDisplayVersion>1.0.3</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
+    <AppIcon>AppIcon</AppIcon>
+    <ApplicationId>com.tazuo.ios</ApplicationId>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
+    <TAZUO_IOS>true</TAZUO_IOS>
+    <DefineConstants>$(DefineConstants);TAZUO_IOS</DefineConstants>
+    <PublishTrimmed>true</PublishTrimmed>
+    <MtouchLink>SdkOnly</MtouchLink>
+    <!-- Legion uses IronPython's managed interpreter; JIT is unavailable on iOS. -->
+    <UseInterpreter>true</UseInterpreter>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="BuildAdapters/**/*.cs" />
+    <ProjectReference Include="../../src/ClassicUO.Client/ClassicUO.Client.csproj" />
+    <None Include="Mono.Unix.dll.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TAZUO_IOS)' == 'true'">
+    <NativeReference Include="$(NuGetPackageRoot)mono.unix\7.1.0-final.1.21458.1\runtimes\$(RuntimeIdentifier)\native\libMono.Unix.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <LinkToExecutable>true</LinkToExecutable>
+    </NativeReference>
+  </ItemGroup>
+  <Import Project="../build/native/$(RuntimeIdentifier)/MonoUnixSymbols.props" Condition="Exists('../build/native/$(RuntimeIdentifier)/MonoUnixSymbols.props')" />
+  <ItemGroup>
+    <NativeReference Include="../build/native/$(RuntimeIdentifier)/lib/libSDL3.a">
+      <Kind>Static</Kind><ForceLoad>true</ForceLoad><LinkToExecutable>true</LinkToExecutable>
+      <Frameworks>CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation CoreBluetooth CoreGraphics CoreMotion Foundation GameController Metal OpenGLES QuartzCore UIKit</Frameworks>
+      <WeakFrameworks>CoreHaptics</WeakFrameworks>
+    </NativeReference>
+    <NativeReference Include="../build/native/$(RuntimeIdentifier)/lib/libFNA3D.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <LinkToExecutable>true</LinkToExecutable>
+      <Frameworks>CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation CoreBluetooth CoreGraphics CoreMotion Foundation GameController Metal OpenGLES QuartzCore UIKit</Frameworks>
+      <WeakFrameworks>CoreHaptics</WeakFrameworks>
+      <IsCxx>true</IsCxx>
+    </NativeReference>
+    <NativeReference Include="../build/native/$(RuntimeIdentifier)/lib/libmojoshader.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <LinkToExecutable>true</LinkToExecutable>
+    </NativeReference>
+    <!-- Audio is kept as a separate artifact while its packed ARM64 DSP
+         constants are adapted for the current iOS linker. The renderer gate
+         deliberately does not initialize FNA Audio yet. -->
+  </ItemGroup>
+  <Import Project="../build/native/$(RuntimeIdentifier)/FnaSymbols.props" Condition="Exists('../build/native/$(RuntimeIdentifier)/FnaSymbols.props')" />
+
+  <!-- The device linker also generates native registration and runtime-library
+       mappings. Skipping it can reuse simulator output and omit System.Native.
+       MtouchLink=None preserves managed code while still running this step. -->
+  <Target Name="TazUO_iOS_RequireDeviceLinker" BeforeTargets="_ComputePublishTrimmed"
+          Condition="'$(RuntimeIdentifier)' == 'ios-arm64'">
+    <Error Condition="'$(_MustTrim)' == 'false'"
+           Text="Device builds must run the iOS linker. Remove _MustTrim=false and PublishTrimmed overrides; use MtouchLink=None to preserve managed code." />
+  </Target>
+</Project>

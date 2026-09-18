@@ -240,7 +240,11 @@ namespace ClassicUO
             Settings = new SQLSettingsManager();
             Log.Trace("SQLSettingsManager initialized");
 
+#if TAZUO_IOS
+            Game = new GameController(pluginHost);
+#else
             using (Game = new GameController(pluginHost))
+#endif
             {
                 // https://github.com/FNA-XNA/FNA/wiki/7:-FNA-Environment-Variables#fna_graphics_enable_highdpi
                 CUOEnviroment.IsHighDPI = Environment.GetEnvironmentVariable("FNA_GRAPHICS_ENABLE_HIGHDPI") == "1";
@@ -280,7 +284,14 @@ namespace ClassicUO
 
                 Game.SetScale(ProfileManager.GlobalSettings.GlobalScale);
 
+#if TAZUO_IOS
+                // UIKit owns the iOS main loop. The host retains the game and
+                // advances it with RunOneFrame from CADisplayLink.
+                Bootstrap.NativeGameReady(Game);
+                return;
+#else
                 Game.Run();
+#endif
             }
 
             // Dispose SQLSettingsManager

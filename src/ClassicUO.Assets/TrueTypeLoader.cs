@@ -41,6 +41,7 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using System.Threading;
 using ClassicUO.IO.Persistency;
+using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 using FontStashSharp;
 using FontStashSharp.RichText;
@@ -206,7 +207,7 @@ public class TrueTypeLoader
     /// </summary>
     private void LoadUserFonts()
     {
-        string fontPath = Path.Combine(AppContext.BaseDirectory, "Fonts");
+        string fontPath = Path.Combine(FileSystemHelper.GetWritableDataDirectory(), "Fonts");
 
         if (!Directory.Exists(fontPath))
             Directory.CreateDirectory(fontPath);
