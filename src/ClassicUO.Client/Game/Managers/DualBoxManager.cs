@@ -30,9 +30,17 @@ internal enum DualBoxMessageType
     State,
     Sync,
     Step,
+    MountState,
     ScriptCommand,
     Nack,
     Stop
+}
+
+internal enum DualBoxMountAction
+{
+    None,
+    Mount,
+    Dismount
 }
 
 internal sealed class DualBoxMessage
@@ -49,6 +57,8 @@ internal sealed class DualBoxMessage
     public bool Ready { get; set; }
     public bool Run { get; set; }
     public long Sequence { get; set; }
+    public bool Mounted { get; set; }
+    public long MountSequence { get; set; }
     public ushort StartX { get; set; }
     public ushort StartY { get; set; }
     public sbyte StartZ { get; set; }
@@ -111,10 +121,12 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 2;
+    public const int ProtocolVersion = 3;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
+    internal const uint MountActionTimeout = 3000;
+    internal const int MaxMountActionAttempts = 2;
 
     private sealed class Peer
     {
@@ -131,6 +143,9 @@ public sealed class DualBoxManager
         public bool Selected { get; set; }
         public bool Ready { get; set; }
         public long ExpectedSequence { get; set; }
+        public bool MountReady { get; set; }
+        public bool ExpectedMounted { get; set; }
+        public long ExpectedMountSequence { get; set; }
     }
 
     private static readonly Lazy<DualBoxManager> _instance = new(() => new DualBoxManager());
@@ -146,7 +161,17 @@ public sealed class DualBoxManager
     private string _status = "Stopped";
     private uint _nextHeartbeat;
     private long _stepSequence;
+    private long _mountSequence;
     private long _clientSequence;
+    private long _clientMountSequence;
+    private long _pendingMountSequence;
+    private bool? _lastMasterMounted;
+    private bool? _expectedClientMounted;
+    private bool _mountActionRequested;
+    private bool _mountActionTargetMounted;
+    private bool? _mountAttemptTargetMounted;
+    private int _mountActionAttempts;
+    private uint _mountActionDeadline;
     private bool _clientFollowing;
     private bool _clientReady;
     private bool _aligning;
@@ -219,7 +244,7 @@ public sealed class DualBoxManager
         get
         {
             lock (_gate)
-                return _peers.Count(p => p.Selected && p.Ready);
+                return _peers.Count(p => p.Selected && p.Ready && p.MountReady);
         }
     }
 
@@ -228,7 +253,8 @@ public sealed class DualBoxManager
         get
         {
             lock (_gate)
-                return _role == DualBoxRole.Master && _peers.Any(p => p.Selected && !p.Ready);
+                return _role == DualBoxRole.Master
+                    && _peers.Any(p => p.Selected && (!p.Ready || !p.MountReady));
         }
     }
 
@@ -339,6 +365,8 @@ public sealed class DualBoxManager
             deselected = [];
             _stepSequence++;
             masterState.Sequence = _stepSequence;
+            masterState.MountSequence = ++_mountSequence;
+            _lastMasterMounted = masterState.Mounted;
 
             foreach (Peer peer in _peers)
             {
@@ -351,6 +379,9 @@ public sealed class DualBoxManager
                 peer.Selected = inRange;
                 peer.Ready = false;
                 peer.ExpectedSequence = masterState.Sequence;
+                peer.MountReady = false;
+                peer.ExpectedMounted = masterState.Mounted;
+                peer.ExpectedMountSequence = masterState.MountSequence;
 
                 if (inRange)
                     selected.Add(peer);
@@ -426,6 +457,11 @@ public sealed class DualBoxManager
     /// </summary>
     public bool AllowLocalWalk()
     {
+        World world = World.Instance;
+
+        if (world?.InGame == true && world.Player != null)
+            UpdateMasterMountState(world);
+
         lock (_gate)
         {
             if (_role == DualBoxRole.Master)
@@ -436,6 +472,9 @@ public sealed class DualBoxManager
                         continue;
 
                     if (!peer.Ready)
+                        return false;
+
+                    if (!peer.MountReady)
                         return false;
                 }
 
@@ -575,6 +614,12 @@ public sealed class DualBoxManager
         lock (_gate)
             role = _role;
 
+        if (role == DualBoxRole.Master)
+        {
+            UpdateMasterMountState(world);
+            return;
+        }
+
         if (role != DualBoxRole.Client)
             return;
 
@@ -583,6 +628,9 @@ public sealed class DualBoxManager
             _nextHeartbeat = Time.Ticks + 500;
             SendClientState(DualBoxMessageType.State, _clientReady ? string.Empty : "Not ready");
         }
+
+        if (_clientFollowing && !ProcessClientMountState(world))
+            return;
 
         if (_aligning)
         {
@@ -596,6 +644,21 @@ public sealed class DualBoxManager
 
     internal static bool IsWithinSyncRange(int x1, int y1, int x2, int y2)
         => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= SyncRange;
+
+    internal static DualBoxMountAction GetMountAction(bool desiredMounted, bool actualMounted)
+        => desiredMounted == actualMounted
+            ? DualBoxMountAction.None
+            : desiredMounted
+                ? DualBoxMountAction.Mount
+                : DualBoxMountAction.Dismount;
+
+    internal static bool CanAcknowledgeMountState(
+        bool actionInFlight,
+        bool actionTargetMounted,
+        bool desiredMounted,
+        bool actualMounted
+    ) => actualMounted == desiredMounted
+        && (!actionInFlight || actualMounted == actionTargetMounted);
 
     private async Task AcceptLoopAsync(TcpListener listener, CancellationToken token)
     {
@@ -764,13 +827,35 @@ public sealed class DualBoxManager
     private void HandleMasterMessage(Peer peer, DualBoxMessage message, CancellationToken token)
     {
         bool needsResync = false;
+        DualBoxMessage mountCorrection = null;
+        bool stopMountFailedPeer = false;
 
         lock (_gate)
         {
             if (!_peers.Contains(peer))
                 return;
 
-            if (message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State or DualBoxMessageType.Nack)
+            if (message.Type == DualBoxMessageType.MountState)
+            {
+                if (peer.Selected && message.MountSequence == peer.ExpectedMountSequence)
+                {
+                    peer.MountReady = message.Ready && message.Mounted == peer.ExpectedMounted;
+
+                    if (peer.State != null)
+                        peer.State.Mounted = message.Mounted;
+
+                    if (!peer.MountReady && !string.IsNullOrEmpty(message.Error))
+                    {
+                        peer.Selected = false;
+                        peer.Ready = false;
+                        stopMountFailedPeer = true;
+                        _status = $"Client removed from sync: {message.Error}";
+                    }
+                    else
+                        UpdateMasterReadyStatusLocked();
+                }
+            }
+            else if (message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State or DualBoxMessageType.Nack)
             {
                 peer.State = message;
 
@@ -784,15 +869,32 @@ public sealed class DualBoxManager
                     needsResync = true;
                 }
 
-                int selected = _peers.Count(p => p.Selected);
-                int ready = _peers.Count(p => p.Selected && p.Ready);
-                _status = selected == 0
-                    ? $"{_peers.Count} client(s) connected."
-                    : ready == selected
-                        ? $"Synchronized: {ready}/{selected} client(s)."
-                        : $"Waiting for clients: {ready}/{selected} ready.";
+                if (message.Type == DualBoxMessageType.State
+                    && peer.Selected
+                    && peer.MountReady
+                    && _lastMasterMounted.HasValue
+                    && message.Mounted != _lastMasterMounted.Value)
+                {
+                    mountCorrection = new DualBoxMessage
+                    {
+                        Type = DualBoxMessageType.MountState,
+                        Mounted = _lastMasterMounted.Value,
+                        MountSequence = ++_mountSequence
+                    };
+                    peer.MountReady = false;
+                    peer.ExpectedMounted = mountCorrection.Mounted;
+                    peer.ExpectedMountSequence = mountCorrection.MountSequence;
+                }
+
+                UpdateMasterReadyStatusLocked();
             }
         }
+
+        if (mountCorrection != null)
+            Send(peer, mountCorrection);
+
+        if (stopMountFailedPeer)
+            Send(peer, new DualBoxMessage { Type = DualBoxMessageType.Stop });
 
         if (needsResync)
         {
@@ -812,6 +914,9 @@ public sealed class DualBoxManager
                 break;
             case DualBoxMessageType.Step:
                 MainThreadQueue.EnqueueAction(() => QueueStep(message), token);
+                break;
+            case DualBoxMessageType.MountState:
+                MainThreadQueue.EnqueueAction(() => QueueMountState(message), token);
                 break;
             case DualBoxMessageType.ScriptCommand:
                 MainThreadQueue.EnqueueAction(() => DispatchScriptCommand(message.Command), token);
@@ -869,7 +974,32 @@ public sealed class DualBoxManager
         _targetZ = message.Z;
         _targetDirection = (Direction)message.Direction & Direction.Mask;
         SetStatus("Aligning with master...");
+        QueueMountState(message);
         SendClientState(DualBoxMessageType.State, "Aligning");
+    }
+
+    private void QueueMountState(DualBoxMessage message)
+    {
+        if (!_clientFollowing
+            || message.MountSequence <= _clientMountSequence
+            || message.MountSequence <= _pendingMountSequence)
+        {
+            return;
+        }
+
+        _expectedClientMounted = message.Mounted;
+        _pendingMountSequence = message.MountSequence;
+
+        if (!_mountActionRequested)
+        {
+            _mountAttemptTargetMounted = null;
+            _mountActionAttempts = 0;
+            _mountActionDeadline = 0;
+        }
+
+        SetStatus(message.Mounted
+            ? "Matching the master's mounted state..."
+            : "Matching the master's dismounted state...");
     }
 
     private void QueueStep(DualBoxMessage message)
@@ -1035,6 +1165,194 @@ public sealed class DualBoxManager
         SendClientState(DualBoxMessageType.Nack, error, sequence);
     }
 
+    private void UpdateMasterMountState(World world)
+    {
+        bool mounted = IsMounted(world.Player);
+        List<Peer> selected;
+        DualBoxMessage message;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return;
+
+            if (!_lastMasterMounted.HasValue)
+            {
+                _lastMasterMounted = mounted;
+                return;
+            }
+
+            if (_lastMasterMounted.Value == mounted)
+                return;
+
+            _lastMasterMounted = mounted;
+            selected = _peers.Where(p => p.Selected).ToList();
+
+            if (selected.Count == 0)
+                return;
+
+            message = CreateStateMessage(DualBoxMessageType.MountState, false);
+            message.MountSequence = ++_mountSequence;
+
+            foreach (Peer peer in selected)
+            {
+                peer.MountReady = false;
+                peer.ExpectedMounted = mounted;
+                peer.ExpectedMountSequence = message.MountSequence;
+            }
+
+            _status = $"Waiting for {selected.Count} client(s) to {(mounted ? "mount" : "dismount")}.";
+        }
+
+        foreach (Peer peer in selected)
+            Send(peer, message);
+    }
+
+    private bool ProcessClientMountState(World world)
+    {
+        if (!_expectedClientMounted.HasValue)
+            return true;
+
+        bool actualMounted = IsMounted(world.Player);
+        bool desiredMounted = _expectedClientMounted.Value;
+
+        if (CanAcknowledgeMountState(
+            _mountActionRequested,
+            _mountActionTargetMounted,
+            desiredMounted,
+            actualMounted
+        ))
+        {
+            CompleteClientMountState();
+            return true;
+        }
+
+        if (_mountActionRequested)
+        {
+            if (actualMounted == _mountActionTargetMounted)
+            {
+                _mountActionRequested = false;
+                _mountActionDeadline = 0;
+            }
+            else if (Time.Ticks < _mountActionDeadline)
+            {
+                return false;
+            }
+            else if (_mountActionAttempts >= MaxMountActionAttempts)
+            {
+                return FailClientMountState(
+                    $"Timed out while trying to {(_mountActionTargetMounted ? "mount" : "dismount")}."
+                );
+            }
+            else
+            {
+                return RequestClientMountState(world, _mountActionTargetMounted);
+            }
+        }
+
+        DualBoxMountAction action = GetMountAction(desiredMounted, actualMounted);
+
+        if (action == DualBoxMountAction.None)
+        {
+            CompleteClientMountState();
+            return true;
+        }
+
+        return RequestClientMountState(world, action == DualBoxMountAction.Mount);
+    }
+
+    private bool RequestClientMountState(World world, bool mounted)
+    {
+        if (_mountAttemptTargetMounted != mounted)
+        {
+            _mountAttemptTargetMounted = mounted;
+            _mountActionAttempts = 0;
+        }
+
+        _mountActionRequested = true;
+        _mountActionTargetMounted = mounted;
+        _mountActionAttempts++;
+        _mountActionDeadline = Time.Ticks + MountActionTimeout;
+
+        if (!mounted)
+        {
+            GameActions.DoubleClick(world, world.Player, true, true);
+            SetStatus("Dismounting with master...");
+            return false;
+        }
+
+        GameActions.MountResult result = GameActions.Mount(false);
+
+        if (result == GameActions.MountResult.Success)
+        {
+            SetStatus("Mounting with master...");
+            return false;
+        }
+
+        string error = result switch
+        {
+            GameActions.MountResult.NoDesignatedMount => "No saved mount is configured on this client.",
+            GameActions.MountResult.MountNotFound => "This client's saved mount was not found.",
+            GameActions.MountResult.MountTooFar => "This client's saved mount is too far away.",
+            _ => "This client could not mount."
+        };
+
+        return FailClientMountState(error);
+    }
+
+    private void CompleteClientMountState()
+    {
+        long completedSequence = _pendingMountSequence;
+        ResetClientMountAction();
+        _pendingMountSequence = 0;
+        _expectedClientMounted = null;
+
+        if (completedSequence == 0)
+            return;
+
+        _clientMountSequence = completedSequence;
+        SendClientMountState(true, string.Empty, completedSequence);
+    }
+
+    private bool FailClientMountState(string error)
+    {
+        long failedSequence = _pendingMountSequence;
+
+        if (failedSequence != 0)
+            SendClientMountState(false, error, failedSequence);
+
+        World.Instance?.Player?.Pathfinder.StopAutoWalk();
+        ResetClientState();
+        SetStatus(error);
+
+        return false;
+    }
+
+    private void ResetClientMountAction()
+    {
+        _mountActionRequested = false;
+        _mountActionTargetMounted = false;
+        _mountAttemptTargetMounted = null;
+        _mountActionAttempts = 0;
+        _mountActionDeadline = 0;
+    }
+
+    private void SendClientMountState(bool ready, string error, long mountSequence)
+    {
+        Peer peer;
+
+        lock (_gate)
+            peer = _masterPeer;
+
+        if (peer == null)
+            return;
+
+        DualBoxMessage state = CreateStateMessage(DualBoxMessageType.MountState, ready);
+        state.MountSequence = mountSequence;
+        state.Error = error;
+        Send(peer, state);
+    }
+
     private void ResyncSelectedClients(string reason)
     {
         DualBoxMessage state = CreateStateMessage(DualBoxMessageType.Sync, false);
@@ -1047,6 +1365,8 @@ public sealed class DualBoxManager
                 return;
 
             state.Sequence = ++_stepSequence;
+            state.MountSequence = ++_mountSequence;
+            _lastMasterMounted = state.Mounted;
             selected = [];
             deselected = [];
 
@@ -1063,6 +1383,9 @@ public sealed class DualBoxManager
 
                 peer.Ready = false;
                 peer.ExpectedSequence = state.Sequence;
+                peer.MountReady = false;
+                peer.ExpectedMounted = state.Mounted;
+                peer.ExpectedMountSequence = state.MountSequence;
                 selected.Add(peer);
             }
 
@@ -1101,7 +1424,23 @@ public sealed class DualBoxManager
         result.Y = (ushort)y;
         result.Z = z;
         result.Direction = (byte)(direction & Direction.Mask);
+        result.Mounted = IsMounted(world.Player);
+        result.MountSequence = _clientMountSequence;
         return result;
+    }
+
+    private static bool IsMounted(PlayerMobile player)
+        => player?.IsMounted == true;
+
+    private void UpdateMasterReadyStatusLocked()
+    {
+        int selected = _peers.Count(p => p.Selected);
+        int ready = _peers.Count(p => p.Selected && p.Ready && p.MountReady);
+        _status = selected == 0
+            ? $"{_peers.Count} client(s) connected."
+            : ready == selected
+                ? $"Synchronized: {ready}/{selected} client(s)."
+                : $"Waiting for clients: {ready}/{selected} ready.";
     }
 
     private void SendClientState(DualBoxMessageType type, string error, long? sequence = null)
@@ -1176,6 +1515,12 @@ public sealed class DualBoxManager
         _executingRemoteStep = false;
         _awaitingWalkSequence = null;
         _clientSequence = 0;
+        _mountSequence = 0;
+        _clientMountSequence = 0;
+        _pendingMountSequence = 0;
+        _lastMasterMounted = null;
+        _expectedClientMounted = null;
+        ResetClientMountAction();
     }
 
     private void SetStatus(string status)
