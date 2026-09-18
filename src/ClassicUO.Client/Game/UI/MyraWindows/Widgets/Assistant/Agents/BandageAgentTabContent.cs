@@ -38,12 +38,21 @@ public static class BandageAgentTabContent
                 b => profile.BandageAgentBandageAllies = b,
                 TazLang.Get("bandageagent_bandageallies"),
                 TazLang.Get("bandageagent_bandageallies_tooltip")
-            ),
+            )
+        );
+
+        var petRow = new VisualContainer(new VisualContainerProps() { Orientation = Orientation.Horizontal },
             MyraCheckButton.CreateWithCallback(
                 profile.BandageAgentBandagePets,
                 b => profile.BandageAgentBandagePets = b,
                 TazLang.Get("bandageagent_bandagepets"),
                 TazLang.Get("bandageagent_bandagepets_tooltip")
+            ),
+            MyraCheckButton.CreateWithCallback(
+                profile.BandageAgentBandageFriendlyPets,
+                b => profile.BandageAgentBandageFriendlyPets = b,
+                TazLang.Get("bandageagent_bandagefriendlypets"),
+                TazLang.Get("bandageagent_bandagefriendlypets_tooltip")
             ),
             MyraCheckButton.CreateWithCallback(
                 profile.BandageAgentDisableSelfHeal,
@@ -220,6 +229,7 @@ public static class BandageAgentTabContent
 
         // ===== Layout =====
         root.Widgets.Add(enableRow);
+        root.Widgets.Add(petRow);
         root.Widgets.Add(selfCommandRow);
         root.Widgets.Add(timingContainer);
         root.Widgets.Add(conditionRow);
