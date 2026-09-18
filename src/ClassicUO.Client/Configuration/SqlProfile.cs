@@ -2,7 +2,9 @@ using System;
 using System.Text.Json.Serialization;
 using ClassicUO.Game;
 using Microsoft.Xna.Framework;
+using ClassicUO.Game.Managers;
 
+using ClassicUO.Configuration;
 namespace ClassicUO.Configuration;
 
 public sealed partial class Profile

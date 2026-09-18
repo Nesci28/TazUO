@@ -12,6 +12,15 @@ namespace ClassicUO.Utility
 {
     public static class FileSystemHelper
     {
+        public static string GetWritableDataDirectory()
+        {
+            // iOS keeps the signed application bundle read-only. Store user
+            // fonts and caches in the same container directory as settings.
+            return OperatingSystem.IsIOS()
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "TazUO")
+                : AppContext.BaseDirectory;
+        }
+
         public static string CreateFolderIfNotExists(string path, params string[] parts)
         {
             if (!Directory.Exists(path))

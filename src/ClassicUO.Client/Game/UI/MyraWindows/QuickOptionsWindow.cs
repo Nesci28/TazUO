@@ -72,13 +72,17 @@ public class QuickOptionsWindow : MyraControl
         Action<string> onChange,
         int width = 200,
         string? tooltip = null,
-        Func<char, bool>? inputFilter = null
+        Func<char, bool>? inputFilter = null,
+        bool password = false
     )
     {
         WrapPanel row = MyraInputBox.LabeledHorizontalStackPanel(label, out MyraInputBox input, width, value, tooltip: tooltip);
 
         if (inputFilter != null)
             input.InputFilter = inputFilter;
+
+        if (password)
+            input.PasswordField = true;
 
         input.TextChangedByUser += (_, _) => onChange(input.Text ?? string.Empty);
 

@@ -18,8 +18,14 @@ using System.Threading;
 
 namespace ClassicUO
 {
-    internal static class Bootstrap
+    public static class Bootstrap
     {
+        /// <summary>Starts the native client without the optional desktop plugin host.</summary>
+        public static void RunNative(string[] args) => Boot(null, args);
+#if TAZUO_IOS
+        public static Action<Microsoft.Xna.Framework.Game> NativeGameReady;
+#endif
+
         [UnmanagedCallersOnly(EntryPoint = "Initialize", CallConvs = new Type[] { typeof(CallConvCdecl) })]
         static unsafe void Initialize(IntPtr* argv, int argc, HostBindings* hostSetup)
         {
@@ -38,7 +44,7 @@ namespace ClassicUO
         public static void Main(string[] args) => Boot(null, args);
 
 
-        public static void Boot(UnmanagedAssistantHost pluginHost, string[] args)
+        internal static void Boot(UnmanagedAssistantHost pluginHost, string[] args)
         {
             CopyRequiredLibs();
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -86,6 +92,13 @@ namespace ClassicUO
             }
 
             ReadSettingsFromArgs(args);
+#if TAZUO_IOS
+            // iOS receives its developer login through the temporary native
+            // argument file. Persist the already parsed values so the Launcher
+            // window and the next install see the same account and server.
+            if (HasCredentialArguments(args))
+                Settings.GlobalSettings.Save();
+#endif
 
             if (string.IsNullOrWhiteSpace(Settings.GlobalSettings.Language))
             {
@@ -192,7 +205,8 @@ namespace ClassicUO
             // but lingering foreground threads (script threads, native plugin host, HttpListener,
             // IronPython, etc.) can keep the process alive after the window closes. Environment.Exit
             // guarantees the process ends so no background process is left running.
-            Environment.Exit(0);
+            if (!OperatingSystem.IsIOS() && !OperatingSystem.IsTvOS())
+                Environment.Exit(0);
         }
 
         private static void ReadSettingsFromArgs(string[] args)
@@ -221,7 +235,7 @@ namespace ClassicUO
                         }
                     }
 
-                    Log.Trace($"ARG: {cmd}, VALUE: {value}");
+                    Log.Trace($"ARG: {cmd}, VALUE: {(cmd is "password" or "password_enc" ? "<redacted>" : value)}");
 
                     switch (cmd)
                     {
@@ -261,6 +275,11 @@ namespace ClassicUO
 
                         case "port":
                             Settings.GlobalSettings.Port = ushort.Parse(value);
+
+                            break;
+
+                        case "ignore_relay_ip":
+                            Settings.GlobalSettings.IgnoreRelayIp = bool.Parse(value);
 
                             break;
 
@@ -500,8 +519,28 @@ namespace ClassicUO
             }
         }
 
+        private static bool HasCredentialArguments(string[] args)
+        {
+            if (args == null)
+                return false;
+
+            foreach (string arg in args)
+            {
+                if (string.Equals(arg, "-username", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(arg, "-password", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(arg, "-password_enc", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
         private static void CopyRequiredLibs()
         {
+            // iOS links SDL/FNA3D into the executable; copying desktop dylibs
+            // from osx-arm would be invalid and GetPlatformFolder has no iOS
+            // mapping.
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())
+                return;
             string nativePath = Path.Combine(AppContext.BaseDirectory, GetPlatformFolder());
             if(Directory.Exists(nativePath))
                 foreach (string file in Directory.GetFiles(nativePath))

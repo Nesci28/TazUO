@@ -89,7 +89,11 @@ public class ZipScriptFile : ScriptFile
         if (PythonEngine != null && !LegionScripting.LScriptSettings.DisableModuleCache)
             return;
 
-        PythonEngine = Python.CreateEngine(new Dictionary<string, object>() { { "RecursionLimit", 100 } });
+        var options = new Dictionary<string, object>() { { "RecursionLimit", 100 } };
+#if TAZUO_IOS
+        options["ConsoleSupportLevel"] = "None";
+#endif
+        PythonEngine = Python.CreateEngine(options);
 
         ICollection<string> paths = PythonEngine.GetSearchPaths();
         paths.Add(System.IO.Path.Combine(CUOEnviroment.ExecutablePath, "iplib"));

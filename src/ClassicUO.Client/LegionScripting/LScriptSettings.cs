@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using ClassicUO.Configuration;
+using ClassicUO.Game.Managers;
 
 namespace ClassicUO.LegionScripting
 {

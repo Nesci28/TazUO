@@ -10,6 +10,7 @@ using ClassicUO.Input;
 using ClassicUO.Renderer;
 using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
+using XnaKeys = Microsoft.Xna.Framework.Input.Keys;
 using Myra.Events;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
@@ -549,8 +550,17 @@ public class MyraControl : IGui
     /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
     public void InvokeKeyUp(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
 
-    /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
-    public void InvokeKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod) { }
+    /// <summary>Forwards transient iOS backspace events to the focused Myra widget.</summary>
+    public void InvokeKeyDown(SDL.SDL_Keycode key, SDL.SDL_Keymod mod)
+    {
+#if TAZUO_IOS
+        // Myra normally polls the keyboard from Desktop.Render().  iOS software-keyboard
+        // deletion is delivered as a transient SDL key event, however, so it can disappear
+        // between polling frames. Forward Backspace directly to the focused Myra widget.
+        if (key == SDL.SDL_Keycode.SDLK_BACKSPACE && _desktop.FocusedKeyboardWidget != null)
+            _desktop.OnKeyDown(XnaKeys.Back);
+#endif
+    }
 
     /// <summary>This is not in use here. Use _rootWindow events instead.</summary>
     public void InvokeTextInput(string c) { }

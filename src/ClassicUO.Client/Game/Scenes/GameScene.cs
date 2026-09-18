@@ -107,12 +107,27 @@ namespace ClassicUO.Game.Scenes
             _world = world;
             _autoUnequipActionManager = new AutoUnequipActionManager(_world);
 
+#if !TAZUO_IOS
             SDL.SDL_SetWindowMinimumSize(Client.Game.Window.Handle, 640, 480);
+#endif
 
             Camera.ContentScale = CUOEnviroment.AssetDisplayMode == TwoXAssetDisplayMode.NativeWorld
                 ? 2f
                 : 1f;
             Camera.Zoom = ProfileManager.CurrentProfile.DefaultScale;
+#if TAZUO_IOS
+            // UIKit owns the window size. Use the existing full-size viewport
+            // mode instead of restoring desktop dimensions or maximizing.
+            ProfileManager.CurrentProfile.GameWindowFullSize = true;
+            ProfileManager.CurrentProfile.GameWindowLock = true;
+            // The desktop profile may contain a saved modern paperdoll at a
+            // scale intended for a mouse-sized window. Start the mobile scene
+            // cleanly; the Character tab can open it on demand.
+            ProfileManager.CurrentProfile.UseModernPaperdoll = false;
+            ProfileManager.CurrentProfile.LastVersionHistoryShown = CUOEnviroment.Version.ToString();
+            Camera.Bounds = new Rectangle(0, 0,
+                Client.Game.LogicalBackBufferWidth, Client.Game.LogicalBackBufferHeight);
+#else
             Camera.Bounds.X = Math.Max(0, ProfileManager.CurrentProfile.GameWindowPosition.X);
             Camera.Bounds.Y = Math.Max(0, ProfileManager.CurrentProfile.GameWindowPosition.Y);
             Camera.Bounds.Width = Math.Max(640, ProfileManager.CurrentProfile.GameWindowSize.X);
@@ -164,6 +179,7 @@ namespace ClassicUO.Game.Scenes
             {
                 Client.Game.SetWindowBordered(false);
             }
+#endif
 
             SetPostProcessingSettings();
 
@@ -1103,7 +1119,10 @@ namespace ClassicUO.Game.Scenes
             Profiler.EnterContext("Movement");
             bool useWASD = ProfileManager.GlobalSettings.UseWASDInsteadArrowKeys;
 
-            if (!MoveCharacterByMouseInput() && (!currentProfile.DisableArrowBtn || useWASD) && !MoveCharByController())
+            if (!MoveCharByMobileJoystick()
+                && !MoveCharacterByMouseInput()
+                && (!currentProfile.DisableArrowBtn || useWASD)
+                && !MoveCharByController())
             {
                 Direction dir = DirectionHelper.DirectionFromKeyboardArrows(
                     _flags[0],

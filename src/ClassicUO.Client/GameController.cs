@@ -7,6 +7,7 @@ using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI;
+using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
 using ClassicUO.Network;
@@ -42,7 +43,7 @@ using ClassicUO.Utility.Debounce;
 
 namespace ClassicUO
 {
-    internal unsafe class GameController : Microsoft.Xna.Framework.Game
+    internal unsafe partial class GameController : Microsoft.Xna.Framework.Game
     {
         private SDL_EventFilter _filter;
 
@@ -99,8 +100,7 @@ namespace ClassicUO
                 GraphicManager.PreferredBackBufferHeight
             );
 
-            SDL.SDL_SetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "0");
-            SDL.SDL_StartTextInput(Window.Handle);
+            InitializeMobileInput();
         }
 
         public readonly float MinRenderScale = 0.1f;
@@ -172,7 +172,7 @@ namespace ClassicUO
                 throw; // preserve existing crash logging / report
             }
 
-            _filter = HandleSdlEvent;
+            _filter = GetPlatformEventFilter(HandleSdlEvent);
             SDL_SetEventFilter(_filter, IntPtr.Zero);
 
             // Seed the gamepad gate for pads already connected at startup (SDL also fires
@@ -274,7 +274,13 @@ namespace ClassicUO
             MyraEnvironment.DefaultDebugFont = TrueTypeLoader.Instance.GetFont(EmbeddedFontNames.ROBOTO, 16);
             MyraStyle.SetDefault(); //Must occur after png loading
 
+#if !TAZUO_IOS
             Audio.Initialize();
+#else
+            // FAudio is not linked into the iOS target yet. Keep the manager so
+            // gameplay code remains unchanged, but avoid probing a missing native symbol.
+            Log.Info("iOS audio disabled for this build");
+#endif
 
             VoiceRecognitionManager.Instance.TextRecognized += OnVoiceTextRecognized;
 
@@ -611,6 +617,8 @@ namespace ClassicUO
             Time.Ticks = (uint)gameTime.TotalGameTime.TotalMilliseconds;
             Time.Delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            ProcessMobileEvents();
+
             Profiler.EnterContext("Mouse");
             Mouse.Update();
             Profiler.ExitContext("Mouse");
@@ -663,6 +671,8 @@ namespace ClassicUO
             Profiler.EnterContext("UIManagerUpdate");
             UIManager.Update();
             Profiler.ExitContext("UIManagerUpdate");
+
+            UpdateMobileInput();
 
             Profiler.EnterContext("MainThreadQueue");
             MainThreadQueue.ProcessQueue();
@@ -771,6 +781,8 @@ namespace ClassicUO
                 ToPhysicalPixels(bufferRect.Height),
                 ToPhysicalPixels(ScaleHelper.LogicalWindowHeight)
             );
+
+            ConfigureMobileRenderTarget(ref width, ref height);
 
             // Sanity check dimensions
             if (width <= 0 || height <= 0)
@@ -909,7 +921,12 @@ namespace ClassicUO
                     );
                     _uoSpriteBatch.SetSampler(SamplerState.AnisotropicClamp);
                 }
-                else if (destRect.Width != srcRect.Width || destRect.Height != srcRect.Height)
+                bool mobilePresentation = ConfigureMobilePresentation(ref destRect);
+                if (
+                    !mobilePresentation
+                    && RenderScale == 1.0f
+                    && (destRect.Width != srcRect.Width || destRect.Height != srcRect.Height)
+                )
                 {
                     _uoSpriteBatch.SetSampler(SamplerState.LinearClamp);
                 }
@@ -1001,6 +1018,11 @@ namespace ClassicUO
                 return false;
             }
 
+#if TAZUO_IOS && DEBUG
+            if ((SDL_EventType)sdlEvent->type == SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN)
+                Log.Debug($"Mobile tap: {sdlEvent->button.x},{sdlEvent->button.y}");
+#endif
+
             switch ((SDL_EventType)sdlEvent->type)
             {
                 case SDL_EventType.SDL_EVENT_AUDIO_DEVICE_ADDED:
@@ -1058,12 +1080,15 @@ namespace ClassicUO
                     Keyboard.ClearModifiers();
                     Keyboard.ClearHeldKeys();
                     ClassicUO.Game.Managers.Hotkeys.HotKeys.ClearHeldKeys();
+                    ResetMobileInputState();
                     if (_pluginsInitialized)
                         Plugin.OnFocusLost();
                     break;
 
                 case SDL_EventType.SDL_EVENT_KEY_DOWN when Scene is not null:
                     Keyboard.OnKeyDown(sdlEvent->key);
+
+                    bool isMyraBackspace = IsMobileMyraBackspace((SDL_Keycode)sdlEvent->key.key);
 
                     if (Plugin.ProcessHotkeys(
                             (int)sdlEvent->key.key,
@@ -1079,12 +1104,22 @@ namespace ClassicUO
                             sdlEvent->key.mod
                         );
 
+                        RecordMobileBackspace(isMyraBackspace);
+
                         Scene.OnKeyDown(sdlEvent->key);
                     }
                     else
                     {
                         _ignoreNextTextInput = true;
+
+                        if (HandleFilteredMobileBackspace((SDL_Keycode)sdlEvent->key.key, sdlEvent->key.mod, isMyraBackspace))
+                            _ignoreNextTextInput = false;
                     }
+
+#if TAZUO_IOS
+                    if ((SDL_Keycode)sdlEvent->key.key is SDL_Keycode.SDLK_RETURN or SDL_Keycode.SDLK_KP_ENTER)
+                        UIManager.DismissMobileTextInput();
+#endif
 
                     break;
 
@@ -1133,11 +1168,6 @@ namespace ClassicUO
                     break;
 
                 case SDL_EventType.SDL_EVENT_TEXT_INPUT when Scene is not null:
-                    if (_ignoreNextTextInput)
-                    {
-                        break;
-                    }
-
                     // Fix for linux OS: https://github.com/andreakarasho/ClassicUO/pull/1263
                     // Fix 2: SDL owns this behaviour. Cheating is not a real solution.
                     /*if (!Utility.Platforms.PlatformHelper.IsWindows)
@@ -1152,10 +1182,35 @@ namespace ClassicUO
 
                     if (!string.IsNullOrEmpty(s))
                     {
-                        UIManager.KeyboardFocusControl?.InvokeTextInput(s);
-                        Scene.OnTextInput(s);
+                        bool hasBackspace = ContainsBackspace(s);
+
+                        // A few iOS keyboard implementations send delete as a control
+                        // character through SDL_TEXTINPUT. It must follow the key path,
+                        // otherwise the textbox receives an invisible character and the
+                        // caret never moves.
+                        if (!_ignoreNextTextInput || hasBackspace)
+                        {
+                            DispatchTextInput(s);
+                        }
                     }
 
+                    _ignoreNextTextInput = false;
+
+                    break;
+
+                case SDL_EventType.SDL_EVENT_SCREEN_KEYBOARD_SHOWN:
+                    MobileControlBridge.SetSoftwareKeyboardVisible(true);
+                    break;
+
+                case SDL_EventType.SDL_EVENT_SCREEN_KEYBOARD_HIDDEN:
+                    MobileControlBridge.SetSoftwareKeyboardVisible(false);
+                    break;
+
+                case SDL_EventType.SDL_EVENT_FINGER_DOWN:
+                case SDL_EventType.SDL_EVENT_FINGER_MOTION:
+                case SDL_EventType.SDL_EVENT_FINGER_UP:
+                case SDL_EventType.SDL_EVENT_FINGER_CANCELED:
+                    QueueMobileTouch(sdlEvent->tfinger);
                     break;
 
                 case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
@@ -1222,8 +1277,7 @@ namespace ClassicUO
                                 break;
                         }
 
-                        Mouse.ButtonPress(buttonType);
-                        Mouse.Update(resyncPosition: true);
+                        PrepareMouseButtonDown(mouse, buttonType);
 
                         uint ticks = Time.Ticks;
 
@@ -1312,6 +1366,8 @@ namespace ClassicUO
                                 break;
                         }
 
+                        RefreshMobilePointer(mouse);
+
                         if (lastClickTime != 0xFFFF_FFFF)
                         {
                             if (
@@ -1324,7 +1380,7 @@ namespace ClassicUO
                         }
 
                         Mouse.ButtonRelease(buttonType);
-                        Mouse.Update(resyncPosition: true);
+                        FinishMouseButtonUp();
 
                         break;
                     }
@@ -1422,6 +1478,61 @@ namespace ClassicUO
             }
 
             return true;
+        }
+
+        private static bool ContainsBackspace(string text)
+        {
+            foreach (char c in text)
+            {
+                if (c is '\b' or '\u007F' or '\u232B')
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void DispatchTextInput(string text)
+        {
+            bool myraBackspaceAlreadyHandled = ConsumeMobileMyraBackspace();
+            int segmentStart = 0;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] is not ('\b' or '\u007F' or '\u232B'))
+                {
+                    continue;
+                }
+
+                if (i > segmentStart)
+                {
+                    string segment = text.Substring(segmentStart, i - segmentStart);
+                    UIManager.KeyboardFocusControl?.InvokeTextInput(segment);
+                    Scene.OnTextInput(segment);
+                }
+
+                if (!myraBackspaceAlreadyHandled)
+                {
+                    UIManager.KeyboardFocusControl?.InvokeKeyDown(
+                        SDL_Keycode.SDLK_BACKSPACE,
+                        SDL_Keymod.SDL_KMOD_NONE
+                    );
+                    UIManager.KeyboardFocusControl?.InvokeKeyUp(
+                        SDL_Keycode.SDLK_BACKSPACE,
+                        SDL_Keymod.SDL_KMOD_NONE
+                    );
+                }
+                myraBackspaceAlreadyHandled = false;
+                segmentStart = i + 1;
+            }
+
+            if (segmentStart < text.Length)
+            {
+                string segment = text.Substring(segmentStart);
+                UIManager.KeyboardFocusControl?.InvokeTextInput(segment);
+                Scene.OnTextInput(segment);
+            }
         }
 
         protected override void OnExiting(object sender, EventArgs args)
