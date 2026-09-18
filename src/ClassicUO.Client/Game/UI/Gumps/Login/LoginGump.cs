@@ -15,7 +15,7 @@ using ClassicUO.Utility.Platforms;
 
 namespace ClassicUO.Game.UI.Gumps.Login
 {
-    public class LoginGump : Gump
+    public partial class LoginGump : Gump
     {
         private readonly ushort _buttonNormal;
         private readonly ushort _buttonOver;
@@ -33,6 +33,8 @@ namespace ClassicUO.Game.UI.Gumps.Login
         {
             Instance?.Dispose();
             Instance = this;
+
+            InitializeMobileLayout();
 
             CanCloseWithRightClick = false;
 
@@ -477,6 +479,18 @@ namespace ClassicUO.Game.UI.Gumps.Login
                 c.Show();
             };
             Add(optionsButton);
+
+            // Keep launcher-style connection settings one tap away. This is
+            // especially useful on mobile where the old pre-login setup screen
+            // is no longer reachable after the login gump has been created.
+            var launcherButton = new NiceButton(90, 5, 125, 30, ButtonAction.Default,
+                TazLang.Get("launcher_settings", "Launcher"))
+            {
+                IsSelectable = false,
+                BackgroundColor = new Color(0.7f, 0.7f, 0.7f, 0.7f)
+            };
+            launcherButton.MouseDown += (_, _) => OpenEditSettings();
+            Add(launcherButton);
         }
 
         private ContextMenuControl GenOptionsContext()
@@ -531,6 +545,20 @@ namespace ClassicUO.Game.UI.Gumps.Login
                     s.Save();
                 }
             }, 80, TazLang.Get("serverporttooltip"));
+
+            w.AddInput(TazLang.Get("accountname", "Account Name"), s.Username, v =>
+            {
+                s.Username = v;
+                s.Save();
+                _textboxAccount.SetText(v);
+            }, 200, TazLang.Get("accountcontextmenutooltip", "Saved account name."));
+
+            w.AddInput(TazLang.Get("password", "Password"), Crypter.Decrypt(s.Password), v =>
+            {
+                s.Password = Crypter.Encrypt(v);
+                s.Save();
+                _passwordFake.RealText = v;
+            }, 200, null, null, true);
 
             w.AddCheckbox(TazLang.Get("autologin"), s.AutoLogin, v => { s.AutoLogin = v; s.Save(); },
                 TazLang.Get("autologintooltip"));
@@ -626,6 +654,8 @@ namespace ClassicUO.Game.UI.Gumps.Login
             }
 
             base.Update();
+
+            UpdateMobileLayout();
 
             if (_time < Time.Ticks)
             {

@@ -1,0 +1,29 @@
+﻿@page "/"
+@inject IJSRuntime JS
+
+<PageTitle>TazUO Legion WASM proof of concept</PageTitle>
+
+<main class="poc">
+    <h1>TazUO Legion WASM proof of concept</h1>
+    <p>This page is running the .NET client shell as WebAssembly. The button starts a real Python
+        Legion script in Pyodide (also WebAssembly) and pumps it cooperatively.</p>
+    <button class="btn btn-primary" @onclick="RunScript" disabled="@running">@(running ? "Running…" : "Run Legion script")</button>
+    <pre id="legion-output" aria-live="polite">Press the button to start.</pre>
+</main>
+
+@code {
+    private bool running;
+
+    private async Task RunScript()
+    {
+        running = true;
+        try
+        {
+            await JS.InvokeVoidAsync("tazuoLegion.run");
+        }
+        finally
+        {
+            running = false;
+        }
+    }
+}

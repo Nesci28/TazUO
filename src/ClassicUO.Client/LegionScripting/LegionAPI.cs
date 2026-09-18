@@ -2,6 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -445,6 +449,143 @@ namespace ClassicUO.LegionScripting
         public volatile bool StopRequested;
 
         public CancellationTokenSource CancellationToken = new();
+
+        /// <summary>True when the client has an active game connection.</summary>
+        public bool Connected => OnMain(() => AsyncNetClient.Socket?.IsConnected == true);
+
+        /// <summary>True when the player has entered the game world.</summary>
+        public bool InGame => OnMain(() => World?.InGame == true && World.Player != null);
+
+        /// <summary>Current login flow step, or an empty string while no login scene exists.</summary>
+        public string LoginState => OnMain(() => LoginScene.Instance?.CurrentLoginStep.ToString() ?? string.Empty);
+
+        /// <summary>Disconnect and return to the login screen.</summary>
+        public void Disconnect() => OnMain(() => LoginScene.Instance?.DisconnectToLogin());
+
+        /// <summary>Connect using credentials already stored by the launcher/client.</summary>
+        public bool ConnectSaved() => OnMain(() => LoginScene.Instance?.ConnectSaved() == true);
+
+        /// <summary>Select a character by name when the character-selection screen is active.</summary>
+        public bool SelectCharacterByName(string name) => OnMain(() => LoginScene.Instance?.SelectCharacterByName(name) == true);
+
+        /// <summary>Select a character slot when the character-selection screen is active.</summary>
+        public bool SelectCharacterSlot(uint index) => OnMain(() => LoginScene.Instance?.SelectCharacterSlot(index) == true);
+
+        /// <summary>Wait until the requested login state is reached.</summary>
+        public bool WaitForLoginState(string state, double timeout = 30)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return false;
+
+            DateTime deadline = DateTime.UtcNow.AddSeconds(Math.Max(0, timeout));
+            while (!StopRequested && DateTime.UtcNow <= deadline)
+            {
+                if (string.Equals(LoginState, state, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                Pause(0.1);
+            }
+
+            return false;
+        }
+
+        /// <summary>Wait until the selected character has entered the game world.</summary>
+        public bool WaitForInGame(double timeout = 90)
+        {
+            DateTime deadline = DateTime.UtcNow.AddSeconds(Math.Max(0, timeout));
+            while (!StopRequested && DateTime.UtcNow <= deadline)
+            {
+                if (InGame)
+                    return true;
+
+                Pause(0.1);
+            }
+
+            return false;
+        }
+
+        /// <summary>Ask the local TUO-Launcher to activate a named profile.</summary>
+        public bool ActivateLauncherProfile(string profile)
+        {
+            if (string.IsNullOrWhiteSpace(profile))
+                return false;
+
+            string token = Environment.GetEnvironmentVariable("TAZUO_LAUNCHER_TOKEN") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(token))
+                return false;
+
+            try
+            {
+                using TcpClient client = new();
+                client.Connect("127.0.0.1", 49731);
+                using NetworkStream stream = client.GetStream();
+                string escapedProfile = profile.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string escapedToken = token.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                byte[] request = Encoding.UTF8.GetBytes($"{{\"token\":\"{escapedToken}\",\"command\":\"activate_profile\",\"profile\":\"{escapedProfile}\"}}\n");
+                stream.Write(request, 0, request.Length);
+                return stream.ReadByte() >= 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>Tell the launcher that this profile finished its work.</summary>
+        public bool NotifyLauncherProfileDone(bool success = true)
+        {
+            string token = Environment.GetEnvironmentVariable("TAZUO_LAUNCHER_TOKEN") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(token))
+                return false;
+
+            try
+            {
+                using TcpClient client = new();
+                client.Connect("127.0.0.1", 49731);
+                using NetworkStream stream = client.GetStream();
+                string escapedToken = token.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                byte[] request = Encoding.UTF8.GetBytes($"{{\"token\":\"{escapedToken}\",\"command\":\"profile_done\",\"success\":{(success ? "true" : "false")}}}\n");
+                stream.Write(request, 0, request.Length);
+                return stream.ReadByte() >= 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>Publish the current Legion script step to the local TazUO launcher.</summary>
+        public bool NotifyLauncherScriptStatus(string step, string message = "", int progress = 0)
+        {
+            string token = Environment.GetEnvironmentVariable("TAZUO_LAUNCHER_TOKEN") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(token))
+                return false;
+
+            try
+            {
+                using TcpClient client = new();
+                client.Connect("127.0.0.1", 49731);
+                using NetworkStream stream = client.GetStream();
+                string requestJson = JsonSerializer.Serialize(new
+                {
+                    token,
+                    command = "script_status",
+                    profile = ApiUserProfile.CharacterName ?? string.Empty,
+                    step = step ?? string.Empty,
+                    message = message ?? string.Empty,
+                    progress
+                });
+                byte[] request = Encoding.UTF8.GetBytes(requestJson + "\n");
+                stream.Write(request, 0, request.Length);
+                using StreamReader reader = new(stream, Encoding.UTF8, leaveOpen: true);
+                string response = reader.ReadLine() ?? string.Empty;
+                return response.Contains("\"ok\":true", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         #endregion
 
