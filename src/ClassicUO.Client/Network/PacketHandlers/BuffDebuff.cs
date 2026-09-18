@@ -1,6 +1,7 @@
 using System;
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
+using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.IO;
@@ -27,12 +28,24 @@ internal static class BuffDebuff
 
         if (iconID < BuffTable.Table.Length)
         {
-            BuffGump gump = UIManager.GetGump<BuffGump>();
+            Mobile mobile = world.Get(serial) as Mobile;
+
+            if (mobile == null && serial == world.Player.Serial)
+            {
+                mobile = world.Player;
+            }
+
+            if (mobile == null)
+            {
+                return;
+            }
+
+            BuffGump gump = mobile == world.Player ? UIManager.GetGump<BuffGump>() : null;
             ushort count = p.ReadUInt16BE();
 
             if (count == 0)
             {
-                world.Player.RemoveBuff(ic);
+                mobile.RemoveBuff(ic);
                 gump?.RequestUpdateContents();
             }
             else
@@ -94,8 +107,8 @@ internal static class BuffDebuff
                     }
 
                     string text = $"<left>{title}{description}{wtf}</left>";
-                    bool alreadyExists = world.Player.IsBuffIconExists(ic);
-                    world.Player.AddBuff(ic, BuffTable.Table[iconID], timer, text, title);
+                    bool alreadyExists = mobile.IsBuffIconExists(ic);
+                    mobile.AddBuff(ic, BuffTable.Table[iconID], timer, text, title);
 
                     if (!alreadyExists)
                         gump?.RequestUpdateContents();
