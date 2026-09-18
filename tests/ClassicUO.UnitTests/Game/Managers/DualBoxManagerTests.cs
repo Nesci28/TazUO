@@ -2,11 +2,13 @@ using System;
 using System.Buffers.Binary;
 using System.IO;
 using ClassicUO.Game.Managers;
+using ClassicUO.UnitTests.Fixtures;
 using FluentAssertions;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game.Managers;
 
+[Collection(MainThreadCollection.Name)]
 public class DualBoxManagerTests
 {
     [Theory]
@@ -40,6 +42,7 @@ public class DualBoxManagerTests
             StartZ = -6,
             StartDirection = 5,
             Run = true,
+            Command = "{\"action\":\"heal\"}",
             Error = "none",
             GroupSerials = [0x01020304, 0x05060708]
         };
@@ -62,6 +65,7 @@ public class DualBoxManagerTests
         actual.StartZ.Should().Be(expected.StartZ);
         actual.StartDirection.Should().Be(expected.StartDirection);
         actual.Run.Should().BeTrue();
+        actual.Command.Should().Be(expected.Command);
         actual.Error.Should().Be(expected.Error);
         actual.GroupSerials.Should().Equal(expected.GroupSerials);
     }
@@ -86,5 +90,28 @@ public class DualBoxManagerTests
         Action decode = () => DualBoxProtocol.Decode(frame);
 
         decode.Should().Throw<InvalidDataException>();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void EmptyScriptCommandsAreNotDispatched(string command)
+    {
+        bool dispatched = false;
+
+        void Handler(string _) => dispatched = true;
+
+        DualBoxManager.Instance.ScriptCommandReceived += Handler;
+
+        try
+        {
+            DualBoxManager.Instance.DispatchScriptCommand(command);
+        }
+        finally
+        {
+            DualBoxManager.Instance.ScriptCommandReceived -= Handler;
+        }
+
+        dispatched.Should().BeFalse();
     }
 }
