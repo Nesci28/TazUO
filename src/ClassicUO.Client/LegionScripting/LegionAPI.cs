@@ -48,6 +48,8 @@ namespace ClassicUO.LegionScripting
         private volatile object _onStopCallback;
         private volatile bool _onStopScheduled;
         private volatile bool _onStopCompleted;
+        private volatile object _onDualBoxCommandCallback;
+        private bool _dualBoxCommandHooked;
         private readonly ConcurrentDictionary<string, bool> _pressedKeys = new();
         private readonly ConcurrentDictionary<string, string> _keyToHotkeyMap = new();
 
@@ -297,6 +299,15 @@ namespace ClassicUO.LegionScripting
                 return;
 
             _disposed = true;
+
+            lock (_hookLock)
+            {
+                if (_dualBoxCommandHooked)
+                {
+                    DualBoxManager.Instance.ScriptCommandReceived -= HandleDualBoxCommand;
+                    _dualBoxCommandHooked = false;
+                }
+            }
 
             Events.Dispose();
 
@@ -1439,6 +1450,70 @@ namespace ClassicUO.LegionScripting
 
             World.Instance.CommandManager.Execute(split[0], split);
         });
+
+        /// <summary>
+        /// Sends a command over the local dual-box TCP connection to every connected client.
+        /// The calling TazUO instance must be the dual-box master. The command is delivered as
+        /// text to callbacks registered with OnDualBoxCommand and is not evaluated as code.
+        /// JSON can be used when a command needs structured arguments.
+        /// Example:
+        /// ```py
+        /// sent = API.SendDualBoxCommand('{"action":"heal","target":"self"}')
+        /// API.SysMsg(f"Command sent to {sent} clients")
+        /// ```
+        /// </summary>
+        /// <param name="command">Command text, up to 4096 characters.</param>
+        /// <returns>The number of connected clients to which the command was queued.</returns>
+        public int SendDualBoxCommand(string command) => OnMain(() =>
+            DualBoxManager.Instance.BroadcastScriptCommand(command));
+
+        /// <summary>
+        /// Registers a callback for commands sent by the dual-box master. The callback receives
+        /// one string argument. Callbacks run when the script calls ProcessCallbacks.
+        /// Example:
+        /// ```py
+        /// import json
+        /// def on_dualbox_command(command):
+        ///   data = json.loads(command)
+        ///   if data["action"] == "heal":
+        ///     API.BandageSelf()
+        /// API.OnDualBoxCommand(on_dualbox_command)
+        /// while not API.StopRequested:
+        ///   API.ProcessCallbacks()
+        ///   API.Pause(0.05)
+        /// ```
+        /// Call with no callback to unregister.
+        /// </summary>
+        /// <param name="callback">Function invoked with the received command, or null to unregister.</param>
+        public void OnDualBoxCommand(object callback = null)
+        {
+            lock (_hookLock)
+            {
+                if (_disposed)
+                    return;
+
+                _onDualBoxCommandCallback = callback;
+
+                if (callback != null && !_dualBoxCommandHooked)
+                {
+                    DualBoxManager.Instance.ScriptCommandReceived += HandleDualBoxCommand;
+                    _dualBoxCommandHooked = true;
+                }
+                else if (callback == null && _dualBoxCommandHooked)
+                {
+                    DualBoxManager.Instance.ScriptCommandReceived -= HandleDualBoxCommand;
+                    _dualBoxCommandHooked = false;
+                }
+            }
+        }
+
+        private void HandleDualBoxCommand(string command)
+        {
+            object callback = _onDualBoxCommandCallback;
+
+            if (!_disposed && callback != null)
+                ScheduleCallback(callback, command);
+        }
 
         /// <summary>
         /// Check if a buff is active.

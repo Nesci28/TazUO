@@ -1745,6 +1745,42 @@ def ClientCommand(command: "str") -> None:
     """
     pass
 
+def SendDualBoxCommand(command: "str") -> "int":
+    """
+     Sends a command over the local dual-box TCP connection to every connected client.
+     The calling TazUO instance must be the dual-box master. The command is delivered as
+     text to callbacks registered with OnDualBoxCommand and is not evaluated as code.
+     JSON can be used when a command needs structured arguments.
+     Example:
+     ```py
+     sent = API.SendDualBoxCommand('{"action":"heal","target":"self"}')
+     API.SysMsg(f"Command sent to {sent} clients")
+     ```
+
+    """
+    pass
+
+def OnDualBoxCommand(callback: "Any" = None) -> None:
+    """
+     Registers a callback for commands sent by the dual-box master. The callback receives
+     one string argument. Callbacks run when the script calls ProcessCallbacks.
+     Example:
+     ```py
+     import json
+     def on_dualbox_command(command):
+       data = json.loads(command)
+       if data["action"] == "heal":
+         API.BandageSelf()
+     API.OnDualBoxCommand(on_dualbox_command)
+     while not API.StopRequested:
+       API.ProcessCallbacks()
+       API.Pause(0.05)
+     ```
+     Call with no callback to unregister.
+
+    """
+    pass
+
 def BuffExists(buffName: "str") -> "bool":
     """
      Check if a buff is active.
