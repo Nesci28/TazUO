@@ -31,9 +31,19 @@ internal enum DualBoxMessageType
     Sync,
     Step,
     MountState,
+    Macro,
+    MacroStop,
+    Target,
     ScriptCommand,
     Nack,
     Stop
+}
+
+internal enum DualBoxTargetKind
+{
+    None,
+    Entity,
+    Location
 }
 
 internal enum DualBoxMountAction
@@ -59,6 +69,14 @@ internal sealed class DualBoxMessage
     public long Sequence { get; set; }
     public bool Mounted { get; set; }
     public long MountSequence { get; set; }
+    public long MacroSequence { get; set; }
+    public string MacroDefinition { get; set; } = string.Empty;
+    public DualBoxTargetKind TargetKind { get; set; }
+    public uint TargetSerial { get; set; }
+    public ushort TargetGraphic { get; set; }
+    public ushort TargetX { get; set; }
+    public ushort TargetY { get; set; }
+    public sbyte TargetZ { get; set; }
     public ushort StartX { get; set; }
     public ushort StartY { get; set; }
     public sbyte StartZ { get; set; }
@@ -121,10 +139,13 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 3;
+    public const int ProtocolVersion = 4;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
+    public const int MaxMacroDefinitionLength = 8192;
+    internal const uint MacroTargetCursorTimeout = 5000;
+    internal const uint PendingTargetTimeout = 5000;
     internal const uint MountActionTimeout = 3000;
     internal const int MaxMountActionAttempts = 2;
 
@@ -162,8 +183,10 @@ public sealed class DualBoxManager
     private uint _nextHeartbeat;
     private long _stepSequence;
     private long _mountSequence;
+    private long _macroSequence;
     private long _clientSequence;
     private long _clientMountSequence;
+    private long _clientMacroSequence;
     private long _pendingMountSequence;
     private bool? _lastMasterMounted;
     private bool? _expectedClientMounted;
@@ -178,6 +201,11 @@ public sealed class DualBoxManager
     private bool _alignmentPathStarted;
     private bool _executingRemoteStep;
     private byte? _awaitingWalkSequence;
+    private long _activeMasterMacroSequence;
+    private uint _masterTargetCursorDeadline;
+    private bool _masterTargetCursorActive;
+    private DualBoxMessage _pendingTarget;
+    private uint _pendingTargetDeadline;
     private ushort _targetX;
     private ushort _targetY;
     private sbyte _targetZ;
@@ -323,6 +351,8 @@ public sealed class DualBoxManager
             _peers.Clear();
             _role = DualBoxRole.Standalone;
             _status = "Stopped";
+            _macroSequence = 0;
+            ClearMasterTargetSyncLocked();
         }
 
         ResetClientState();
@@ -363,6 +393,7 @@ public sealed class DualBoxManager
 
             selected = [];
             deselected = [];
+            ClearMasterTargetSyncLocked();
             _stepSequence++;
             masterState.Sequence = _stepSequence;
             masterState.MountSequence = ++_mountSequence;
@@ -449,6 +480,174 @@ public sealed class DualBoxManager
             Send(client, message);
 
         return clients.Count;
+    }
+
+    internal int BroadcastMacro(string definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition) || definition.Length > MaxMacroDefinitionLength)
+            return 0;
+
+        List<Peer> clients;
+        DualBoxMessage message;
+        World world = World.Instance;
+        bool targetCursorAlreadyActive = world?.TargetManager?.IsTargeting == true
+            && IsSynchronizableTargetCursor(world.TargetManager.TargetingState);
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return 0;
+
+            clients = _peers.Where(p => p.Selected).ToList();
+
+            if (clients.Count == 0)
+                return 0;
+
+            _activeMasterMacroSequence = ++_macroSequence;
+            _masterTargetCursorActive = targetCursorAlreadyActive;
+            _masterTargetCursorDeadline = targetCursorAlreadyActive
+                ? 0
+                : Time.Ticks + MacroTargetCursorTimeout;
+
+            message = new DualBoxMessage
+            {
+                Type = DualBoxMessageType.Macro,
+                MacroSequence = _activeMasterMacroSequence,
+                MacroDefinition = definition
+            };
+        }
+
+        foreach (Peer client in clients)
+            Send(client, message);
+
+        return clients.Count;
+    }
+
+    internal int BroadcastMacroStop()
+    {
+        List<Peer> clients;
+        DualBoxMessage message;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return 0;
+
+            clients = _peers.Where(p => p.Selected).ToList();
+
+            if (clients.Count == 0)
+                return 0;
+
+            ClearMasterTargetSyncLocked();
+            message = new DualBoxMessage
+            {
+                Type = DualBoxMessageType.MacroStop,
+                MacroSequence = ++_macroSequence
+            };
+        }
+
+        foreach (Peer client in clients)
+            Send(client, message);
+
+        return clients.Count;
+    }
+
+    internal void OnTargetCursorActivated(CursorTarget targeting)
+    {
+        if (!IsSynchronizableTargetCursor(targeting))
+            return;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master || _activeMasterMacroSequence == 0)
+                return;
+
+            if (HasDeadlinePassed(Time.Ticks, _masterTargetCursorDeadline))
+            {
+                ClearMasterTargetSyncLocked();
+                return;
+            }
+
+            _masterTargetCursorActive = true;
+            _masterTargetCursorDeadline = 0;
+        }
+    }
+
+    internal void OnTargetCursorCancelled()
+    {
+        lock (_gate)
+        {
+            if (_role == DualBoxRole.Master && _masterTargetCursorActive)
+                ClearMasterTargetSyncLocked();
+        }
+    }
+
+    internal void OnEntityTargetSelected(uint serial)
+    {
+        if (serial == 0)
+            return;
+
+        BroadcastTargetSelection(
+            new DualBoxMessage
+            {
+                Type = DualBoxMessageType.Target,
+                TargetKind = DualBoxTargetKind.Entity,
+                TargetSerial = serial
+            }
+        );
+    }
+
+    internal void OnLocationTargetSelected(ushort graphic, ushort x, ushort y, sbyte z)
+    {
+        BroadcastTargetSelection(
+            new DualBoxMessage
+            {
+                Type = DualBoxMessageType.Target,
+                TargetKind = DualBoxTargetKind.Location,
+                TargetGraphic = graphic,
+                TargetX = x,
+                TargetY = y,
+                TargetZ = z
+            }
+        );
+    }
+
+    private void BroadcastTargetSelection(DualBoxMessage message)
+    {
+        List<Peer> clients;
+        bool resolvedByMacroAction = World.Instance?.Macros?.IsProcessingAction == true;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master
+                || !_masterTargetCursorActive
+                || _activeMasterMacroSequence == 0)
+            {
+                return;
+            }
+
+            // TargetSelf/LastTarget and similar actions are already replayed independently by
+            // each client. Only a target chosen by the player after the macro yields is shared.
+            if (resolvedByMacroAction)
+            {
+                ClearMasterTargetSyncLocked();
+                return;
+            }
+
+            clients = _peers.Where(p => p.Selected).ToList();
+            message.MacroSequence = _activeMasterMacroSequence;
+            ClearMasterTargetSyncLocked();
+        }
+
+        foreach (Peer client in clients)
+            Send(client, message);
+    }
+
+    private void ClearMasterTargetSyncLocked()
+    {
+        _activeMasterMacroSequence = 0;
+        _masterTargetCursorDeadline = 0;
+        _masterTargetCursorActive = false;
     }
 
     /// <summary>
@@ -629,6 +828,8 @@ public sealed class DualBoxManager
             SendClientState(DualBoxMessageType.State, _clientReady ? string.Empty : "Not ready");
         }
 
+        ProcessPendingTarget(world);
+
         if (_clientFollowing && !ProcessClientMountState(world))
             return;
 
@@ -644,6 +845,12 @@ public sealed class DualBoxManager
 
     internal static bool IsWithinSyncRange(int x1, int y1, int x2, int y2)
         => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= SyncRange;
+
+    internal static bool IsSynchronizableTargetCursor(CursorTarget targeting)
+        => targeting is CursorTarget.Object or CursorTarget.Position or CursorTarget.MultiPlacement;
+
+    internal static bool HasDeadlinePassed(uint now, uint deadline)
+        => deadline != 0 && unchecked((int)(now - deadline)) >= 0;
 
     internal static DualBoxMountAction GetMountAction(bool desiredMounted, bool actualMounted)
         => desiredMounted == actualMounted
@@ -918,6 +1125,15 @@ public sealed class DualBoxManager
             case DualBoxMessageType.MountState:
                 MainThreadQueue.EnqueueAction(() => QueueMountState(message), token);
                 break;
+            case DualBoxMessageType.Macro:
+                MainThreadQueue.EnqueueAction(() => ExecuteSynchronizedMacro(message), token);
+                break;
+            case DualBoxMessageType.MacroStop:
+                MainThreadQueue.EnqueueAction(() => StopSynchronizedMacro(message), token);
+                break;
+            case DualBoxMessageType.Target:
+                MainThreadQueue.EnqueueAction(() => QueueTarget(message), token);
+                break;
             case DualBoxMessageType.ScriptCommand:
                 MainThreadQueue.EnqueueAction(() => DispatchScriptCommand(message.Command), token);
                 break;
@@ -931,6 +1147,102 @@ public sealed class DualBoxManager
     {
         if (!string.IsNullOrWhiteSpace(command) && command.Length <= MaxScriptCommandLength)
             ScriptCommandReceived?.Invoke(command);
+    }
+
+    private void ExecuteSynchronizedMacro(DualBoxMessage message)
+    {
+        if (!_clientFollowing
+            || message.MacroSequence <= _clientMacroSequence
+            || string.IsNullOrWhiteSpace(message.MacroDefinition)
+            || message.MacroDefinition.Length > MaxMacroDefinitionLength)
+        {
+            return;
+        }
+
+        _clientMacroSequence = message.MacroSequence;
+        _pendingTarget = null;
+        _pendingTargetDeadline = 0;
+
+        World world = World.Instance;
+
+        if (world?.InGame != true
+            || world.Player == null
+            || !world.Macros.TryExecuteSynchronizedMacro(message.MacroDefinition))
+        {
+            SetStatus("Could not execute the master's macro.");
+        }
+    }
+
+    private void StopSynchronizedMacro(DualBoxMessage message)
+    {
+        if (!_clientFollowing || message.MacroSequence <= _clientMacroSequence)
+            return;
+
+        _clientMacroSequence = message.MacroSequence;
+        _pendingTarget = null;
+        _pendingTargetDeadline = 0;
+        World.Instance?.Macros?.StopExecution();
+    }
+
+    private void QueueTarget(DualBoxMessage message)
+    {
+        if (!_clientFollowing
+            || message.MacroSequence != _clientMacroSequence
+            || message.TargetKind == DualBoxTargetKind.None)
+        {
+            return;
+        }
+
+        _pendingTarget = message;
+        _pendingTargetDeadline = Time.Ticks + PendingTargetTimeout;
+        ProcessPendingTarget(World.Instance);
+    }
+
+    private void ProcessPendingTarget(World world)
+    {
+        if (_pendingTarget == null)
+            return;
+
+        if (!_clientFollowing
+            || world?.InGame != true
+            || world.Player == null
+            || HasDeadlinePassed(Time.Ticks, _pendingTargetDeadline))
+        {
+            _pendingTarget = null;
+            _pendingTargetDeadline = 0;
+            return;
+        }
+
+        TargetManager targetManager = world.TargetManager;
+
+        if (!targetManager.IsTargeting
+            || !IsSynchronizableTargetCursor(targetManager.TargetingState))
+        {
+            return;
+        }
+
+        switch (_pendingTarget.TargetKind)
+        {
+            case DualBoxTargetKind.Entity:
+                if (world.Get(_pendingTarget.TargetSerial) == null)
+                    return;
+
+                targetManager.Target(_pendingTarget.TargetSerial);
+                break;
+            case DualBoxTargetKind.Location:
+                targetManager.Target(
+                    _pendingTarget.TargetGraphic,
+                    _pendingTarget.TargetX,
+                    _pendingTarget.TargetY,
+                    _pendingTarget.TargetZ
+                );
+                break;
+            default:
+                return;
+        }
+
+        _pendingTarget = null;
+        _pendingTargetDeadline = 0;
     }
 
     private void BeginAlignment(DualBoxMessage message)
@@ -963,6 +1275,8 @@ public sealed class DualBoxManager
             _groupSerials.Add(serial);
 
         _pendingSteps.Clear();
+        _pendingTarget = null;
+        _pendingTargetDeadline = 0;
         _clientSequence = message.Sequence;
         _clientFollowing = true;
         _clientReady = false;
@@ -1364,6 +1678,7 @@ public sealed class DualBoxManager
             if (_role != DualBoxRole.Master)
                 return;
 
+            ClearMasterTargetSyncLocked();
             state.Sequence = ++_stepSequence;
             state.MountSequence = ++_mountSequence;
             _lastMasterMounted = state.Mounted;
@@ -1508,6 +1823,8 @@ public sealed class DualBoxManager
     {
         _pendingSteps.Clear();
         _groupSerials.Clear();
+        _pendingTarget = null;
+        _pendingTargetDeadline = 0;
         _clientFollowing = false;
         _clientReady = false;
         _aligning = false;
@@ -1517,6 +1834,7 @@ public sealed class DualBoxManager
         _clientSequence = 0;
         _mountSequence = 0;
         _clientMountSequence = 0;
+        _clientMacroSequence = 0;
         _pendingMountSequence = 0;
         _lastMasterMounted = null;
         _expectedClientMounted = null;
