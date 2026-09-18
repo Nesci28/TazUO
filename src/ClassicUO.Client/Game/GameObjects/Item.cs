@@ -34,8 +34,11 @@ namespace ClassicUO.Game.GameObjects
         public bool MatchesHighlightData;
         public Color HighlightColor = Color.White;
         public string HighlightName = string.Empty;
+        // Retained for compatibility with autoloot branches that still consult the legacy flag.
         public bool ShouldAutoLoot;
         public bool HighlightChecked;
+        public uint HighlightCheckedContainer;
+        public ushort HighlightCheckedGraphic;
         public string CustomName { get; set; }
 
         /// <summary>
