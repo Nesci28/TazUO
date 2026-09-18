@@ -89,6 +89,7 @@ internal sealed class DualBoxMessage
     public long ActionSequence { get; set; }
     public bool WarMode { get; set; }
     public uint AttackSerial { get; set; }
+    public uint PartyLeaderSerial { get; set; }
     public long GumpSequence { get; set; }
     public uint GumpServerSerial { get; set; }
     public int GumpButton { get; set; }
@@ -158,7 +159,7 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 6;
+    public const int ProtocolVersion = 7;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
@@ -232,6 +233,10 @@ public sealed class DualBoxManager
     private long _clientMacroSequence;
     private long _clientActionSequence;
     private long _clientGumpSequence;
+    private Peer _partyInvitePeer;
+    private uint _partyInviteClientSerial;
+    private uint _partyInviteDeadline;
+    private bool _partyInviteTargetPending;
     private long _pendingMountSequence;
     private bool? _lastMasterMounted;
     private bool? _expectedClientMounted;
@@ -401,6 +406,10 @@ public sealed class DualBoxManager
             _macroSequence = 0;
             _actionSequence = 0;
             _gumpSequence = 0;
+            _partyInvitePeer = null;
+            _partyInviteClientSerial = 0;
+            _partyInviteDeadline = 0;
+            _partyInviteTargetPending = false;
             ClearMasterTargetSyncLocked();
         }
 
@@ -715,6 +724,9 @@ public sealed class DualBoxManager
 
         lock (_gate)
         {
+            if (_role == DualBoxRole.Master && _partyInviteTargetPending)
+                return;
+
             if (_role != DualBoxRole.Master || _activeMasterMacroSequence == 0)
                 return;
 
@@ -971,6 +983,7 @@ public sealed class DualBoxManager
 
         if (role == DualBoxRole.Master)
         {
+            UpdateMasterPartyInvite(world);
             UpdateMasterMountState(world);
             return;
         }
@@ -1036,6 +1049,32 @@ public sealed class DualBoxManager
         && masterSerial != clientSerial
         && !clientAlreadyInParty
         && (partyLeaderSerial == 0 || partyLeaderSerial == masterSerial);
+
+    internal bool TryHandlePartyInviteTarget(
+        World world,
+        CursorTarget cursorTarget,
+        TargetType targetType
+    )
+    {
+        uint clientSerial;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master
+                || _partyInvitePeer == null
+                || !_partyInviteTargetPending
+                || cursorTarget != CursorTarget.Object
+                || targetType != TargetType.Neutral)
+            {
+                return false;
+            }
+
+            clientSerial = _partyInviteClientSerial;
+            _partyInviteTargetPending = false;
+        }
+
+        return world?.TargetManager?.TargetMobileSerial(clientSerial) == true;
+    }
 
     private async Task AcceptLoopAsync(TcpListener listener, CancellationToken token)
     {
@@ -1360,6 +1399,9 @@ public sealed class DualBoxManager
         bool sameServer = world?.InGame == true
             && string.Equals(world.ServerName, serverName, StringComparison.OrdinalIgnoreCase);
         bool alreadyInParty = sameServer && world.Party.Contains(clientSerial);
+        bool partyIsFull = sameServer
+            && world.Party.Members.Count(member => member != null && member.Serial != 0)
+                >= world.Party.Members.Length;
         bool canInvite = sameServer
             && CanInvitePartyClient(
                 masterSerial,
@@ -1373,26 +1415,57 @@ public sealed class DualBoxManager
             if (_role != DualBoxRole.Master || !_peers.Contains(peer))
                 return;
 
-            peer.PartyInviteQueued = false;
-
             if (alreadyInParty)
             {
+                peer.PartyInviteQueued = false;
                 peer.PartyInviteSent = true;
                 return;
             }
 
             if (!canInvite
                 || peer.State?.Serial != clientSerial
-                || !string.Equals(peer.State.ServerName, serverName, StringComparison.OrdinalIgnoreCase))
+                || !string.Equals(peer.State.ServerName, serverName, StringComparison.OrdinalIgnoreCase)
+                || _activeMasterMacroSequence != 0
+                || partyIsFull
+                || (peer.State.PartyLeaderSerial != 0
+                    && peer.State.PartyLeaderSerial != masterSerial)
+                || (_partyInvitePeer != null && _partyInvitePeer != peer))
             {
+                peer.PartyInviteQueued = false;
+                peer.PartyInviteRetryAt = Time.Ticks + PartyInviteRetryDelay;
+                return;
+            }
+        }
+
+        if (world.TargetManager.IsTargeting
+            || TargetManager.NextAutoTarget.IsSet)
+        {
+            DelayPartyInvite(peer);
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master
+                || !_peers.Contains(peer)
+                || peer.State?.Serial != clientSerial
+                || _partyInvitePeer != null)
+            {
+                peer.PartyInviteQueued = false;
                 peer.PartyInviteRetryAt = Time.Ticks + PartyInviteRetryDelay;
                 return;
             }
 
-            peer.PartyInviteSent = true;
+            _partyInvitePeer = peer;
+            _partyInviteClientSerial = clientSerial;
+            _partyInviteDeadline = Time.Ticks + PartyInviteTimeout;
+            _partyInviteTargetPending = true;
         }
 
-        GameActions.RequestPartyInvite(clientSerial);
+        // UO ignores the serial in the party-add packet and opens a target cursor instead.
+        // The packet handler recognizes that specific neutral object cursor and returns the
+        // connected client's serial without consuming an unrelated auto-target.
+        GameActions.RequestPartyInviteByTarget();
         Send(
             peer,
             new DualBoxMessage
@@ -1401,6 +1474,61 @@ public sealed class DualBoxManager
                 Serial = masterSerial
             }
         );
+    }
+
+    private void DelayPartyInvite(Peer peer)
+    {
+        lock (_gate)
+        {
+            if (!_peers.Contains(peer))
+                return;
+
+            peer.PartyInviteQueued = false;
+            peer.PartyInviteRetryAt = Time.Ticks + PartyInviteRetryDelay;
+        }
+    }
+
+    private void UpdateMasterPartyInvite(World world)
+    {
+        Peer peer;
+        uint clientSerial;
+
+        lock (_gate)
+        {
+            peer = _partyInvitePeer;
+            clientSerial = _partyInviteClientSerial;
+
+            if (peer == null)
+                return;
+        }
+
+        bool joined = SerialHelper.IsMobile(clientSerial) && world.Party.Contains(clientSerial);
+        bool expired = HasDeadlinePassed(Time.Ticks, _partyInviteDeadline);
+        bool disconnected;
+
+        lock (_gate)
+        {
+            disconnected = _role != DualBoxRole.Master || !_peers.Contains(peer);
+
+            if (_partyInvitePeer != peer || (!joined && !expired && !disconnected))
+                return;
+
+            _partyInvitePeer = null;
+            _partyInviteClientSerial = 0;
+            _partyInviteDeadline = 0;
+            _partyInviteTargetPending = false;
+            peer.PartyInviteQueued = false;
+
+            if (joined)
+            {
+                peer.PartyInviteSent = true;
+                peer.PartyInviteRetryAt = 0;
+            }
+            else if (!disconnected)
+            {
+                peer.PartyInviteRetryAt = Time.Ticks + PartyInviteRetryDelay;
+            }
+        }
     }
 
     private void QueuePartyInvite(DualBoxMessage message)
@@ -1441,6 +1569,7 @@ public sealed class DualBoxManager
         uint inviter = _pendingPartyLeaderSerial;
         ClearPendingPartyInvite();
         GameActions.RequestPartyAccept(inviter);
+        world.Party.Inviter = 0;
     }
 
     private void ClearPendingPartyInvite()
@@ -2132,6 +2261,7 @@ public sealed class DualBoxManager
         result.Direction = (byte)(direction & Direction.Mask);
         result.Mounted = IsMounted(world.Player);
         result.MountSequence = _clientMountSequence;
+        result.PartyLeaderSerial = world.Party.Leader;
         return result;
     }
 

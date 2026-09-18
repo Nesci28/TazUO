@@ -590,6 +590,35 @@ namespace ClassicUO.Game.Managers
             }
         }
 
+        /// <summary>
+        /// Responds to an object target cursor with a mobile serial even when that mobile has not
+        /// been loaded into the local world. Party invitations are resolved server-side by serial.
+        /// </summary>
+        internal bool TargetMobileSerial(uint serial)
+        {
+            if (!IsTargeting
+                || TargetingState != CursorTarget.Object
+                || !SerialHelper.IsMobile(serial))
+            {
+                return false;
+            }
+
+            Entity entity = _world.Get(serial);
+            AsyncNetClient.Socket.Send_TargetObject(
+                serial,
+                entity?.Graphic ?? 0,
+                entity?.X ?? 0,
+                entity?.Y ?? 0,
+                entity?.Z ?? 0,
+                _targetCursorId,
+                (byte)TargetingType
+            );
+
+            ClearTargetingWithoutTargetCancelPacket();
+            Mouse.CancelDoubleClick = true;
+            return true;
+        }
+
         public void Target(ushort graphic, ushort x, ushort y, short z, bool wet = false)
         {
             if (!IsTargeting)

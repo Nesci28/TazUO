@@ -56,6 +56,7 @@ public class DualBoxManagerTests
             ActionSequence = 14,
             WarMode = true,
             AttackSerial = 0x01010101,
+            PartyLeaderSerial = 0x01020304,
             GumpSequence = 15,
             GumpServerSerial = 0x10203040,
             GumpButton = 7,
@@ -97,6 +98,7 @@ public class DualBoxManagerTests
         actual.ActionSequence.Should().Be(expected.ActionSequence);
         actual.WarMode.Should().BeTrue();
         actual.AttackSerial.Should().Be(expected.AttackSerial);
+        actual.PartyLeaderSerial.Should().Be(expected.PartyLeaderSerial);
         actual.GumpSequence.Should().Be(expected.GumpSequence);
         actual.GumpServerSerial.Should().Be(expected.GumpServerSerial);
         actual.GumpButton.Should().Be(expected.GumpButton);
