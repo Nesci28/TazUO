@@ -45,6 +45,7 @@ namespace ClassicUO.Game.Managers.Hotkeys
         public const string SplitStackId = "world.splitstack";
         public const string ShopBulkId = "world.shopbulk";
         public const string ShowNameplatesId = "world.shownameplates";
+        public const string MobileDefaultContextActionId = "world.mobiledefaultcontextaction";
         #endregion
 
         /// <summary>Register all systems' hotkeys. Safe to call again on profile switch.</summary>
@@ -118,6 +119,7 @@ namespace ClassicUO.Game.Managers.Hotkeys
             ContextModifier(SplitStackId, "Split stack modifier", Modifier(shift: true), category);
             ContextModifier(ShopBulkId, "Buy/sell entire stack", Modifier(shift: true), category);
             ContextModifier(ShowNameplatesId, "Show all nameplates", Modifier(ctrl: true, shift: true), category);
+            ContextModifier(MobileDefaultContextActionId, "Use mobile default context action", Modifier(ctrl: true), category);
         }
 
         /// <summary>
