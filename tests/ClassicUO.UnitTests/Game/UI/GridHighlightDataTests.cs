@@ -3,6 +3,7 @@ using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
 using FluentAssertions;
+using Microsoft.Xna.Framework;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game.UI;
@@ -179,6 +180,52 @@ public class GridHighlightDataTests
 
         rule.IsMatch(Tooltip("ring\nLuck 79")).Should().BeFalse();
         rule.IsMatch(Tooltip("ring\nLuck 80")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetMatchesReturnsEveryEnabledMatchInConfiguredOrder()
+    {
+        GridHighlightData first = CreateRule(itemNames: ["ring"]);
+        first.Name = "first";
+        first.HighlightColor = Color.Red;
+
+        GridHighlightData disabled = CreateRule(itemNames: ["ring"]);
+        disabled.Name = "disabled";
+        disabled.Enabled = false;
+
+        GridHighlightData second = CreateRule(itemNames: ["ring"]);
+        second.Name = "second";
+        second.HighlightColor = Color.Blue;
+
+        GridHighlightData nonMatch = CreateRule(itemNames: ["sword"]);
+        GridHighlightData.AllConfigs = [first, disabled, second, nonMatch];
+
+        try
+        {
+            GridHighlightData[] matches = GridHighlightData.GetMatches(Tooltip("ring"));
+
+            matches.Should().Equal(first, second);
+            GridHighlightData.GetBestMatch(Tooltip("ring")).Should().BeSameAs(first);
+        }
+        finally
+        {
+            GridHighlightData.AllConfigs = null;
+        }
+    }
+
+    [Fact]
+    public void FirstMatchingAutoLootRuleSuppliesLootSettings()
+    {
+        GridHighlightData primary = CreateRule(itemNames: ["ring"]);
+        GridHighlightData firstAutoLoot = CreateRule(itemNames: ["ring"]);
+        firstAutoLoot.LootOnMatch = true;
+        firstAutoLoot.DestinationContainer = 0x40000001;
+        GridHighlightData laterAutoLoot = CreateRule(itemNames: ["ring"]);
+        laterAutoLoot.LootOnMatch = true;
+        laterAutoLoot.DestinationContainer = 0x40000002;
+
+        GridHighlightData.GetAutoLootMatch([primary, firstAutoLoot, laterAutoLoot])
+            .Should().BeSameAs(firstAutoLoot);
     }
 
     private static GridHighlightData CreateRule(
