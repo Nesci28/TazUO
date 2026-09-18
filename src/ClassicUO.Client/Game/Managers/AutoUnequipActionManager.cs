@@ -23,6 +23,8 @@ public sealed partial class AutoUnequipActionManager : IDisposable
 
     public static AutoUnequipActionManager Instance { get; private set; }
 
+    private const int MaxDisarmWaitAttempts = 60;
+
     private readonly World _world;
     private readonly CancellationTokenSource _cTokenSource = new();
     private readonly Task _interceptConsumerCompletion;
@@ -206,8 +208,8 @@ public sealed partial class AutoUnequipActionManager : IDisposable
         if (item == null)
             return false;
 
-        // Check if item is 0xF06-0xF09 OR 0xF0B-0xF0C - these are the 'drinkable' potion graphics
-        if (item.Graphic is (< 0xF06 or > 0xF09) and (< 0xF0B or > 0xF0C))
+        // Check if item is in the standard drinkable potion bottle graphic range.
+        if (item.Graphic is < 0xF06 or > 0xF0D)
             return false;
 
         // Get the un-localized item name. We perform an extra check here as graphics may be shared by unrelated items
@@ -216,8 +218,8 @@ public sealed partial class AutoUnequipActionManager : IDisposable
             // To be expanded on with configuration.
             return name != null && IsPotionRegex().IsMatch(name);
 
-        // Data doesn't exist in OPL cache - stay conservative and assume this is *not* a potion
-        return false;
+        // Data doesn't exist in OPL cache; rely on the standard potion bottle graphic.
+        return true;
     }
 
     /// <summary>
@@ -282,7 +284,7 @@ public sealed partial class AutoUnequipActionManager : IDisposable
 
         // Enqueue all batched actions
         foreach (Action task in tasks)
-            ObjectActionQueue.Instance.Enqueue(new ObjectActionQueueItem(task), ActionPriority.EquipItem);
+            ObjectActionQueue.Instance.Enqueue(CreateDisarmedActionQueueItem(task, arms), ActionPriority.EquipItem);
         _cTokenSource.Token.ThrowIfCancellationRequested();
 
         // Enqueue a re-arm if necessary
@@ -325,6 +327,56 @@ public sealed partial class AutoUnequipActionManager : IDisposable
         });
 
     /// <summary>
+    ///     Creates an action queue item that waits for the client to see captured armaments leave equipped layers.
+    /// </summary>
+    /// <param name="task">The action to execute after disarm.</param>
+    /// <param name="arms">The armaments captured before disarm.</param>
+    /// <param name="waitAttempts">How many times this action has waited for the disarm update.</param>
+    /// <returns></returns>
+    private ObjectActionQueueItem CreateDisarmedActionQueueItem(Action task, IList<Armament> arms, int waitAttempts = 0)
+    {
+        bool triggeredCooldown = true;
+        return new ObjectActionQueueItem(() =>
+        {
+            if (arms?.Count > 0 && AreArmamentsStillEquipped(arms) && waitAttempts < MaxDisarmWaitAttempts)
+            {
+                ObjectActionQueue.Instance.Enqueue(
+                    CreateDisarmedActionQueueItem(task, arms, waitAttempts + 1),
+                    ActionPriority.UnequipItem
+                );
+                triggeredCooldown = false;
+
+                return;
+            }
+
+            task?.Invoke();
+        })
+        {
+            TriggersGlobalCooldown = () => triggeredCooldown
+        };
+    }
+
+    /// <summary>
+    ///     Determines whether any captured armament is still equipped on its original layer.
+    /// </summary>
+    /// <param name="arms">The armaments captured before disarm.</param>
+    /// <returns>True if at least one captured armament still occupies its original layer.</returns>
+    private bool AreArmamentsStillEquipped(IList<Armament> arms)
+    {
+        if (_world?.Player == null)
+            return false;
+
+        foreach (Armament arm in arms ?? [])
+        {
+            Item item = _world.Items?.Get(arm.Serial);
+            if (item != null && item.Container == _world.Player.Serial && item.Layer == arm.Layer)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     ///     Enqueues the given armaments for re-equipment
     /// </summary>
     /// <param name="arms">The armaments to re-equip</param>
@@ -356,7 +408,7 @@ public sealed partial class AutoUnequipActionManager : IDisposable
     ///     A regex used to match standard 'drinkable' potion names
     /// </summary>
     /// <returns></returns>
-    [GeneratedRegex(@"(Strength|Agility|Heal|Cure|Nightsight|Refresh(ment)?)\s+Potion", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\bPotion\b|\b(Strength|Agility|Heal|Cure|Invisibility|Night\s*Sight|Nightsight|Refresh(ment)?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex IsPotionRegex();
 
     #endregion
