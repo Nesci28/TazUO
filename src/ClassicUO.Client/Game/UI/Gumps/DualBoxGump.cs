@@ -15,6 +15,8 @@ public sealed class DualBoxGump : Gump
     private readonly NiceButton _syncButton;
     private uint _nextRefresh;
 
+    public override GumpType GumpType => GumpType.DualBox;
+
     public DualBoxGump(World world, int x, int y) : base(world, 0, 0)
     {
         X = x;

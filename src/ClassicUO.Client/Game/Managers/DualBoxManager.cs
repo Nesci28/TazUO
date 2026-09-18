@@ -39,6 +39,7 @@ internal enum DualBoxMessageType
     Attack,
     GumpResponse,
     ScriptCommand,
+    PartyInvite,
     Nack,
     Stop
 }
@@ -157,7 +158,7 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 5;
+    public const int ProtocolVersion = 6;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
@@ -170,6 +171,8 @@ public sealed class DualBoxManager
     internal const int MaxGumpEntryTextLength = 239;
     internal const uint MountActionTimeout = 3000;
     internal const int MaxMountActionAttempts = 2;
+    internal const uint PartyInviteTimeout = 15000;
+    private const uint PartyInviteRetryDelay = 2000;
 
     private sealed class Peer
     {
@@ -189,6 +192,9 @@ public sealed class DualBoxManager
         public bool MountReady { get; set; }
         public bool ExpectedMounted { get; set; }
         public long ExpectedMountSequence { get; set; }
+        public bool PartyInviteQueued { get; set; }
+        public bool PartyInviteSent { get; set; }
+        public uint PartyInviteRetryAt { get; set; }
     }
 
     private sealed class PendingGumpResponse
@@ -245,6 +251,8 @@ public sealed class DualBoxManager
     private bool _masterTargetCursorActive;
     private DualBoxMessage _pendingTarget;
     private uint _pendingTargetDeadline;
+    private uint _pendingPartyLeaderSerial;
+    private uint _pendingPartyInviteDeadline;
     private ushort _targetX;
     private ushort _targetY;
     private sbyte _targetZ;
@@ -970,6 +978,8 @@ public sealed class DualBoxManager
         if (role != DualBoxRole.Client)
             return;
 
+        ProcessPendingPartyInvite(world);
+
         if (Time.Ticks >= _nextHeartbeat)
         {
             _nextHeartbeat = Time.Ticks + 500;
@@ -1015,6 +1025,17 @@ public sealed class DualBoxManager
         bool actualMounted
     ) => actualMounted == desiredMounted
         && (!actionInFlight || actualMounted == actionTargetMounted);
+
+    internal static bool CanInvitePartyClient(
+        uint masterSerial,
+        uint partyLeaderSerial,
+        uint clientSerial,
+        bool clientAlreadyInParty
+    ) => SerialHelper.IsMobile(masterSerial)
+        && SerialHelper.IsMobile(clientSerial)
+        && masterSerial != clientSerial
+        && !clientAlreadyInParty
+        && (partyLeaderSerial == 0 || partyLeaderSerial == masterSerial);
 
     private async Task AcceptLoopAsync(TcpListener listener, CancellationToken token)
     {
@@ -1185,6 +1206,9 @@ public sealed class DualBoxManager
         bool needsResync = false;
         DualBoxMessage mountCorrection = null;
         bool stopMountFailedPeer = false;
+        bool inviteToParty = false;
+        uint partyClientSerial = 0;
+        string partyServerName = string.Empty;
 
         lock (_gate)
         {
@@ -1214,6 +1238,19 @@ public sealed class DualBoxManager
             else if (message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State or DualBoxMessageType.Nack)
             {
                 peer.State = message;
+
+                if ((message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State)
+                    && IsUsableState(message)
+                    && !peer.PartyInviteQueued
+                    && !peer.PartyInviteSent
+                    && (peer.PartyInviteRetryAt == 0
+                        || HasDeadlinePassed(Time.Ticks, peer.PartyInviteRetryAt)))
+                {
+                    peer.PartyInviteQueued = true;
+                    inviteToParty = true;
+                    partyClientSerial = message.Serial;
+                    partyServerName = message.ServerName;
+                }
 
                 if (peer.Selected && message.Sequence == peer.ExpectedSequence)
                     peer.Ready = message.Type != DualBoxMessageType.Nack && message.Ready;
@@ -1251,6 +1288,14 @@ public sealed class DualBoxManager
 
         if (stopMountFailedPeer)
             Send(peer, new DualBoxMessage { Type = DualBoxMessageType.Stop });
+
+        if (inviteToParty)
+        {
+            MainThreadQueue.EnqueueAction(
+                () => InviteClientToParty(peer, partyClientSerial, partyServerName),
+                token
+            );
+        }
 
         if (needsResync)
         {
@@ -1293,6 +1338,9 @@ public sealed class DualBoxManager
             case DualBoxMessageType.ScriptCommand:
                 MainThreadQueue.EnqueueAction(() => DispatchScriptCommand(message.Command), token);
                 break;
+            case DualBoxMessageType.PartyInvite:
+                MainThreadQueue.EnqueueAction(() => QueuePartyInvite(message), token);
+                break;
             case DualBoxMessageType.Stop:
                 MainThreadQueue.EnqueueAction(ResetClientState, token);
                 break;
@@ -1303,6 +1351,102 @@ public sealed class DualBoxManager
     {
         if (!string.IsNullOrWhiteSpace(command) && command.Length <= MaxScriptCommandLength)
             ScriptCommandReceived?.Invoke(command);
+    }
+
+    private void InviteClientToParty(Peer peer, uint clientSerial, string serverName)
+    {
+        World world = World.Instance;
+        uint masterSerial = world?.Player?.Serial ?? 0;
+        bool sameServer = world?.InGame == true
+            && string.Equals(world.ServerName, serverName, StringComparison.OrdinalIgnoreCase);
+        bool alreadyInParty = sameServer && world.Party.Contains(clientSerial);
+        bool canInvite = sameServer
+            && CanInvitePartyClient(
+                masterSerial,
+                world.Party.Leader,
+                clientSerial,
+                alreadyInParty
+            );
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master || !_peers.Contains(peer))
+                return;
+
+            peer.PartyInviteQueued = false;
+
+            if (alreadyInParty)
+            {
+                peer.PartyInviteSent = true;
+                return;
+            }
+
+            if (!canInvite
+                || peer.State?.Serial != clientSerial
+                || !string.Equals(peer.State.ServerName, serverName, StringComparison.OrdinalIgnoreCase))
+            {
+                peer.PartyInviteRetryAt = Time.Ticks + PartyInviteRetryDelay;
+                return;
+            }
+
+            peer.PartyInviteSent = true;
+        }
+
+        GameActions.RequestPartyInvite(clientSerial);
+        Send(
+            peer,
+            new DualBoxMessage
+            {
+                Type = DualBoxMessageType.PartyInvite,
+                Serial = masterSerial
+            }
+        );
+    }
+
+    private void QueuePartyInvite(DualBoxMessage message)
+    {
+        if (!SerialHelper.IsMobile(message.Serial))
+            return;
+
+        _pendingPartyLeaderSerial = message.Serial;
+        _pendingPartyInviteDeadline = Time.Ticks + PartyInviteTimeout;
+        ProcessPendingPartyInvite(World.Instance);
+    }
+
+    private void ProcessPendingPartyInvite(World world)
+    {
+        if (_pendingPartyLeaderSerial == 0)
+            return;
+
+        if (HasDeadlinePassed(Time.Ticks, _pendingPartyInviteDeadline))
+        {
+            ClearPendingPartyInvite();
+            return;
+        }
+
+        if (world?.InGame != true || world.Player == null)
+            return;
+
+        if (world.Player.Serial == _pendingPartyLeaderSerial
+            || world.Party.Leader == _pendingPartyLeaderSerial
+            || world.Party.Contains(_pendingPartyLeaderSerial))
+        {
+            ClearPendingPartyInvite();
+            return;
+        }
+
+        if (world.Party.Inviter != _pendingPartyLeaderSerial)
+            return;
+
+        uint inviter = _pendingPartyLeaderSerial;
+        ClearPendingPartyInvite();
+        GameActions.RequestPartyAccept(inviter);
+    }
+
+    private void ClearPendingPartyInvite()
+    {
+        _pendingPartyLeaderSerial = 0;
+        _pendingPartyInviteDeadline = 0;
     }
 
     private void ExecuteSynchronizedMacro(DualBoxMessage message)
@@ -2072,6 +2216,7 @@ public sealed class DualBoxManager
         _groupSerials.Clear();
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
+        ClearPendingPartyInvite();
         _pendingGumpResponses.Clear();
         _clientFollowing = false;
         _clientReady = false;

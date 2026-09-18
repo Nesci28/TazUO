@@ -889,6 +889,8 @@ internal static class GameActions
 
     internal static void RequestPartyQuit(PlayerMobile player) => Socket.Send_PartyRemoveRequest(player.Serial);
 
+    internal static void RequestPartyInvite(uint serial) => Socket.Send_PartyInviteRequest(serial);
+
     internal static void RequestPartyInviteByTarget() => Socket.Send_PartyInviteRequest();
 
     internal static void RequestPartyLootState(bool isLootable) => Socket.Send_PartyChangeLootTypeRequest(isLootable);
