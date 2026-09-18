@@ -41,8 +41,18 @@ namespace ClassicUO.LegionScripting
         public static void Init(World world)
         {
             _world = world;
-            Task.Factory.StartNew(Python.CreateEngine); //This is to preload engine stuff, helps with faster script startup later
+#if !TAZUO_IOS
+            Task.Factory.StartNew(Python.CreateEngine); // preload engine stuff for desktop script startup
+#endif
+#if TAZUO_IOS
+            // iOS app bundles are read-only. Keep user scripts in Documents so
+            // they can be installed/updated by the app without rebuilding it.
+            ScriptPath = Path.GetFullPath(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "TazUO", "LegionScripts"));
+#else
             ScriptPath = Path.GetFullPath(Path.Combine(CUOEnviroment.ExecutablePath, "LegionScripts"));
+#endif
 
             if (!_loaded)
             {

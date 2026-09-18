@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Text.Json.Serialization.Metadata;
 using ClassicUO.Assets;
 using ClassicUO.Game;
-
 namespace ClassicUO.Configuration
 {
     /// <summary>

@@ -170,6 +170,13 @@ namespace ClassicUO.Game.UI.Controls
 
         public bool ContainsByBounds { get; set; }
 
+        /// <summary>
+        /// Keeps a larger bounds-based touch target without stretching the gump art.
+        /// This is used by the mobile top-bar toggle, whose hit target is intentionally
+        /// larger than its arrow graphic.
+        /// </summary>
+        public bool DrawTextureAtNativeSize { get; set; }
+
         protected override void OnMouseEnter(int x, int y) => _entered = true;
 
         protected override void OnMouseExit(int x, int y) => _entered = false;
@@ -184,6 +191,7 @@ namespace ClassicUO.Game.UI.Controls
         {
             Texture2D texture = null;
             Rectangle bounds = Rectangle.Empty;
+            ushort drawGraphic = _normal;
 
             if (_entered || IsClicked)
             {
@@ -192,6 +200,7 @@ namespace ClassicUO.Game.UI.Controls
                     ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(_pressed);
                     texture = gumpInfo.Texture;
                     bounds = gumpInfo.UV;
+                    drawGraphic = _pressed;
                 }
 
                 if (texture == null && _over > 0)
@@ -199,6 +208,7 @@ namespace ClassicUO.Game.UI.Controls
                     ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(_over);
                     texture = gumpInfo.Texture;
                     bounds = gumpInfo.UV;
+                    drawGraphic = _over;
                 }
             }
 
@@ -207,6 +217,7 @@ namespace ClassicUO.Game.UI.Controls
                 ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(_normal);
                 texture = gumpInfo.Texture;
                 bounds = gumpInfo.UV;
+                drawGraphic = _normal;
             }
 
             if (texture == null)
@@ -214,7 +225,19 @@ namespace ClassicUO.Game.UI.Controls
                 return false;
             }
 
-            batcher.Draw(texture, new Rectangle(x, y, Width, Height), bounds, hueVector);
+            Rectangle destination = new(x, y, Width, Height);
+            if (DrawTextureAtNativeSize)
+            {
+                ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(drawGraphic);
+                destination = new Rectangle(
+                    x + ((Width - gumpInfo.LogicalWidth) >> 1),
+                    y + ((Height - gumpInfo.LogicalHeight) >> 1),
+                    gumpInfo.LogicalWidth,
+                    gumpInfo.LogicalHeight
+                );
+            }
+
+            batcher.Draw(texture, destination, bounds, hueVector);
 
             if (!string.IsNullOrEmpty(_caption))
             {

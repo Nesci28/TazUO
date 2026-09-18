@@ -1,0 +1,23 @@
+<Project>
+  <PropertyGroup Condition="'$(TAZUO_IOS)' == 'true'">
+    <DefineConstants>$(DefineConstants);TAZUO_IOS</DefineConstants>
+  </PropertyGroup>
+  <!-- Vosk's package selects binaries by the build machine OS, so its macOS
+       dylib must not enter the iOS app. Voice recognition needs an iOS backend. -->
+  <Target Name="TazUO_iOS_ExcludeDesktopVosk" BeforeTargets="AssignTargetPaths"
+          Condition="'$(TAZUO_IOS)' == 'true'">
+    <ItemGroup>
+      <None Remove="@(None)" Condition="'%(Filename)' == 'libvosk'" />
+    </ItemGroup>
+  </Target>
+  <!-- Desktop Myra includes AppKit P/Invokes. The iOS build supplies a managed
+       clipboard fallback until the UIKit/SDL window is initialized. -->
+  <Target Name="TazUO_iOS_MyraPlatform" BeforeTargets="CoreCompile"
+          Condition="'$(TAZUO_IOS)' == 'true' and '$(MSBuildProjectName)' == 'Myra.FNA.Core'">
+    <ItemGroup>
+      <Compile Remove="TextCopy\Clipboard.cs" />
+      <Compile Remove="TextCopy\OsxClipboard.cs" />
+      <Compile Include="$(MSBuildThisFileDirectory)MyraClipboard.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

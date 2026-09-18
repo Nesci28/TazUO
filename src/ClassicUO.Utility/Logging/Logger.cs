@@ -96,11 +96,18 @@ namespace ClassicUO.Utility.Logging
                 {
                     Console.Write(DateTime.UtcNow);
                     Console.Write(" | ");
-                    ConsoleColor temp = Console.ForegroundColor;
-
-                    Console.ForegroundColor = _logTypesInfo[type].Item1;
-                    Console.Write(_logTypesInfo[type].Item2);
-                    Console.ForegroundColor = temp;
+                    // Console color APIs are unavailable in an iOS app process.
+                    if (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())
+                    {
+                        Console.Write(_logTypesInfo[type].Item2);
+                    }
+                    else
+                    {
+                        ConsoleColor temp = Console.ForegroundColor;
+                        Console.ForegroundColor = _logTypesInfo[type].Item1;
+                        Console.Write(_logTypesInfo[type].Item2);
+                        Console.ForegroundColor = temp;
+                    }
                     Console.Write(" | ");
 
                     if (_indent > 0)

@@ -15,7 +15,11 @@ namespace ClassicUO.Game.Managers
     {
         const float SOUND_DELTA = 250;
 
+#if TAZUO_IOS
+        private bool _canReproduceAudio = false;
+#else
         private bool _canReproduceAudio = true;
+#endif
         private bool _audioDeviceDisconnected = false;
         private uint _lastAudioRecoveryAttempt = 0;
         private const uint AUDIO_RECOVERY_DELAY = 1000; // 1 second delay between recovery attempts

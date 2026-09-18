@@ -37,7 +37,7 @@ namespace ClassicUO.Game.UI.Gumps
         UOChat,
     }
 
-    public class SystemChatControl : Control
+    public partial class SystemChatControl : Control
     {
         private const int MAX_MESSAGE_LENGHT = 100;
         private const int CHAT_X_OFFSET = 3;
@@ -362,7 +362,11 @@ namespace ClassicUO.Game.UI.Gumps
                 _trans.Width = Width;
                 _trans.Height = CHAT_HEIGHT + 5;
             }
+
+            UpdateMobileLayout();
         }
+
+        partial void UpdateMobileLayout();
 
         public override void Update()
         {
@@ -462,6 +466,7 @@ namespace ClassicUO.Game.UI.Gumps
                 Mode = ChatMode.UOAMChat;
             }
 
+            UpdateMobileLayout();
             base.Update();
         }
 
