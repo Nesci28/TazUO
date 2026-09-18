@@ -127,6 +127,21 @@ public class DualBoxManagerTests
     }
 
     [Fact]
+    public void ProtocolRoundTripsPartyInvite()
+    {
+        var expected = new DualBoxMessage
+        {
+            Type = DualBoxMessageType.PartyInvite,
+            Serial = 0x01020304
+        };
+
+        DualBoxMessage actual = DualBoxProtocol.Decode(DualBoxProtocol.Encode(expected));
+
+        actual.Type.Should().Be(DualBoxMessageType.PartyInvite);
+        actual.Serial.Should().Be(expected.Serial);
+    }
+
+    [Fact]
     public void GumpEntryTextIsLimitedToTheProtocolSafeLength()
     {
         string text = new('x', DualBoxManager.MaxGumpEntryTextLength + 10);
@@ -254,6 +269,28 @@ public class DualBoxManagerTests
             actionTargetMounted,
             desiredMounted,
             actualMounted
+        ).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(0x01020304u, 0u, 0x05060708u, false, true)]
+    [InlineData(0x01020304u, 0x01020304u, 0x05060708u, false, true)]
+    [InlineData(0x01020304u, 0x090A0B0Cu, 0x05060708u, false, false)]
+    [InlineData(0x01020304u, 0u, 0x01020304u, false, false)]
+    [InlineData(0x01020304u, 0u, 0x05060708u, true, false)]
+    public void PartyInviteRequiresTheMasterToLeadAndAClientOutsideTheParty(
+        uint masterSerial,
+        uint leaderSerial,
+        uint clientSerial,
+        bool clientAlreadyInParty,
+        bool expected
+    )
+    {
+        DualBoxManager.CanInvitePartyClient(
+            masterSerial,
+            leaderSerial,
+            clientSerial,
+            clientAlreadyInParty
         ).Should().Be(expected);
     }
 }

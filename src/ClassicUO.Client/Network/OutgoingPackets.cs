@@ -2072,7 +2072,7 @@ namespace ClassicUO.Network
             writer.Dispose();
         }
 
-        public static void Send_PartyInviteRequest(this AsyncNetClient socket)
+        public static void Send_PartyInviteRequest(this AsyncNetClient socket, uint serial = 0)
         {
             const byte ID = 0xBF;
 
@@ -2089,7 +2089,7 @@ namespace ClassicUO.Network
 
             writer.WriteUInt16BE(0x06);
             writer.WriteUInt8(1);
-            writer.WriteUInt32BE(0);
+            writer.WriteUInt32BE(serial);
 
             if (length < 0)
             {
