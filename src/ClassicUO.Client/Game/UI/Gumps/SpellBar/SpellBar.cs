@@ -277,75 +277,6 @@ public class SpellBar : Gump
         private ContextMenuItemEntry scriptMenu;
         private Microsoft.Xna.Framework.Graphics.Texture2D castingTexture = SolidColorTextureCache.GetTexture(Color.Black);
         private DateTime savedStateTime;
-        private const ushort ActiveSpellHue = 38;
-        private static readonly Dictionary<int, BuffIconType> ActiveBuffSpells = new()
-        {
-            // Magery
-            { 1, BuffIconType.Clumsy },
-            { 3, BuffIconType.FeebleMind },
-            { 5, BuffIconType.MagicReflection },
-            { 6, BuffIconType.NightSight },
-            { 7, BuffIconType.ReactiveArmor },
-            { 9, BuffIconType.Weaken },
-            { 10, BuffIconType.Agility },
-            { 11, BuffIconType.Cunning },
-            { 17, BuffIconType.Protection },
-            { 18, BuffIconType.Strength },
-            { 24, BuffIconType.Curse },
-            { 25, BuffIconType.Bless },
-            { 33, BuffIconType.ArchProtection },
-            { 35, BuffIconType.MassCurse },
-            { 44, BuffIconType.Incognito },
-            { 45, BuffIconType.MagicReflection },
-
-            // Necromancy
-            { 102, BuffIconType.BloodOathCaster },
-            { 103, BuffIconType.CorpseSkin },
-            { 104, BuffIconType.CurseWeapon },
-            { 105, BuffIconType.EvilOmen },
-            { 106, BuffIconType.HorrificBeast },
-            { 107, BuffIconType.LichForm },
-            { 108, BuffIconType.Mindrot },
-            { 109, BuffIconType.PainSpike },
-            { 111, BuffIconType.Poison },
-            { 113, BuffIconType.Strangle },
-            { 114, BuffIconType.VampiricEmbrace },
-            { 116, BuffIconType.WraithForm },
-
-            // Chivalry
-            { 203, BuffIconType.ConsecrateWeapon },
-            { 205, BuffIconType.DivineFury },
-            { 206, BuffIconType.EnemyOfOne },
-
-            // Bushido
-            { 401, BuffIconType.HonorableExecution },
-            { 402, BuffIconType.Confidence },
-            { 403, BuffIconType.Evasion },
-            { 404, BuffIconType.CounterAttack },
-            { 405, BuffIconType.LightningStrike },
-            { 406, BuffIconType.MomentumStrike },
-
-            // Ninjitsu
-            { 502, BuffIconType.DeathStrike },
-            { 503, BuffIconType.AnimalForm },
-
-            // Spellweaving
-            { 602, BuffIconType.GiftOfRenewal },
-            { 603, BuffIconType.ImmolatingWeapon },
-            { 604, BuffIconType.AttuneWeapon },
-            { 605, BuffIconType.Thunderstorm },
-            { 609, BuffIconType.ReaperForm },
-            { 611, BuffIconType.EssenceOfWind },
-            { 613, BuffIconType.EtherealVoyage },
-            { 615, BuffIconType.GiftOfLife },
-            { 616, BuffIconType.ArcaneEmpowerment },
-
-            // Mysticism
-            { 678, BuffIconType.Sleep },
-            { 684, BuffIconType.StoneForm },
-            { 686, BuffIconType.SpellPlague },
-            { 687, BuffIconType.Enchant },
-        };
 
         public SpellEntry(World world, Gump parent)
         {
@@ -687,18 +618,6 @@ public class SpellBar : Gump
             background.Hue = scriptRunning ? runningHue : SpellBarManager.SpellBarRows[row].RowHue;
         }
 
-        private bool IsActiveSpell()
-        {
-            if (slot == null || slot.Type != CounterBarSlotType.Spell || CurrentSpellID <= 0)
-                return false;
-
-            if (SpellVisualRangeManager.Instance.IsSpellCastOrTargetActive(CurrentSpellID))
-                return true;
-
-            return ActiveBuffSpells.TryGetValue(CurrentSpellID, out BuffIconType buffType)
-                   && World?.Player?.BuffIcons.ContainsKey(buffType) == true;
-        }
-
         public override bool Draw(UltimaBatcher2D batcher, int x, int y)
         {
             if (slot != null && slot.Type == CounterBarSlotType.Ability)
@@ -717,8 +636,7 @@ public class SpellBar : Gump
                     }
                     icon.IsVisible = true;
 
-                    bool active = ((byte)World.Player.Abilities[slot.AbilityPrimary ? 0 : 1] & 0x80) != 0;
-                    ushort wanted = (ushort)(active ? ActiveSpellHue : 0);
+                    ushort wanted = slot.GetActiveHue(World);
                     if (icon.Hue != wanted)
                         icon.Hue = wanted;
                 }
@@ -730,16 +648,7 @@ public class SpellBar : Gump
             }
             else if (slot != null && slot.Type == CounterBarSlotType.Spell)
             {
-                // Toggle moves (e.g. Ninjitsu Backstab, Ki Attack) report on/off via ActiveSpellIcons; keep the highlight in sync.
-                bool active = World.ActiveSpellIcons.IsActive((ushort)slot.CurrentSpellID);
-                ushort wanted = (ushort)(active ? 38 : 0);
-                if (icon.Hue != wanted)
-                    icon.Hue = wanted;
-            }
-
-            if (slot != null && slot.Type == CounterBarSlotType.Spell)
-            {
-                ushort wanted = (ushort)(IsActiveSpell() ? ActiveSpellHue : 0);
+                ushort wanted = slot.GetActiveHue(World);
                 if (icon.Hue != wanted)
                     icon.Hue = wanted;
             }

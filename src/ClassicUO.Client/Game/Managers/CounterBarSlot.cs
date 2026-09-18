@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
+using ClassicUO.Game.Managers.SpellVisualRange;
 using ClassicUO.LegionScripting;
 
 namespace ClassicUO.Game.Managers;
@@ -111,13 +112,83 @@ public class CounterBarSlot
         _ => null
     };
 
-    /// <summary>Red highlight hue the spell/counter bar uses for an active ability or toggle-move spell.</summary>
+    /// <summary>Red highlight hue shared by spell bars and counter bars for active actions.</summary>
     public const ushort ActiveHue = 38;
 
+    private static readonly Dictionary<int, BuffIconType> ActiveBuffSpells = new()
+    {
+        // Magery
+        { 1, BuffIconType.Clumsy },
+        { 3, BuffIconType.FeebleMind },
+        { 6, BuffIconType.NightSight },
+        { 7, BuffIconType.ReactiveArmor },
+        { 8, BuffIconType.Weaken },
+        { 9, BuffIconType.Agility },
+        { 10, BuffIconType.Cunning },
+        { 15, BuffIconType.Protection },
+        { 16, BuffIconType.Strength },
+        { 17, BuffIconType.Bless },
+        { 26, BuffIconType.ArchProtection },
+        { 27, BuffIconType.Curse },
+        { 35, BuffIconType.Incognito },
+        { 36, BuffIconType.MagicReflection },
+        { 44, BuffIconType.Invisibility },
+        { 46, BuffIconType.MassCurse },
+
+        // Necromancy
+        { 102, BuffIconType.BloodOathCaster },
+        { 103, BuffIconType.CorpseSkin },
+        { 104, BuffIconType.CurseWeapon },
+        { 105, BuffIconType.EvilOmen },
+        { 106, BuffIconType.HorrificBeast },
+        { 107, BuffIconType.LichForm },
+        { 108, BuffIconType.Mindrot },
+        { 109, BuffIconType.PainSpike },
+        { 110, BuffIconType.Poison },
+        { 111, BuffIconType.Strangle },
+        { 113, BuffIconType.VampiricEmbrace },
+        { 116, BuffIconType.WraithForm },
+
+        // Chivalry
+        { 203, BuffIconType.ConsecrateWeapon },
+        { 205, BuffIconType.DivineFury },
+        { 206, BuffIconType.EnemyOfOne },
+
+        // Bushido
+        { 401, BuffIconType.HonorableExecution },
+        { 402, BuffIconType.Confidence },
+        { 403, BuffIconType.Evasion },
+        { 404, BuffIconType.CounterAttack },
+        { 405, BuffIconType.LightningStrike },
+        { 406, BuffIconType.MomentumStrike },
+
+        // Ninjitsu
+        { 502, BuffIconType.DeathStrike },
+        { 503, BuffIconType.AnimalForm },
+
+        // Spellweaving
+        { 602, BuffIconType.GiftOfRenewal },
+        { 603, BuffIconType.ImmolatingWeapon },
+        { 604, BuffIconType.AttuneWeapon },
+        { 605, BuffIconType.Thunderstorm },
+        { 609, BuffIconType.ReaperForm },
+        { 611, BuffIconType.EssenceOfWind },
+        { 613, BuffIconType.EtherealVoyage },
+        { 615, BuffIconType.GiftOfLife },
+        { 616, BuffIconType.ArcaneEmpowerment },
+
+        // Mysticism
+        { 681, BuffIconType.Enchant },
+        { 682, BuffIconType.Sleep },
+        { 685, BuffIconType.StoneForm },
+        { 687, BuffIconType.MassSleep },
+        { 690, BuffIconType.SpellPlague },
+    };
+
     /// <summary>
-    /// The highlight hue for a slot whose action is currently "active": a primary/secondary weapon
-    /// ability that is toggled on, or a toggle-move spell (e.g. Ninjitsu moves) reported active via
-    /// <see cref="World.ActiveSpellIcons"/>. Returns 0 for everything else.
+    /// The highlight hue shared by spell bars and counter bars for an action that is currently active.
+    /// This includes weapon abilities, toggle-move spells, the spell being cast/targeted, and known
+    /// buff/debuff spells present on the player. Returns 0 for everything else.
     /// </summary>
     public ushort GetActiveHue(World world)
     {
@@ -129,11 +200,26 @@ public class CounterBarSlot
                 return ((byte)world.Player.Abilities[AbilityPrimary ? 0 : 1] & 0x80) != 0 ? ActiveHue : (ushort)0;
 
             case CounterBarSlotType.Spell:
-                return world != null && world.ActiveSpellIcons.IsActive((ushort)CurrentSpellID) ? ActiveHue : (ushort)0;
+                if (world == null || CurrentSpellID <= 0)
+                    return 0;
+
+                if (world.ActiveSpellIcons.IsActive((ushort)CurrentSpellID)
+                    || SpellVisualRangeManager.Instance.IsSpellCastOrTargetActive(CurrentSpellID))
+                {
+                    return ActiveHue;
+                }
+
+                return TryGetActiveBuffIcon(CurrentSpellID, out BuffIconType buffType)
+                       && world.Player?.BuffIcons.ContainsKey(buffType) == true
+                    ? ActiveHue
+                    : (ushort)0;
         }
 
         return 0;
     }
+
+    internal static bool TryGetActiveBuffIcon(int spellId, out BuffIconType buffType) =>
+        ActiveBuffSpells.TryGetValue(spellId, out buffType);
 
     /// <summary>Toggle decision for a script slot: play when not already running.</summary>
     public static bool ShouldPlay(bool isRunning) => !isRunning;
