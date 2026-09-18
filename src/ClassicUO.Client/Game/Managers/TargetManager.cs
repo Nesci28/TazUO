@@ -270,6 +270,7 @@ namespace ClassicUO.Game.Managers
             if (IsTargeting)
             {
                 //UIManager.RemoveTargetLineGump(LastTarget);
+                DualBoxManager.Instance.OnTargetCursorActivated(targeting);
             }
             else if (lastTargetting)
             {
@@ -287,6 +288,8 @@ namespace ClassicUO.Game.Managers
 
         public void CancelTarget()
         {
+            DualBoxManager.Instance.OnTargetCursorCancelled();
+
             if (TargetingState == CursorTarget.MultiPlacement)
             {
                 _world.HouseManager.Remove(0);
@@ -411,6 +414,8 @@ namespace ClassicUO.Game.Managers
                                                                                    _targetCursorId,
                                                                                    (byte)TargetingType);
 
+                                                DualBoxManager.Instance.OnEntityTargetSelected(serial);
+
                                                 ClearTargetingWithoutTargetCancelPacket();
 
                                                 if (LastTargetInfo.Serial != serial)
@@ -466,6 +471,8 @@ namespace ClassicUO.Game.Managers
                                                                entity.Z,
                                                                _targetCursorId,
                                                                (byte)TargetingType);
+
+                            DualBoxManager.Instance.OnEntityTargetSelected(serial);
 
                             if (SerialHelper.IsMobile(serial) && LastTargetInfo.Serial != serial)
                             {
@@ -720,6 +727,8 @@ namespace ClassicUO.Game.Managers
                                             z,
                                             _targetCursorId,
                                             (byte)TargetingType);
+
+            DualBoxManager.Instance.OnLocationTargetSelected(graphic, x, y, z);
 
 
             Mouse.CancelDoubleClick = true;
