@@ -289,9 +289,12 @@ public class CounterBarSlot
         switch (Type)
         {
             case CounterBarSlotType.Spell:
-                int cliloc = GetSpellTooltip(SpellId);
-                text = cliloc != 0 ? Client.Game.UO.FileManager.Clilocs.GetString(cliloc) : string.Empty;
-                return cliloc != 0;
+                int cliloc = SpellBookDefinition.GetSpellDescriptionCliloc(SpellId);
+                string description = cliloc != 0
+                    ? Client.Game.UO.FileManager.Clilocs.GetString(cliloc)
+                    : string.Empty;
+                text = FormatSpellTooltip(Spell.Name, description);
+                return !string.IsNullOrEmpty(text);
 
             case CounterBarSlotType.Macro:
                 text = MacroName ?? string.Empty;
@@ -323,31 +326,15 @@ public class CounterBarSlot
         return false;
     }
 
-    private static int GetSpellTooltip(int id)
+    /// <summary>Formats a spell tooltip with its name followed by its localized description.</summary>
+    internal static string FormatSpellTooltip(string name, string description)
     {
-        if (id >= 1 && id <= 64) // Magery
-            return 3002011 + (id - 1);
+        if (string.IsNullOrEmpty(name))
+            return description ?? string.Empty;
 
-        if (id >= 101 && id <= 117) // necro
-            return 1060509 + (id - 101);
+        if (string.IsNullOrEmpty(description))
+            return name;
 
-        if (id >= 201 && id <= 210) return 1060585 + (id - 201);
-
-        if (id >= 401 && id <= 406) return 1060595 + (id - 401);
-
-        if (id >= 501 && id <= 508) return 1060610 + (id - 501);
-
-        if (id >= 601 && id <= 616) return 1071026 + (id - 601);
-
-        if (id >= 678 && id <= 693) return 1031678 + (id - 678);
-
-        if (id >= 701 && id <= 745)
-        {
-            if (id <= 706) return 1115612 + (id - 701);
-
-            if (id <= 745) return 1155896 + (id - 707);
-        }
-
-        return 0;
+        return $"{name}\n{description}";
     }
 }
