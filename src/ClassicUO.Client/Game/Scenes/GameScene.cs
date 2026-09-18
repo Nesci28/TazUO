@@ -238,6 +238,8 @@ namespace ClassicUO.Game.Scenes
             GameController.UpdateBackgroundHueShader();
             SpellDefinition.LoadCustomSpells(_world);
             SpellVisualRangeManager.Instance.OnSceneLoad();
+            BackpackNotificationManager.Instance.OnSceneLoad();
+            HealthNotificationManager.Instance.OnSceneLoad();
             AutoLootManager.Instance.OnSceneLoad();
             GridHighlightData.OnSceneLoad();
             AutoSkinningManager.Instance.OnSceneLoad();
@@ -422,6 +424,8 @@ namespace ClassicUO.Game.Scenes
 
             GridHighlightsConfig.Unload();
             CooldownBarsConfig.Unload();
+            BackpackNotificationsConfig.Unload();
+            HealthNotificationsConfig.Unload();
             TooltipOverridesConfig.Unload();
             GridContainerSaveData.Instance.Save();
             GridContainerSaveData.Reset();
@@ -479,6 +483,8 @@ namespace ClassicUO.Game.Scenes
             TileMarkerManager.Instance.Save();
             SpellVisualRangeManager.Instance.Save();
             SpellVisualRangeManager.Instance.OnSceneUnload();
+            HealthNotificationManager.Instance.OnSceneUnload();
+            BackpackNotificationManager.Instance.OnSceneUnload();
             AutoLootManager.Instance.OnSceneUnload();
             GridHighlightData.Unload();
             AutoSkinningManager.Instance.OnSceneUnload();
@@ -1079,7 +1085,9 @@ namespace ClassicUO.Game.Scenes
 
             ObjectActionQueue.Instance.Update();
             AutoLootManager.Instance.Update();
+            BackpackNotificationManager.Instance.Update();
             ScavengerManager.Instance.Update();
+            HealthNotificationManager.Instance.Update();
             BandageManager.Instance.Update();
             GridHighlightData.ProcessQueue(_world);
             Profiler.ExitContext("Actions");
