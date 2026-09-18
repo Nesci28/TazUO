@@ -18,6 +18,7 @@ namespace ClassicUO.Renderer
         private bool _updateMatrixes = true;
         private float _lerpZoom;
         private float _zoom;
+        private float _contentScale = 1f;
         private Vector2 _lerpOffset;
         private ulong _transformVersion;
 
@@ -63,6 +64,22 @@ namespace ClassicUO.Renderer
                 _updateMatrixes = true;
             }
         }
+
+        /// <summary>
+        /// Scales world content independently from the user camera zoom. A value of 2 renders the
+        /// logical UO world at 200%, while keeping the normal zoom setting and UI scale unchanged.
+        /// </summary>
+        public float ContentScale
+        {
+            get => _contentScale;
+            set
+            {
+                _contentScale = Math.Max(1f, value);
+                _updateMatrixes = true;
+            }
+        }
+
+        public float EffectiveZoom => Zoom / ContentScale;
 
 
 
@@ -198,7 +215,7 @@ namespace ClassicUO.Renderer
 
         private void CalculateLerpZoom()
         {
-            float zoom = 1f / Zoom;
+            float zoom = 1f / EffectiveZoom;
 
             _lerpZoom = zoom;
         }
@@ -223,7 +240,7 @@ namespace ClassicUO.Renderer
                 if (length > 0)
                 {
                     float length_factor = Math.Min(length / (Bounds.Height >> 1), 1f);
-                    target_offset = Vector2.Normalize(target_offset) * Utility.Easings.OutQuad(length_factor) * MAX_PEEK_DISTANCE / Zoom;
+                    target_offset = Vector2.Normalize(target_offset) * Utility.Easings.OutQuad(length_factor) * MAX_PEEK_DISTANCE / EffectiveZoom;
                 }
             }
 

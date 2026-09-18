@@ -192,7 +192,7 @@ namespace ClassicUO.Game.UI.Gumps
                 ref readonly SpriteInfo texture = ref Client.Game.UO.Gumps.GetGump(0x82C);
                 if (texture.Texture != null)
                 {
-                    if (x >= 0 && x <= texture.UV.Width && y >= 0 && y <= texture.UV.Height)
+                    if (x >= 0 && x <= texture.LogicalWidth && y >= 0 && y <= texture.LogicalHeight)
                     {
                         SetLockStatus(!_isLocked);
                     }
@@ -220,7 +220,7 @@ namespace ClassicUO.Game.UI.Gumps
                     batcher.Draw
                     (
                         texture.Texture,
-                        new Vector2(x, y),
+                        new Rectangle(x, y, texture.LogicalWidth, texture.LogicalHeight),
                         texture.UV,
                         hueVector
                     );

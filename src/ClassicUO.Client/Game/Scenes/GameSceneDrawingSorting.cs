@@ -1253,7 +1253,7 @@ namespace ClassicUO.Game.Scenes
             int oldDrawOffsetY = _offset.Y;
             Point old_scaled_offset = _last_scaled_offset;
 
-            float zoom = Camera.Zoom;
+            float zoom = Camera.EffectiveZoom;
 
             int winGamePosX = 0;
             int winGamePosY = 0;

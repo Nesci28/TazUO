@@ -127,6 +127,8 @@ namespace ClassicUO.Game
             public const string MIN_GUMP_MOVE_DIST = "min_gump_move_dist";
             [Obsolete("Remove >= 10/26/26")]
             public const string GAME_SCALE = "game_scale";
+            public const string USE_2X_ASSETS = "use_2x_assets";
+            public const string TWO_X_ASSET_DISPLAY_MODE = "two_x_asset_display_mode";
             public const string AUTO_UNEQUIP_FOR_ACTIONS = "auto_unequip_for_actions";
             public const string SOUND_FILTER_IDS = "sound_filter_ids";
             public const string MUSIC_FILTER_IDS = "music_filter_ids";

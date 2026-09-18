@@ -1,4 +1,5 @@
 using ClassicUO.Assets;
+using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Runtime.CompilerServices;
@@ -10,6 +11,7 @@ namespace ClassicUO.Renderer.Animations
         const int MAX_ANIMATIONS_DATA_INDEX_COUNT = 8192;
 
         private readonly TextureAtlas _atlas;
+        private readonly TextureAtlas _hdAtlas;
         private readonly PixelPicker _picker = new PixelPicker(false);
         private readonly AnimationsLoader _animationLoader;
         private IndexAnimation[] _dataIndex = new IndexAnimation[MAX_ANIMATIONS_DATA_INDEX_COUNT];
@@ -23,6 +25,13 @@ namespace ClassicUO.Renderer.Animations
         {
             _animationLoader = animationLoader;
             _atlas = new TextureAtlas(device, 4096, 4096, SurfaceFormat.Color);
+            _hdAtlas = new TextureAtlas(
+                device,
+                4096,
+                4096,
+                SurfaceFormat.Color,
+                SamplerState.LinearClamp
+            );
         }
 
         private ref AnimationDirection GetSprite(int body, int action, int dir)
@@ -140,8 +149,8 @@ namespace ClassicUO.Renderer.Animations
             {
                 centerX = frames[frameIndex].Center.X;
                 centerY = frames[frameIndex].Center.Y;
-                width = frames[frameIndex].UV.Width;
-                height = frames[frameIndex].UV.Height;
+                width = frames[frameIndex].LogicalWidth;
+                height = frames[frameIndex].LogicalHeight;
                 return;
             }
 
@@ -410,16 +419,105 @@ namespace ClassicUO.Renderer.Animations
                     uint keyLower = (uint)((id | (frame.Num << 16)));
                     ulong key = (keyLower | ((ulong)keyUpper << 32));
 
-                    _picker.Set(key, frame.Width, frame.Height, frame.Pixels);
+                    int sourceScale = 1;
+                    int uploadWidth = frame.Width;
+                    int uploadHeight = frame.Height;
+                    Span<uint> uploadPixels = frame.Pixels.AsSpan(
+                        0,
+                        frame.Width * frame.Height
+                    );
+                    bool loadedExternalFrame = false;
+                    ArtInfo externalFrame = ExternalImageLoader.Instance.LoadAnimationFrameTexture(
+                        id,
+                        action,
+                        dir,
+                        frame.Num
+                    );
+
+                    if (!externalFrame.Pixels.IsEmpty)
+                    {
+                        sourceScale = Math.Max(1, externalFrame.SourceScale);
+                        if (externalFrame.IsTrusted)
+                        {
+                            uploadWidth = externalFrame.Width;
+                            uploadHeight = externalFrame.Height;
+                            uploadPixels = externalFrame.Pixels;
+                            loadedExternalFrame = true;
+                        }
+                        else
+                        {
+                            int expectedWidth = frame.Width * sourceScale;
+                            int expectedHeight = frame.Height * sourceScale;
+
+                            if (
+                                externalFrame.Width != expectedWidth
+                                || externalFrame.Height != expectedHeight
+                                || externalFrame.Width > 4096
+                                || externalFrame.Height > 4096
+                            )
+                            {
+                                Log.Warn(
+                                    $"Ignoring HD animation frame {id}/{action}/{dir}/{frame.Num}: " +
+                                    $"got {externalFrame.Width}x{externalFrame.Height} for @{sourceScale}x, " +
+                                    $"expected {expectedWidth}x{expectedHeight}."
+                                );
+                                ExternalImageLoader.Instance.RejectAnimationFrameOverride(
+                                    id,
+                                    action,
+                                    dir,
+                                    frame.Num
+                                );
+                                sourceScale = 1;
+                            }
+                            else
+                            {
+                                ExternalImageMaskRestorer.RestoreFromOriginal(
+                                    frame.Pixels,
+                                    frame.Width,
+                                    frame.Height,
+                                    externalFrame.Pixels,
+                                    externalFrame.Width,
+                                    externalFrame.Height,
+                                    sourceScale
+                                );
+                                uploadWidth = externalFrame.Width;
+                                uploadHeight = externalFrame.Height;
+                                uploadPixels = externalFrame.Pixels;
+                                loadedExternalFrame = true;
+                            }
+                        }
+                    }
+
+                    _picker.Set(
+                        key,
+                        uploadWidth,
+                        uploadHeight,
+                        uploadPixels,
+                        sourceScale
+                    );
 
                     spriteInfo.Center.X = frame.CenterX;
                     spriteInfo.Center.Y = frame.CenterY;
-                    spriteInfo.Texture = _atlas.AddSprite(
-                        frame.Pixels.AsSpan(),
-                        frame.Width,
-                        frame.Height,
-                        out spriteInfo.UV
+                    spriteInfo.SourceScale = sourceScale;
+                    TextureAtlas atlas = sourceScale > 1 ? _hdAtlas : _atlas;
+                    atlas.EnsureCapacity(uploadWidth, uploadHeight);
+                    spriteInfo.Texture = atlas.AddSprite(
+                        uploadPixels,
+                        uploadWidth,
+                        uploadHeight,
+                        out spriteInfo.UV,
+                        padding: sourceScale > 1 ? 1 : 0
                     );
+
+                    if (loadedExternalFrame)
+                    {
+                        ExternalImageLoader.Instance.ClearAnimationFramePixelCache(
+                            id,
+                            action,
+                            dir,
+                            frame.Num
+                        );
+                    }
                 }
                 }
                 finally
