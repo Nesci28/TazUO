@@ -134,25 +134,31 @@ namespace ClassicUO.Game.Managers.SpellVisualRange
 
         public bool IsSpellCastOrTargetActive(int spellId)
         {
-            if (!loaded || currentSpell == null || currentSpell.ID != spellId || !isCasting)
+            // Cast begin messages can arrive on a background task while the UI checks highlights.
+            // Snapshot the mutable state so ClearCasting cannot null currentSpell between checks.
+            SpellRangeInfo spell = currentSpell;
+            DateTime startedAt = LastSpellTime;
+            bool casting = isCasting;
+
+            if (!loaded || !casting || spell == null || spell.ID != spellId)
             {
                 return false;
             }
 
-            double castTime = currentSpell.GetEffectiveCastTime();
-            double activeWindow = Math.Max(currentSpell.MaxDuration, castTime);
+            double castTime = spell.GetEffectiveCastTime();
+            double activeWindow = Math.Max(spell.MaxDuration, castTime);
 
-            if (LastSpellTime + TimeSpan.FromSeconds(activeWindow) <= DateTime.Now)
+            if (startedAt + TimeSpan.FromSeconds(activeWindow) <= DateTime.Now)
             {
                 return false;
             }
 
-            if (World.TargetManager.IsTargeting)
+            if (World?.TargetManager?.IsTargeting == true)
             {
                 return true;
             }
 
-            return castTime > 0 && LastSpellTime + TimeSpan.FromSeconds(castTime) > DateTime.Now;
+            return castTime > 0 && startedAt + TimeSpan.FromSeconds(castTime) > DateTime.Now;
         }
 
         #region Load and unload
