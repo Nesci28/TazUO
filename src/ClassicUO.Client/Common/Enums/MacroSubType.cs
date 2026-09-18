@@ -300,4 +300,5 @@ public enum MacroSubType
     Whispering,
     CombatTraining,
     Boarding,
+    Serial,
 }
