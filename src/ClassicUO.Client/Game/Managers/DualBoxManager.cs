@@ -30,6 +30,7 @@ internal enum DualBoxMessageType
     State,
     Sync,
     Step,
+    ScriptCommand,
     Nack,
     Stop
 }
@@ -53,6 +54,7 @@ internal sealed class DualBoxMessage
     public sbyte StartZ { get; set; }
     public byte StartDirection { get; set; }
     public uint[] GroupSerials { get; set; } = [];
+    public string Command { get; set; } = string.Empty;
     public string Error { get; set; } = string.Empty;
 }
 
@@ -109,9 +111,10 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 1;
+    public const int ProtocolVersion = 2;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
+    public const int MaxScriptCommandLength = 4096;
 
     private sealed class Peer
     {
@@ -158,6 +161,8 @@ public sealed class DualBoxManager
     private DualBoxManager() { }
 
     public static DualBoxManager Instance => _instance.Value;
+
+    internal event Action<string> ScriptCommandReceived;
 
     public bool IsMaster
     {
@@ -370,6 +375,49 @@ public sealed class DualBoxManager
             Send(peer, masterState);
 
         return selected.Count;
+    }
+
+    /// <summary>
+    /// Sends an application-defined command to every TazUO instance connected as a client.
+    /// Commands are delivered to LegionScript callbacks and are never evaluated as code.
+    /// </summary>
+    public int BroadcastScriptCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            SetStatus("Dual-box script command cannot be empty.");
+            return 0;
+        }
+
+        if (command.Length > MaxScriptCommandLength)
+        {
+            SetStatus($"Dual-box script command exceeds {MaxScriptCommandLength} characters.");
+            return 0;
+        }
+
+        List<Peer> clients;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+            {
+                _status = "Only the dual-box master can broadcast script commands.";
+                return 0;
+            }
+
+            clients = [.. _peers];
+        }
+
+        var message = new DualBoxMessage
+        {
+            Type = DualBoxMessageType.ScriptCommand,
+            Command = command
+        };
+
+        foreach (Peer client in clients)
+            Send(client, message);
+
+        return clients.Count;
     }
 
     /// <summary>
@@ -765,10 +813,19 @@ public sealed class DualBoxManager
             case DualBoxMessageType.Step:
                 MainThreadQueue.EnqueueAction(() => QueueStep(message), token);
                 break;
+            case DualBoxMessageType.ScriptCommand:
+                MainThreadQueue.EnqueueAction(() => DispatchScriptCommand(message.Command), token);
+                break;
             case DualBoxMessageType.Stop:
                 MainThreadQueue.EnqueueAction(ResetClientState, token);
                 break;
         }
+    }
+
+    internal void DispatchScriptCommand(string command)
+    {
+        if (!string.IsNullOrWhiteSpace(command) && command.Length <= MaxScriptCommandLength)
+            ScriptCommandReceived?.Invoke(command);
     }
 
     private void BeginAlignment(DualBoxMessage message)
