@@ -76,6 +76,14 @@ namespace ClassicUO.Game.UI.Gumps
 
         public void RemoveHoverReference() => hoverReference = null;
 
+        internal void RefreshData()
+        {
+            if (IsDisposed)
+                return;
+
+            LoadOPLData(0);
+        }
+
         private static TextBox.RTLOptions ToolTipOptions => new TextBox.RTLOptions() { Align = ProfileManager.CurrentProfile.LeftAlignToolTips ? FontStashSharp.RichText.TextHorizontalAlignment.Left : FontStashSharp.RichText.TextHorizontalAlignment.Center };
 
         private void BuildGump()
