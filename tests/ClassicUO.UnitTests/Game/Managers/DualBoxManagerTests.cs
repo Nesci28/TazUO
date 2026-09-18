@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.IO;
+using ClassicUO.Common.Enums;
 using ClassicUO.Game.Managers;
 using ClassicUO.UnitTests.Fixtures;
 using FluentAssertions;
@@ -39,6 +40,14 @@ public class DualBoxManagerTests
             Sequence = 42,
             Mounted = true,
             MountSequence = 12,
+            MacroSequence = 9,
+            MacroDefinition = "<macro name=\"Heal\" />",
+            TargetKind = DualBoxTargetKind.Entity,
+            TargetSerial = 0x0A0B0C0D,
+            TargetGraphic = 0x1234,
+            TargetX = 222,
+            TargetY = 333,
+            TargetZ = -4,
             StartX = 119,
             StartY = 345,
             StartZ = -6,
@@ -64,6 +73,14 @@ public class DualBoxManagerTests
         actual.Sequence.Should().Be(expected.Sequence);
         actual.Mounted.Should().BeTrue();
         actual.MountSequence.Should().Be(expected.MountSequence);
+        actual.MacroSequence.Should().Be(expected.MacroSequence);
+        actual.MacroDefinition.Should().Be(expected.MacroDefinition);
+        actual.TargetKind.Should().Be(expected.TargetKind);
+        actual.TargetSerial.Should().Be(expected.TargetSerial);
+        actual.TargetGraphic.Should().Be(expected.TargetGraphic);
+        actual.TargetX.Should().Be(expected.TargetX);
+        actual.TargetY.Should().Be(expected.TargetY);
+        actual.TargetZ.Should().Be(expected.TargetZ);
         actual.StartX.Should().Be(expected.StartX);
         actual.StartY.Should().Be(expected.StartY);
         actual.StartZ.Should().Be(expected.StartZ);
@@ -89,6 +106,45 @@ public class DualBoxManagerTests
         actual.Type.Should().Be(DualBoxMessageType.MountState);
         actual.Mounted.Should().BeTrue();
         actual.MountSequence.Should().Be(73);
+    }
+
+    [Fact]
+    public void MacroDefinitionRoundTripsActionsWithoutUsingClientProfileState()
+    {
+        var source = new Macro("Shared heal");
+        source.PushToBack(new MacroObjectString(MacroType.Say, MacroSubType.MSC_NONE, "sync me"));
+        source.PushToBack(new MacroObject(MacroType.WaitForTarget, MacroSubType.MSC_NONE));
+
+        string definition = MacroManager.SerializeMacroDefinition(source);
+        Macro copy = MacroManager.DeserializeMacroDefinition(definition);
+
+        copy.Name.Should().Be(source.Name);
+        var first = copy.Items.Should().BeOfType<MacroObjectString>().Subject;
+        first.Code.Should().Be(MacroType.Say);
+        first.Text.Should().Be("sync me");
+        var second = first.Next.Should().BeOfType<MacroObject>().Subject;
+        second.Code.Should().Be(MacroType.WaitForTarget);
+    }
+
+    [Theory]
+    [InlineData((int)CursorTarget.Object, true)]
+    [InlineData((int)CursorTarget.Position, true)]
+    [InlineData((int)CursorTarget.MultiPlacement, true)]
+    [InlineData((int)CursorTarget.CallbackTarget, false)]
+    [InlineData((int)CursorTarget.SetTargetClientSide, false)]
+    public void OnlyServerTargetCursorsAreSynchronized(int cursor, bool expected)
+    {
+        DualBoxManager.IsSynchronizableTargetCursor((CursorTarget)cursor).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(100u, 200u, false)]
+    [InlineData(200u, 200u, true)]
+    [InlineData(201u, 200u, true)]
+    [InlineData(5u, 0xFFFFFFF0u, true)]
+    public void TargetDeadlineComparisonHandlesTickWraparound(uint now, uint deadline, bool expected)
+    {
+        DualBoxManager.HasDeadlinePassed(now, deadline).Should().Be(expected);
     }
 
     [Fact]
