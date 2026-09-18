@@ -14,14 +14,26 @@ internal static class TargetCursor
 
         world.TargetManager.SetTargeting(cursorTarget, cursorId, targetType);
 
-        if (world.Party.PartyHealTimer < Time.Ticks && world.Party.PartyHealTarget != 0)
+        bool partyInviteHandled = DualBoxManager.Instance.TryHandlePartyInviteTarget(
+            world,
+            cursorTarget,
+            targetType
+        );
+
+        if (!partyInviteHandled
+            && world.Party.PartyHealTimer < Time.Ticks
+            && world.Party.PartyHealTarget != 0)
         {
             world.TargetManager.Target(world.Party.PartyHealTarget);
             world.Party.PartyHealTimer = 0;
             world.Party.PartyHealTarget = 0;
         }
-        else if (TargetManager.NextAutoTarget.IsSet && TargetManager.NextAutoTarget.Matches(targetType))
+        else if (!partyInviteHandled
+            && TargetManager.NextAutoTarget.IsSet
+            && TargetManager.NextAutoTarget.Matches(targetType))
+        {
             world.TargetManager.Target(TargetManager.NextAutoTarget.TargetSerial);
+        }
 
         // Always clear after any target cursor (no queuing)
         TargetManager.NextAutoTarget.Clear();
