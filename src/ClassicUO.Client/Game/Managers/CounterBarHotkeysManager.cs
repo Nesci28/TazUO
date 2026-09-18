@@ -10,7 +10,7 @@ namespace ClassicUO.Game.Managers
 {
     /// <summary>
     /// Bridges counter-bar cell hotkeys onto the central <see cref="HotKeys"/> registry. Each hotkeyed
-    /// cell is a normal <see cref="HotKeyEntry"/> (id <c>counterbar:&lt;index&gt;</c>) so dispatch,
+    /// cell is a normal <see cref="HotKeyEntry"/> (id <c>counterbar:&lt;bar-id&gt;:&lt;index&gt;</c>) so dispatch,
     /// conflict detection and the shared capture UI all work exactly like every other hotkey.
     ///
     /// Unlike most consumers, the binding's source of truth is the counter bar's gump XML (saved with
@@ -27,15 +27,19 @@ namespace ClassicUO.Game.Managers
     {
         private const string IdPrefix = "counterbar:";
         private const string Category = "Counter Bar";
+        internal const string PrimaryBarId = "primary";
 
         private static bool _subscribed;
 
-        public static string MakeId(int index) => IdPrefix + index;
+        public static string MakeId(string barId, int index)
+            // Keep the original IDs for the migrated first bar. Besides preserving hotkeys.json
+            // compatibility, this lets existing conflict resolutions continue to refer to the same entry.
+            => barId == PrimaryBarId ? IdPrefix + index : $"{IdPrefix}{barId}:{index}";
 
-        /// <summary>Current binding for the cell at <paramref name="index"/>, or an empty binding when unset.</summary>
-        public static HotkeyBinding GetBinding(int index)
+        /// <summary>Current binding for a bar cell, or an empty binding when unset.</summary>
+        public static HotkeyBinding GetBinding(string barId, int index)
         {
-            HotKeyEntry entry = HotKeys.Get(MakeId(index));
+            HotKeyEntry entry = HotKeys.Get(MakeId(barId, index));
             return entry?.Binding?.Clone() ?? new HotkeyBinding();
         }
 
@@ -44,11 +48,11 @@ namespace ClassicUO.Game.Managers
         /// usable). Registers the entry with the central hotkey system; the caller is responsible for
         /// persisting the binding into the gump XML.
         /// </summary>
-        public static void SetBinding(int index, HotkeyBinding binding)
+        public static void SetBinding(string barId, int index, HotkeyBinding binding)
         {
             EnsureSubscribed();
 
-            string id = MakeId(index);
+            string id = MakeId(barId, index);
 
             // Only bindings we can actually trigger are accepted: a key (OnPressed dispatch) or a mouse
             // button / controller button (button-down listeners). Empty, wheel and modifier-only
@@ -59,22 +63,36 @@ namespace ClassicUO.Game.Managers
                 return;
             }
 
-            HotKeyEntry entry = HotKeys.Register(id, DisplayName(index), new HotkeyBinding(), Category, () => Activate(index));
+            HotKeyEntry entry = HotKeys.Register(
+                id,
+                DisplayName(barId, index),
+                new HotkeyBinding(),
+                Category,
+                () => Activate(barId, index)
+            );
             // The just-set binding (from capture or from the gump XML) wins over any stale hotkeys.json value.
             entry.Binding = binding.Clone();
         }
 
-        /// <summary>Remove the hotkey bound to the cell at <paramref name="index"/>.</summary>
-        public static void ClearBinding(int index) => HotKeys.Unregister(MakeId(index));
+        /// <summary>Remove the hotkey bound to a bar cell.</summary>
+        public static void ClearBinding(string barId, int index) => HotKeys.Unregister(MakeId(barId, index));
 
         /// <summary>
         /// Drop any registered cell hotkeys at or beyond <paramref name="count"/>. Called when the
         /// counter bar shrinks so removed cells don't keep firing or linger in the registry.
         /// </summary>
-        public static void PruneFrom(int count)
+        public static void PruneFrom(string barId, int count)
         {
-            foreach ((string id, int index) in RegisteredCells())
-                if (index >= count)
+            foreach ((string id, string registeredBarId, int index) in RegisteredCells())
+                if (registeredBarId == barId && index >= count)
+                    HotKeys.Unregister(id);
+        }
+
+        /// <summary>Remove every registered hotkey owned by one counter bar.</summary>
+        public static void ClearBar(string barId)
+        {
+            foreach ((string id, string registeredBarId, _) in RegisteredCells())
+                if (registeredBarId == barId)
                     HotKeys.Unregister(id);
         }
 
@@ -103,26 +121,38 @@ namespace ClassicUO.Game.Managers
             if (!WorldHasInputFocus() || HotKeys.GloballyDisabled)
                 return;
 
-            foreach ((string id, int index) in RegisteredCells())
+            foreach ((string id, string barId, int index) in RegisteredCells())
             {
                 HotKeyEntry entry = HotKeys.Get(id);
                 // Exact modifier match (like HotKeys.HandleKeyDown) so a no-modifier button binding
                 // doesn't also fire while modifiers are held.
                 if (entry != null && entry.Enabled && entry.Binding != null && isKind(entry.Binding) && entry.IsPressed(allowAdditionalModifiers: false))
-                    Activate(index);
+                    Activate(barId, index);
             }
         }
 
-        /// <summary>Enumerates the currently registered counter-bar cell entries as (id, cell index) pairs.</summary>
-        private static System.Collections.Generic.IEnumerable<(string id, int index)> RegisteredCells()
+        /// <summary>Enumerates registered counter-bar entries as (hotkey id, bar id, cell index).</summary>
+        private static System.Collections.Generic.IEnumerable<(string id, string barId, int index)> RegisteredCells()
         {
             foreach (HotKeyEntry entry in HotKeys.AllRegistered().ToArray())
             {
                 if (!entry.Id.StartsWith(IdPrefix, StringComparison.Ordinal))
                     continue;
 
-                if (int.TryParse(entry.Id.AsSpan(IdPrefix.Length), out int index))
-                    yield return (entry.Id, index);
+                ReadOnlySpan<char> suffix = entry.Id.AsSpan(IdPrefix.Length);
+                int separator = suffix.LastIndexOf(':');
+
+                // Legacy/primary IDs are counterbar:<index>; additional bars include their stable id.
+                if (separator < 0)
+                {
+                    if (int.TryParse(suffix, out int primaryIndex))
+                        yield return (entry.Id, PrimaryBarId, primaryIndex);
+
+                    continue;
+                }
+
+                if (separator > 0 && int.TryParse(suffix[(separator + 1)..], out int index))
+                    yield return (entry.Id, suffix[..separator].ToString(), index);
             }
         }
 
@@ -136,14 +166,22 @@ namespace ClassicUO.Game.Managers
                    && chat.Mode >= ChatMode.Default;
         }
 
-        private static void Activate(int index)
+        private static void Activate(string barId, int index)
         {
-            // Don't fire while the counter bar is toggled off (the gump is kept but disabled/hidden).
-            if (CounterBarGump.CurrentCounterBarGump is { IsEnabled: true } gump)
+            // Don't fire while this counter bar is toggled off (the gump is kept but disabled/hidden).
+            if (CounterBarGump.Find(barId) is { IsEnabled: true } gump)
                 gump.GetCounterItem(index)?.ActivateFromHotkey();
         }
 
-        private static string DisplayName(int index) => TazLang.Get("counterbar_slot", new[] { (index + 1).ToString() });
+        private static string DisplayName(string barId, int index) => TazLang.GetEx(
+            "counterbar_slot_bar",
+            "Counter Bar {0}, Slot {1}",
+            new[]
+            {
+                CounterBarGump.GetDisplayNumber(barId).ToString(),
+                (index + 1).ToString()
+            }
+        );
 
         // A binding can fire a cell only when it has a key (OnPressed dispatch) or a mouse/controller
         // button (button-down listeners). Wheel and modifier-only bindings can't.

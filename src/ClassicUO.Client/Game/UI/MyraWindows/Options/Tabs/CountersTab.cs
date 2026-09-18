@@ -21,26 +21,11 @@ public static class CountersTab
                     b =>
                     {
                         profile.CounterBarEnabled = b;
-                        CounterBarGump counterGump = UIManager.GetGump<CounterBarGump>();
 
-                        if (b)
-                        {
-                            if (counterGump != null)
-                                counterGump.IsEnabled = counterGump.IsVisible = true;
-                            else
-                                UIManager.Add(counterGump = new CounterBarGump(World.Instance, 200, 200));
-                        }
-                        else if (counterGump != null)
-                        {
-                            counterGump.IsEnabled = false;
-                            counterGump.IsVisible = false;
-                        }
-
-                        counterGump?.SetLayout(
-                            profile.CounterBarCellSize,
-                            profile.CounterBarRows,
-                            profile.CounterBarColumns
-                        );
+                        if (b && CounterBarGump.CurrentCounterBarGump == null)
+                            CounterBarGump.AddNew(World.Instance);
+                        else
+                            CounterBarGump.SetAllVisible(b);
                     }
                 ),
                 TazLang.Get("mog_counters_enablecounters")
@@ -50,7 +35,7 @@ public static class CountersTab
                 new Accessor<bool>(() => profile.CounterBarShowHotkeys, b =>
                 {
                     profile.CounterBarShowHotkeys = b;
-                    UIManager.GetGump<CounterBarGump>()?.RefreshHotkeyLabels();
+                    CounterBarGump.RefreshAllHotkeyLabels();
                 }),
                 search: new SearchMetadata(TazLang.Get("mog_counters_showhotkeys"), Keywords: [TazLang.Get("mog_kw_counter"), TazLang.Get("mog_kw_hotkey")])
             ),
@@ -63,6 +48,16 @@ public static class CountersTab
                 TazLang.Get("mog_counters_disableiconscaling"),
                 new Accessor<bool>(() => profile.CounterBarDisableIconScaling, b => profile.CounterBarDisableIconScaling = b),
                 search: new SearchMetadata(TazLang.Get("mog_counters_disableiconscaling"), Keywords: [TazLang.Get("mog_kw_counter"), TazLang.Get("mog_kw_icon"), TazLang.Get("mog_kw_spell"), TazLang.Get("mog_kw_scaling")])
+            ),
+            Option.Button(
+                TazLang.Get("mog_counters_addbar", "Add counter bar"),
+                () => CounterBarGump.AddNew(World.Instance, SelectedBar),
+                search: new SearchMetadata(TazLang.Get("mog_counters_addbar", "Add counter bar"), Keywords: [TazLang.Get("mog_kw_counter")])
+            ),
+            Option.Button(
+                TazLang.Get("mog_counters_removebar", "Remove selected counter bar"),
+                () => SelectedBar?.RemoveBar(),
+                search: new SearchMetadata(TazLang.Get("mog_counters_removebar", "Remove selected counter bar"), Keywords: [TazLang.Get("mog_kw_counter")])
             ),
             GetAbbreviationGroup(),
             GetHighlightGroup(),
@@ -115,34 +110,26 @@ public static class CountersTab
         Profile profile = ProfileManager.CurrentProfile;
 
         return OptionsUi.VisualContainer(
-            new VisualContainerProps { LabelText = TazLang.Get("mog_counters_counterlayout") },
+            new VisualContainerProps { LabelText = TazLang.Get("mog_counters_selectedlayout", "Selected counter bar layout") },
             Option.Slider(
                 TazLang.Get("mog_counters_gridsize"),
                 30,
                 80,
-                new Accessor<float>(() => profile.CounterBarCellSize, v =>
+                new Accessor<float>(() => SelectedBar?.CellSize ?? profile.CounterBarCellSize, v =>
                 {
                     profile.CounterBarCellSize = (int)v;
-                    UIManager.GetGump<CounterBarGump>()
-                        ?.SetLayout(
-                            profile.CounterBarCellSize,
-                            profile.CounterBarRows,
-                            profile.CounterBarColumns
-                        );
+                    CounterBarGump bar = SelectedBar;
+                    bar?.SetLayout(profile.CounterBarCellSize, bar.Rows, bar.Columns);
                 }),
                 search: new SearchMetadata(TazLang.Get("mog_counters_gridsize"), Keywords: [TazLang.Get("mog_kw_grid"), TazLang.Get("mog_kw_size")])
             ),
             Option.IntegerInput(
                 TazLang.Get("mog_counters_rows"),
-                new Accessor<int>(() => profile.CounterBarRows, v =>
+                new Accessor<int>(() => SelectedBar?.Rows ?? profile.CounterBarRows, v =>
                 {
                     profile.CounterBarRows = v;
-                    UIManager.GetGump<CounterBarGump>()
-                        ?.SetLayout(
-                            profile.CounterBarCellSize,
-                            profile.CounterBarRows,
-                            profile.CounterBarColumns
-                        );
+                    CounterBarGump bar = SelectedBar;
+                    bar?.SetLayout(bar.CellSize, profile.CounterBarRows, bar.Columns);
                 }),
                 min: 1,
                 max: 30,
@@ -150,15 +137,11 @@ public static class CountersTab
             ),
             Option.IntegerInput(
                 TazLang.Get("mog_counters_columns"),
-                new Accessor<int>(() => profile.CounterBarColumns, v =>
+                new Accessor<int>(() => SelectedBar?.Columns ?? profile.CounterBarColumns, v =>
                 {
                     profile.CounterBarColumns = v;
-                    UIManager.GetGump<CounterBarGump>()
-                        ?.SetLayout(
-                            profile.CounterBarCellSize,
-                            profile.CounterBarRows,
-                            profile.CounterBarColumns
-                        );
+                    CounterBarGump bar = SelectedBar;
+                    bar?.SetLayout(bar.CellSize, bar.Rows, profile.CounterBarColumns);
                 }),
                 min: 1,
                 max: 30,
@@ -166,4 +149,7 @@ public static class CountersTab
             )
         );
     }
+
+    private static CounterBarGump SelectedBar =>
+        CounterBarGump.SelectedCounterBarGump ?? CounterBarGump.CurrentCounterBarGump;
 }
