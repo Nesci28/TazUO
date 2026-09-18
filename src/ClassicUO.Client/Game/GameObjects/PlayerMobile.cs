@@ -389,7 +389,12 @@ namespace ClassicUO.Game.GameObjects
 
                     // Open if it's own corpse and AutoOpenOwnCorpse is enabled, or if AutoOpenCorpses is enabled
                     bool shouldOpen = (isOwnCorpse && ProfileManager.CurrentProfile.AutoOpenOwnCorpse) ||
-                                      ProfileManager.CurrentProfile.AutoOpenCorpses;
+                        ProfileManager.CurrentProfile.AutoOpenCorpses;
+
+                    if (shouldOpen && ProfileManager.CurrentProfile.SkipAutoLootedCorpses && AutoLootManager.IsCorpseAutoLooted(item.Serial))
+                    {
+                        continue;
+                    }
 
                     if (shouldOpen)
                     {
