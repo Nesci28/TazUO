@@ -389,16 +389,9 @@ public static class MacrosTabContent
             // Sub-type dropdown
             if (capturedAction.SubMenuType == 1)
             {
-                int subCount = 0, subOffset = 0;
-                Macro.GetBoundByCode(capturedAction.Code, ref subCount, ref subOffset);
-
-                var subValues = new MacroSubType[subCount];
-                string[] subNames = new string[subCount];
-                for (int si = 0; si < subCount; si++)
-                {
-                    subValues[si] = (MacroSubType)(si + subOffset);
-                    subNames[si] = subValues[si].ToString();
-                }
+                MacroSubType[] subValues = Macro.GetSubTypesByCode(capturedAction.Code);
+                int subCount = subValues.Length;
+                string[] subNames = subValues.Select(subType => subType.ToString()).ToArray();
 
                 // The gump-list macro types (Open/Close/Minimize/Maximize/ToggleGump) show a list
                 // of available gumps. Sort that list the same way as the main macro list and add
@@ -425,13 +418,32 @@ public static class MacrosTabContent
                 subCombo.SelectedItemChanged += (_, _) =>
                 {
                     if (subCombo.SelectedIndex == null) return;
+                    MacroSubType previousSubType = capturedAction.SubCode;
                     capturedAction.SubCode = subValues[subCombo.SelectedIndex.Value];
                     MarkDirty();
+
+                    if (
+                        capturedAction.Code == MacroType.UseObject
+                        && (
+                            previousSubType == MacroSubType.Serial
+                            || capturedAction.SubCode == MacroSubType.Serial
+                        )
+                    )
+                    {
+                        BuildActionsPanel();
+                    }
                 };
                 row.Widgets.Add(subCombo);
             }
+
             // Text input
-            else if (capturedAction.SubMenuType == 2)
+            if (
+                capturedAction.SubMenuType == 2
+                || (
+                    capturedAction.Code == MacroType.UseObject
+                    && capturedAction.SubCode == MacroSubType.Serial
+                )
+            )
             {
                 string currentText = capturedAction.HasString()
                     ? ((MacroObjectString)capturedAction).Text

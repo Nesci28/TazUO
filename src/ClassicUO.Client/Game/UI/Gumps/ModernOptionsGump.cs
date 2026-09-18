@@ -5760,96 +5760,40 @@ namespace ClassicUO.Game.UI.Gumps
                     switch (obj.SubMenuType)
                     {
                         case 1:
-                            int count = 0;
-                            int offset = 0;
-                            Macro.GetBoundByCode(obj.Code, ref count, ref offset);
-
-                            string[] names = new string[count];
-
-                            for (int i = 0; i < count; i++)
-                            {
-                                names[i] = _allSubHotkeysNames[i + offset];
-                            }
-
-                            if (obj.Code == MacroType.CastSpell)
-                            {
-                                var namesList = new List<string>(names);
-
-                                namesList.Remove("Hostile");
-                                namesList.Remove("Party");
-                                namesList.Remove("Follower");
-                                namesList.Remove("Object");
-                                namesList.Remove("Mobile");
-                                namesList.Remove("MscTotalCount");
-                                namesList.Remove("INVALID_0");
-                                namesList.Remove("INVALID_1");
-                                namesList.Remove("INVALID_2");
-                                namesList.Remove("INVALID_3");
-                                namesList.Remove("ConfusionBlastPotion");
-                                namesList.Remove("CurePotion");
-                                namesList.Remove("AgilityPotion");
-                                namesList.Remove("StrengthPotion");
-                                namesList.Remove("PoisonPotion");
-                                namesList.Remove("RefreshPotion");
-                                namesList.Remove("HealPotion");
-                                namesList.Remove("ExplosionPotion");
-
-                                namesList.Remove("DefaultZoom");
-                                namesList.Remove("ZoomIn");
-                                namesList.Remove("ZoomOut");
-
-                                namesList.Remove("BestHealPotion");
-                                namesList.Remove("BestCurePotion");
-                                namesList.Remove("BestRefreshPotion");
-                                namesList.Remove("BestStrengthPotion");
-                                namesList.Remove("BestAgiPotion");
-                                namesList.Remove("BestExplosionPotion");
-                                namesList.Remove("BestConflagPotion");
-                                namesList.Remove("EnchantedApple");
-                                namesList.Remove("PetalsOfTrinsic");
-                                namesList.Remove("OrangePetals");
-                                namesList.Remove("TrappedBox");
-                                namesList.Remove("SmokeBomb");
-                                namesList.Remove("HealStone");
-                                namesList.Remove("SpellStone");
-
-                                namesList.Remove("LookForwards");
-                                namesList.Remove("LookBackwards");
-                                names = namesList.ToArray();
-                            }
+                            MacroSubType[] subTypes = Macro.GetSubTypesByCode(obj.Code);
+                            string[] names = subTypes.Select(subType => _allSubHotkeysNames[(int)subType]).ToArray();
+                            int selectedIndex = Array.IndexOf(subTypes, obj.SubCode);
 
                             var sub = new ComboBoxWithLabel
                             (world,
-                                string.Empty, 0, 200, names, (int)obj.SubCode - offset, (i, s) =>
+                                string.Empty, 0, 200, names, selectedIndex < 0 ? 0 : selectedIndex, (i, s) =>
                                 {
-                                    Macro.GetBoundByCode(obj.Code, ref count, ref offset);
-                                    var subType = (MacroSubType)(offset + i);
+                                    MacroSubType previousSubType = obj.SubCode;
+                                    MacroSubType subType = subTypes[i];
                                     obj.SubCode = subType;
+
+                                    if (
+                                        obj.Code == MacroType.UseObject
+                                        && (previousSubType == MacroSubType.Serial || subType == MacroSubType.Serial)
+                                    )
+                                    {
+                                        _control.SetupMacroUI();
+                                    }
                                 }
                             ) { Tag = obj, X = 20, Y = Height };
 
                             Add(sub);
 
+                            if (obj.Code == MacroType.UseObject && obj.SubCode == MacroSubType.Serial)
+                            {
+                                AddTextInput(obj, sub.Bounds.Bottom);
+                            }
+
                             //Height += sub.Height;
                             break;
 
                         case 2:
-                            var textbox = new InputField
-                            (
-                                400, 40, 0, 80, obj.HasString() ? ((MacroObjectString)obj).Text : string.Empty, false,
-                                (s, e) =>
-                                {
-                                    if (obj.HasString())
-                                    {
-                                        ((MacroObjectString)obj).Text = ((InputField.StbTextBox)s).Text;
-                                    }
-                                }
-                            ) { X = 20, Y = Height };
-
-                            textbox.SetText(obj.HasString() ? ((MacroObjectString)obj).Text : string.Empty);
-
-                            Add(textbox);
-
+                            AddTextInput(obj, Height);
                             break;
                     }
 
@@ -5857,6 +5801,25 @@ namespace ClassicUO.Game.UI.Gumps
                     _control._databox.ReArrangeChildren();
                     _control._databox.ForceSizeUpdate();
                     _control.ForceSizeUpdate();
+                }
+
+                private void AddTextInput(MacroObject obj, int y)
+                {
+                    var textbox = new InputField
+                    (
+                        400, 40, 0, 80, obj.HasString() ? ((MacroObjectString)obj).Text : string.Empty, false,
+                        (s, e) =>
+                        {
+                            if (obj.HasString())
+                            {
+                                ((MacroObjectString)obj).Text = ((InputField.StbTextBox)s).Text;
+                            }
+                        }
+                    ) { X = 20, Y = y };
+
+                    textbox.SetText(obj.HasString() ? ((MacroObjectString)obj).Text : string.Empty);
+
+                    Add(textbox);
                 }
 
                 public override void OnButtonClick(int buttonID)
