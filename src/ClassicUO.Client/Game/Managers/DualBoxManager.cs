@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 
@@ -34,6 +35,9 @@ internal enum DualBoxMessageType
     Macro,
     MacroStop,
     Target,
+    WarMode,
+    Attack,
+    GumpResponse,
     ScriptCommand,
     Nack,
     Stop
@@ -81,9 +85,23 @@ internal sealed class DualBoxMessage
     public ushort StartY { get; set; }
     public sbyte StartZ { get; set; }
     public byte StartDirection { get; set; }
+    public long ActionSequence { get; set; }
+    public bool WarMode { get; set; }
+    public uint AttackSerial { get; set; }
+    public long GumpSequence { get; set; }
+    public uint GumpServerSerial { get; set; }
+    public int GumpButton { get; set; }
+    public uint[] GumpSwitches { get; set; } = [];
+    public DualBoxGumpEntry[] GumpEntries { get; set; } = [];
     public uint[] GroupSerials { get; set; } = [];
     public string Command { get; set; } = string.Empty;
     public string Error { get; set; } = string.Empty;
+}
+
+internal sealed class DualBoxGumpEntry
+{
+    public ushort Index { get; set; }
+    public string Text { get; set; } = string.Empty;
 }
 
 internal static class DualBoxProtocol
@@ -139,13 +157,17 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 4;
+    public const int ProtocolVersion = 5;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
     public const int MaxMacroDefinitionLength = 8192;
     internal const uint MacroTargetCursorTimeout = 5000;
     internal const uint PendingTargetTimeout = 5000;
+    internal const uint PendingGumpResponseTimeout = 5000;
+    internal const int MaxGumpSwitches = 512;
+    internal const int MaxGumpEntries = 32;
+    internal const int MaxGumpEntryTextLength = 239;
     internal const uint MountActionTimeout = 3000;
     internal const int MaxMountActionAttempts = 2;
 
@@ -169,10 +191,23 @@ public sealed class DualBoxManager
         public long ExpectedMountSequence { get; set; }
     }
 
+    private sealed class PendingGumpResponse
+    {
+        public PendingGumpResponse(DualBoxMessage message)
+        {
+            Message = message;
+            Deadline = Time.Ticks + PendingGumpResponseTimeout;
+        }
+
+        public DualBoxMessage Message { get; }
+        public uint Deadline { get; }
+    }
+
     private static readonly Lazy<DualBoxManager> _instance = new(() => new DualBoxManager());
     private readonly object _gate = new();
     private readonly List<Peer> _peers = [];
     private readonly Queue<DualBoxMessage> _pendingSteps = [];
+    private readonly Queue<PendingGumpResponse> _pendingGumpResponses = [];
     private readonly HashSet<uint> _groupSerials = [];
 
     private CancellationTokenSource _cancellation;
@@ -184,9 +219,13 @@ public sealed class DualBoxManager
     private long _stepSequence;
     private long _mountSequence;
     private long _macroSequence;
+    private long _actionSequence;
+    private long _gumpSequence;
     private long _clientSequence;
     private long _clientMountSequence;
     private long _clientMacroSequence;
+    private long _clientActionSequence;
+    private long _clientGumpSequence;
     private long _pendingMountSequence;
     private bool? _lastMasterMounted;
     private bool? _expectedClientMounted;
@@ -352,6 +391,8 @@ public sealed class DualBoxManager
             _role = DualBoxRole.Standalone;
             _status = "Stopped";
             _macroSequence = 0;
+            _actionSequence = 0;
+            _gumpSequence = 0;
             ClearMasterTargetSyncLocked();
         }
 
@@ -550,6 +591,113 @@ public sealed class DualBoxManager
             Send(client, message);
 
         return clients.Count;
+    }
+
+    internal int BroadcastWarMode(bool enabled)
+    {
+        if (World.Instance?.Macros?.IsProcessingAction == true)
+            return 0;
+
+        return BroadcastAction(
+            new DualBoxMessage
+            {
+                Type = DualBoxMessageType.WarMode,
+                WarMode = enabled
+            }
+        );
+    }
+
+    internal int BroadcastAttack(uint serial)
+    {
+        if (!SerialHelper.IsMobile(serial) || World.Instance?.Macros?.IsProcessingAction == true)
+            return 0;
+
+        return BroadcastAction(
+            new DualBoxMessage
+            {
+                Type = DualBoxMessageType.Attack,
+                AttackSerial = serial
+            }
+        );
+    }
+
+    private int BroadcastAction(DualBoxMessage message)
+    {
+        List<Peer> clients;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return 0;
+
+            clients = _peers.Where(p => p.Selected).ToList();
+
+            if (clients.Count == 0)
+                return 0;
+
+            message.ActionSequence = ++_actionSequence;
+        }
+
+        foreach (Peer client in clients)
+            Send(client, message);
+
+        return clients.Count;
+    }
+
+    internal int BroadcastGumpResponse(
+        uint serverSerial,
+        int button,
+        uint[] switches,
+        Tuple<ushort, string>[] entries
+    )
+    {
+        if (serverSerial == 0 || World.Instance?.Macros?.IsProcessingAction == true)
+            return 0;
+
+        List<Peer> clients;
+        DualBoxMessage message;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return 0;
+
+            clients = _peers.Where(p => p.Selected).ToList();
+
+            if (clients.Count == 0)
+                return 0;
+
+            message = new DualBoxMessage
+            {
+                Type = DualBoxMessageType.GumpResponse,
+                GumpSequence = ++_gumpSequence,
+                GumpServerSerial = serverSerial,
+                GumpButton = button,
+                GumpSwitches = (switches ?? []).Take(MaxGumpSwitches).ToArray(),
+                GumpEntries = (entries ?? [])
+                    .Where(entry => entry != null)
+                    .Take(MaxGumpEntries)
+                    .Select(
+                        entry => new DualBoxGumpEntry
+                        {
+                            Index = entry.Item1,
+                            Text = TruncateGumpEntry(entry.Item2)
+                        }
+                    )
+                    .ToArray()
+            };
+        }
+
+        foreach (Peer client in clients)
+            Send(client, message);
+
+        return clients.Count;
+    }
+
+    internal static string TruncateGumpEntry(string text)
+    {
+        text ??= string.Empty;
+        return text.Length <= MaxGumpEntryTextLength ? text : text[..MaxGumpEntryTextLength];
     }
 
     internal void OnTargetCursorActivated(CursorTarget targeting)
@@ -829,6 +977,7 @@ public sealed class DualBoxManager
         }
 
         ProcessPendingTarget(world);
+        ProcessPendingGumpResponses(world);
 
         if (_clientFollowing && !ProcessClientMountState(world))
             return;
@@ -1134,6 +1283,13 @@ public sealed class DualBoxManager
             case DualBoxMessageType.Target:
                 MainThreadQueue.EnqueueAction(() => QueueTarget(message), token);
                 break;
+            case DualBoxMessageType.WarMode:
+            case DualBoxMessageType.Attack:
+                MainThreadQueue.EnqueueAction(() => ExecuteSynchronizedAction(message), token);
+                break;
+            case DualBoxMessageType.GumpResponse:
+                MainThreadQueue.EnqueueAction(() => QueueGumpResponse(message), token);
+                break;
             case DualBoxMessageType.ScriptCommand:
                 MainThreadQueue.EnqueueAction(() => DispatchScriptCommand(message.Command), token);
                 break;
@@ -1182,6 +1338,96 @@ public sealed class DualBoxManager
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
         World.Instance?.Macros?.StopExecution();
+    }
+
+    private void ExecuteSynchronizedAction(DualBoxMessage message)
+    {
+        if (!_clientFollowing || message.ActionSequence <= _clientActionSequence)
+            return;
+
+        _clientActionSequence = message.ActionSequence;
+        World world = World.Instance;
+
+        if (world?.InGame != true || world.Player == null)
+            return;
+
+        switch (message.Type)
+        {
+            case DualBoxMessageType.WarMode:
+                GameActions.RequestWarMode(world.Player, message.WarMode);
+                break;
+            case DualBoxMessageType.Attack when SerialHelper.IsMobile(message.AttackSerial):
+                GameActions.Attack(world, message.AttackSerial, true);
+                break;
+        }
+    }
+
+    private void QueueGumpResponse(DualBoxMessage message)
+    {
+        if (!_clientFollowing
+            || message.GumpSequence <= _clientGumpSequence
+            || message.GumpServerSerial == 0)
+        {
+            return;
+        }
+
+        _clientGumpSequence = message.GumpSequence;
+        message.GumpSwitches = (message.GumpSwitches ?? []).Take(MaxGumpSwitches).ToArray();
+        message.GumpEntries = (message.GumpEntries ?? [])
+            .Where(entry => entry != null)
+            .Take(MaxGumpEntries)
+            .Select(
+                entry => new DualBoxGumpEntry
+                {
+                    Index = entry.Index,
+                    Text = TruncateGumpEntry(entry.Text)
+                }
+            )
+            .ToArray();
+        _pendingGumpResponses.Enqueue(new PendingGumpResponse(message));
+        ProcessPendingGumpResponses(World.Instance);
+    }
+
+    private void ProcessPendingGumpResponses(World world)
+    {
+        while (_pendingGumpResponses.TryPeek(out PendingGumpResponse pending))
+        {
+            if (!_clientFollowing
+                || world?.InGame != true
+                || world.Player == null
+                || HasDeadlinePassed(Time.Ticks, pending.Deadline))
+            {
+                _pendingGumpResponses.Dequeue();
+                continue;
+            }
+
+            DualBoxMessage message = pending.Message;
+            Gump gump = UIManager.GetGumpServer(message.GumpServerSerial);
+
+            if (gump is not { IsDisposed: false, IsFromServer: true })
+                return;
+
+            Tuple<ushort, string>[] entries = (message.GumpEntries ?? [])
+                .Select(entry => Tuple.Create(entry.Index, TruncateGumpEntry(entry.Text)))
+                .ToArray();
+
+            GameActions.ReplyGump(
+                world,
+                gump.LocalSerial,
+                gump.ServerSerial,
+                message.GumpButton,
+                message.GumpSwitches ?? [],
+                entries
+            );
+
+            if (gump.CanMove)
+                UIManager.SavePosition(gump.ServerSerial, gump.Location);
+            else
+                UIManager.RemovePosition(gump.ServerSerial);
+
+            gump.Dispose();
+            _pendingGumpResponses.Dequeue();
+        }
     }
 
     private void QueueTarget(DualBoxMessage message)
@@ -1277,6 +1523,7 @@ public sealed class DualBoxManager
         _pendingSteps.Clear();
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
+        _pendingGumpResponses.Clear();
         _clientSequence = message.Sequence;
         _clientFollowing = true;
         _clientReady = false;
@@ -1825,6 +2072,7 @@ public sealed class DualBoxManager
         _groupSerials.Clear();
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
+        _pendingGumpResponses.Clear();
         _clientFollowing = false;
         _clientReady = false;
         _aligning = false;
@@ -1835,6 +2083,8 @@ public sealed class DualBoxManager
         _mountSequence = 0;
         _clientMountSequence = 0;
         _clientMacroSequence = 0;
+        _clientActionSequence = 0;
+        _clientGumpSequence = 0;
         _pendingMountSequence = 0;
         _lastMasterMounted = null;
         _expectedClientMounted = null;

@@ -53,6 +53,14 @@ public class DualBoxManagerTests
             StartZ = -6,
             StartDirection = 5,
             Run = true,
+            ActionSequence = 14,
+            WarMode = true,
+            AttackSerial = 0x01010101,
+            GumpSequence = 15,
+            GumpServerSerial = 0x10203040,
+            GumpButton = 7,
+            GumpSwitches = [3, 5],
+            GumpEntries = [new DualBoxGumpEntry { Index = 2, Text = "hello" }],
             Command = "{\"action\":\"heal\"}",
             Error = "none",
             GroupSerials = [0x01020304, 0x05060708]
@@ -86,6 +94,16 @@ public class DualBoxManagerTests
         actual.StartZ.Should().Be(expected.StartZ);
         actual.StartDirection.Should().Be(expected.StartDirection);
         actual.Run.Should().BeTrue();
+        actual.ActionSequence.Should().Be(expected.ActionSequence);
+        actual.WarMode.Should().BeTrue();
+        actual.AttackSerial.Should().Be(expected.AttackSerial);
+        actual.GumpSequence.Should().Be(expected.GumpSequence);
+        actual.GumpServerSerial.Should().Be(expected.GumpServerSerial);
+        actual.GumpButton.Should().Be(expected.GumpButton);
+        actual.GumpSwitches.Should().Equal(expected.GumpSwitches);
+        actual.GumpEntries.Should().ContainSingle();
+        actual.GumpEntries[0].Index.Should().Be(expected.GumpEntries[0].Index);
+        actual.GumpEntries[0].Text.Should().Be(expected.GumpEntries[0].Text);
         actual.Command.Should().Be(expected.Command);
         actual.Error.Should().Be(expected.Error);
         actual.GroupSerials.Should().Equal(expected.GroupSerials);
@@ -106,6 +124,16 @@ public class DualBoxManagerTests
         actual.Type.Should().Be(DualBoxMessageType.MountState);
         actual.Mounted.Should().BeTrue();
         actual.MountSequence.Should().Be(73);
+    }
+
+    [Fact]
+    public void GumpEntryTextIsLimitedToTheProtocolSafeLength()
+    {
+        string text = new('x', DualBoxManager.MaxGumpEntryTextLength + 10);
+
+        string actual = DualBoxManager.TruncateGumpEntry(text);
+
+        actual.Should().HaveLength(DualBoxManager.MaxGumpEntryTextLength);
     }
 
     [Fact]
