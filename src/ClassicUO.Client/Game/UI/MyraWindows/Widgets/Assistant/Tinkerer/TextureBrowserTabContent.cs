@@ -4,7 +4,6 @@ using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Renderer;
 using ClassicUO.Utility;
-using Microsoft.Xna.Framework;
 using Myra.Graphics2D;
 using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
@@ -30,7 +29,7 @@ public static class TextureBrowserTabContent
     private const int ZOOM_STEP = 32;
     private const int ZOOM_DEFAULT = 128;
 
-    private static readonly SolidBrush SelectedBorder = new SolidBrush(Color.Gold);
+    private static SolidBrush SelectedBorder => MyraStyle.Brush(MyraStyle.AccentColor);
 
     public static Widget Build()
     {
@@ -50,13 +49,13 @@ public static class TextureBrowserTabContent
         int zoomSize = ZOOM_DEFAULT;
 
         // --- Left (grid) column -------------------------------------------------
-        var gridPanel = new VerticalStackPanel { Spacing = 1 };
+        var gridPanel = new MyraVerticalStackPanel { Spacing = 1 };
         var pageLabel = new MyraLabel("", MyraLabel.TextStyle.P);
         MyraButton prevBtn = null!;
         MyraButton nextBtn = null!;
 
         // --- Right (detail) column ---------------------------------------------
-        var detailPanel = new VerticalStackPanel { Spacing = 4, Width = 280 };
+        var detailPanel = new MyraVerticalStackPanel { Spacing = 4, Width = 280 };
 
         void BuildDetail()
         {
@@ -88,7 +87,7 @@ public static class TextureBrowserTabContent
                     preview.MaxWidth = preview.Width;
                     preview.MaxHeight = preview.Height;
                 }
-                detailPanel.Widgets.Add(new Panel
+                detailPanel.Widgets.Add(new MyraPanel
                 {
                     Width = ZOOM_MAX,
                     Height = zoomSize,
@@ -101,7 +100,7 @@ public static class TextureBrowserTabContent
             }
 
             // Zoom controls
-            var zoomRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var zoomRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             zoomRow.Widgets.Add(new MyraButton(TazLang.Get("tinkerer_texture_zoomout", "-"), () =>
             {
                 zoomSize = Math.Max(ZOOM_MIN, zoomSize - ZOOM_STEP);
@@ -164,13 +163,13 @@ public static class TextureBrowserTabContent
 
             for (int r = 0; r < ROWS; r++)
             {
-                var rowPanel = new HorizontalStackPanel { Spacing = 1 };
+                var rowPanel = new MyraHorizontalStackPanel { Spacing = 1 };
                 for (int c = 0; c < COLS; c++)
                 {
                     int id = start + r * COLS + c;
                     if (id >= maxGraphic)
                     {
-                        rowPanel.Widgets.Add(new Panel { Width = CELL, Height = CELL });
+                        rowPanel.Widgets.Add(new MyraPanel { Width = CELL, Height = CELL });
                         continue;
                     }
 
@@ -194,10 +193,10 @@ public static class TextureBrowserTabContent
             BuildDetail();
         }
 
-        var leftColumn = new VerticalStackPanel { Spacing = 4 };
+        var leftColumn = new MyraVerticalStackPanel { Spacing = 4 };
 
         // Jump-to-texture row
-        var jumpRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        var jumpRow = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         var jumpBox = new MyraInputBox
         {
             HintText = TazLang.Get("tinkerer_texture_jumphint", "Texture # or 0x.."),
@@ -218,15 +217,15 @@ public static class TextureBrowserTabContent
         // Pagination controls
         prevBtn = new MyraButton(TazLang.Get("tinkerer_texture_prev", "< Prev"), () => { currentPage--; BuildPage(); }) { Enabled = false };
         nextBtn = new MyraButton(TazLang.Get("tinkerer_texture_next", "Next >"), () => { currentPage++; BuildPage(); }) { Enabled = false };
-        var pageRow = new HorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var pageRow = new MyraHorizontalStackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         pageRow.Widgets.Add(prevBtn);
         pageRow.Widgets.Add(pageLabel);
         pageRow.Widgets.Add(nextBtn);
         leftColumn.Widgets.Add(pageRow);
 
-        leftColumn.Widgets.Add(new ScrollViewer { MaxHeight = 450, Content = gridPanel });
+        leftColumn.Widgets.Add(new MyraScrollViewer { MaxHeight = 450, Content = gridPanel });
 
-        var root = new HorizontalStackPanel { Spacing = 12 };
+        var root = new MyraHorizontalStackPanel { Spacing = 12 };
         root.Widgets.Add(leftColumn);
         root.Widgets.Add(detailPanel);
 
@@ -237,7 +236,7 @@ public static class TextureBrowserTabContent
 
     private static Widget BuildCell(int id, int selectedGraphic, Action<int> onSelect)
     {
-        var cell = new Panel
+        var cell = new MyraPanel
         {
             Width = CELL,
             Height = CELL,

@@ -86,11 +86,11 @@ public class VisualContainer : Container
         if (widgets?.Length > 0)
             Add(widgets);
 
-        Margin = new Thickness(4);
-        Padding = new Thickness(4, 6, 4, 12);
-        Background = new SolidBrush(new Color(0, 0, 0, 25));
-        Border = new SolidBrush(new Color(0, 0, 0, 75));
-        BorderThickness = new Thickness(2);
+        Margin = new Thickness(MyraStyle.STANDARD_SPACING);
+        Padding = new Thickness(6, 6, 6, 10);
+        Background = MyraStyle.SurfaceMutedBackgroundBrush;
+        Border = MyraStyle.Brush(MyraStyle.BorderColor);
+        BorderThickness = StyleConstantsDefaults.BorderThickness;
         VerticalAlignment = VerticalAlignment.Top;
 
         int spacing = props.Spacing switch

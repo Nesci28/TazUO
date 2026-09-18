@@ -35,7 +35,7 @@ public static class InfoBarsTab
     {
         Profile profile = ProfileManager.CurrentProfile;
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
 
         // Show InfoBar checkbox
         root.Widgets.Add(MyraCheckButton.CreateWithCallback(
@@ -71,7 +71,7 @@ public static class InfoBarsTab
         ));
 
         // Highlight type combo box
-        var highlightCombo = new ComboView { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
+        var highlightCombo = new MyraComboView { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
         highlightCombo.ListView.Widgets.Add(new Label { Text = TazLang.Get("mog_infobars_highlightopt_textcolor") });
         highlightCombo.ListView.Widgets.Add(new Label { Text = TazLang.Get("mog_infobars_highlightopt_coloredbars") });
         highlightCombo.ListView.SelectedIndex = profile.InfoBarHighlightType;
@@ -85,14 +85,14 @@ public static class InfoBarsTab
         root.Widgets.Add(new MyraSpacer(1, 4));
 
         // Column headers
-        var headers = new HorizontalStackPanel { Spacing = 4 };
+        var headers = new MyraHorizontalStackPanel { Spacing = 4 };
         headers.Widgets.Add(new MyraLabel(TazLang.Get("mog_infobars_label"), MyraLabel.TextStyle.TableHeader) { Width = 130, MinWidth = 130 });
         headers.Widgets.Add(new MyraLabel(TazLang.Get("mog_infobars_color"), MyraLabel.TextStyle.TableHeader) { Width = 60, MinWidth = 60 });
         headers.Widgets.Add(new MyraLabel(TazLang.Get("mog_infobars_data"), MyraLabel.TextStyle.TableHeader) { Width = 170, MinWidth = 170 });
         root.Widgets.Add(headers);
 
         // Items list panel (rebuilt dynamically on add/remove)
-        var itemsPanel = new VerticalStackPanel { Spacing = 3 };
+        var itemsPanel = new MyraVerticalStackPanel { Spacing = 3 };
 
         // Add item button
         root.Widgets.Add(new MyraButton(TazLang.Get("mog_infobars_additem"), () =>
@@ -115,7 +115,7 @@ public static class InfoBarsTab
 
     private static Widget BuildItemRow(InfoBarItem item, VerticalStackPanel parent)
     {
-        var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        var row = new MyraHorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
 
         // Label text input
         var labelInput = new MyraInputBox { Text = item.label, Width = 130, MinWidth = 130 };
@@ -144,7 +144,7 @@ public static class InfoBarsTab
         row.Widgets.Add(hueBtn);
 
         // Variable type combo box
-        var varCombo = new ComboView { Width = 170, MinWidth = 170 };
+        var varCombo = new MyraComboView { Width = 170, MinWidth = 170 };
         foreach (string v in InfoBarManager.GetVars())
             varCombo.ListView.Widgets.Add(new Label { Text = v });
         varCombo.ListView.SelectedIndex = (int)item.var;

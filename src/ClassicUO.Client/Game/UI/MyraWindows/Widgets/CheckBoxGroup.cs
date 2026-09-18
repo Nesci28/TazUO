@@ -32,8 +32,8 @@ public class PropertyBinder
 public class CheckBoxGroup : Panel
 {
     private readonly PropertyBinder _primaryControlProp;
-    private readonly VerticalStackPanel _primaryPanel = new();
-    private readonly VerticalStackPanel _dependentsPanel = new()
+    private readonly VerticalStackPanel _primaryPanel = new MyraVerticalStackPanel();
+    private readonly VerticalStackPanel _dependentsPanel = new MyraVerticalStackPanel
     {
         Margin = new Thickness(20, 0, 0, 0),
         Spacing = MyraStyle.STANDARD_SPACING,
