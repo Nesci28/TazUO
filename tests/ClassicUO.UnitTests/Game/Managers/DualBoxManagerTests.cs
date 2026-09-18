@@ -37,6 +37,8 @@ public class DualBoxManagerTests
             Direction = 6,
             Ready = true,
             Sequence = 42,
+            Mounted = true,
+            MountSequence = 12,
             StartX = 119,
             StartY = 345,
             StartZ = -6,
@@ -60,6 +62,8 @@ public class DualBoxManagerTests
         actual.Direction.Should().Be(expected.Direction);
         actual.Ready.Should().BeTrue();
         actual.Sequence.Should().Be(expected.Sequence);
+        actual.Mounted.Should().BeTrue();
+        actual.MountSequence.Should().Be(expected.MountSequence);
         actual.StartX.Should().Be(expected.StartX);
         actual.StartY.Should().Be(expected.StartY);
         actual.StartZ.Should().Be(expected.StartZ);
@@ -68,6 +72,23 @@ public class DualBoxManagerTests
         actual.Command.Should().Be(expected.Command);
         actual.Error.Should().Be(expected.Error);
         actual.GroupSerials.Should().Equal(expected.GroupSerials);
+    }
+
+    [Fact]
+    public void ProtocolRoundTripsMountState()
+    {
+        var expected = new DualBoxMessage
+        {
+            Type = DualBoxMessageType.MountState,
+            Mounted = true,
+            MountSequence = 73
+        };
+
+        DualBoxMessage actual = DualBoxProtocol.Decode(DualBoxProtocol.Encode(expected));
+
+        actual.Type.Should().Be(DualBoxMessageType.MountState);
+        actual.Mounted.Should().BeTrue();
+        actual.MountSequence.Should().Be(73);
     }
 
     [Fact]
@@ -113,5 +134,42 @@ public class DualBoxManagerTests
         }
 
         dispatched.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false, false, (int)DualBoxMountAction.None)]
+    [InlineData(true, true, (int)DualBoxMountAction.None)]
+    [InlineData(true, false, (int)DualBoxMountAction.Mount)]
+    [InlineData(false, true, (int)DualBoxMountAction.Dismount)]
+    public void MountActionMatchesDesiredState(
+        bool desiredMounted,
+        bool actualMounted,
+        int expected
+    )
+    {
+        DualBoxManager.GetMountAction(desiredMounted, actualMounted)
+            .Should().Be((DualBoxMountAction)expected);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, false, true)]
+    [InlineData(false, false, true, true, true)]
+    [InlineData(true, true, true, true, true)]
+    [InlineData(true, true, false, false, false)]
+    [InlineData(true, false, false, false, true)]
+    public void MountAcknowledgementWaitsForAnInFlightAction(
+        bool actionInFlight,
+        bool actionTargetMounted,
+        bool desiredMounted,
+        bool actualMounted,
+        bool expected
+    )
+    {
+        DualBoxManager.CanAcknowledgeMountState(
+            actionInFlight,
+            actionTargetMounted,
+            desiredMounted,
+            actualMounted
+        ).Should().Be(expected);
     }
 }
