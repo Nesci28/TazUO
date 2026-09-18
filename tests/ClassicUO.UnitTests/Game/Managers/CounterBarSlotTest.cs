@@ -1,3 +1,4 @@
+using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using FluentAssertions;
 using Xunit;
@@ -112,6 +113,41 @@ namespace ClassicUO.UnitTests.Game.Managers
             CounterBarSlot.FromAbility(true).GetActiveHue(null).Should().Be(0);
             new CounterBarSlot { Type = CounterBarSlotType.Spell, SpellId = 1 }.GetActiveHue(null).Should().Be(0);
             CounterBarSlot.Empty().GetActiveHue(null).Should().Be(0);
+        }
+
+        [Theory]
+        [InlineData(1, BuffIconType.Clumsy)]
+        [InlineData(8, BuffIconType.Weaken)]
+        [InlineData(17, BuffIconType.Bless)]
+        [InlineData(36, BuffIconType.MagicReflection)]
+        [InlineData(44, BuffIconType.Invisibility)]
+        [InlineData(46, BuffIconType.MassCurse)]
+        [InlineData(110, BuffIconType.Poison)]
+        [InlineData(111, BuffIconType.Strangle)]
+        [InlineData(113, BuffIconType.VampiricEmbrace)]
+        [InlineData(206, BuffIconType.EnemyOfOne)]
+        [InlineData(503, BuffIconType.AnimalForm)]
+        [InlineData(681, BuffIconType.Enchant)]
+        [InlineData(682, BuffIconType.Sleep)]
+        [InlineData(685, BuffIconType.StoneForm)]
+        [InlineData(687, BuffIconType.MassSleep)]
+        [InlineData(690, BuffIconType.SpellPlague)]
+        public void TryGetActiveBuffIcon_KnownSpell_ReturnsMappedBuff(int spellId, BuffIconType expected)
+        {
+            CounterBarSlot.TryGetActiveBuffIcon(spellId, out BuffIconType actual).Should().BeTrue();
+            actual.Should().Be(expected);
+        }
+
+        [Theory]
+        [InlineData(2)]
+        [InlineData(5)]
+        [InlineData(114)]
+        [InlineData(678)]
+        [InlineData(684)]
+        [InlineData(686)]
+        public void TryGetActiveBuffIcon_NonBuffSpell_ReturnsFalse(int spellId)
+        {
+            CounterBarSlot.TryGetActiveBuffIcon(spellId, out _).Should().BeFalse();
         }
     }
 }
