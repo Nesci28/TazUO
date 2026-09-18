@@ -26,9 +26,24 @@ namespace ClassicUO.Game.UI.Gumps
 {
     public class CounterBarGump : Gump
     {
-        private AlphaBlendControl _background;
+        private static readonly List<CounterBarGump> _instances = new();
 
-        public static CounterBarGump CurrentCounterBarGump { get; private set; }
+        private AlphaBlendControl _background;
+        private string _barId;
+
+        /// <summary>
+        /// Primary bar used by the legacy UseCounterBar macro, which only stores a cell index.
+        /// </summary>
+        public static CounterBarGump CurrentCounterBarGump =>
+            Find(CounterBarHotkeysManager.PrimaryBarId) ?? _instances.FirstOrDefault(g => !g.IsDisposed);
+
+        /// <summary>The bar most recently interacted with, and therefore targeted by layout options.</summary>
+        public static CounterBarGump SelectedCounterBarGump { get; private set; }
+
+        public string BarId => _barId;
+        public int Rows => _rows;
+        public int Columns => _columns;
+        public int CellSize => _rectSize;
 
         private int _rows,
             _columns,
@@ -38,7 +53,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public CounterBarGump(World world) : base(world, 0, 0)
         {
-            CurrentCounterBarGump = this;
+            RegisterInstance();
         }
 
         public CounterBarGump(
@@ -79,12 +94,105 @@ namespace ClassicUO.Game.UI.Gumps
 
             BuildGump();
 
-            CurrentCounterBarGump = this;
+            RegisterInstance();
             IsLocked = ProfileManager.CurrentProfile.CounterGumpLocked;
             CanCloseWithRightClick = false;
         }
 
         public override GumpType GumpType => GumpType.CounterBar;
+
+        /// <summary>Finds a live counter bar by the stable id stored in gumps.xml.</summary>
+        internal static CounterBarGump Find(string barId) =>
+            _instances.FirstOrDefault(g => !g.IsDisposed && g._barId == barId);
+
+        /// <summary>One-based display number for menus and hotkey descriptions.</summary>
+        internal static int GetDisplayNumber(string barId)
+        {
+            int number = 1;
+
+            foreach (CounterBarGump gump in _instances)
+            {
+                if (gump.IsDisposed)
+                    continue;
+
+                if (gump._barId == barId)
+                    return number;
+
+                number++;
+            }
+
+            return number;
+        }
+
+        /// <summary>Creates, selects and displays an independent counter bar.</summary>
+        public static CounterBarGump AddNew(World world, CounterBarGump template = null)
+        {
+            Profile profile = ProfileManager.CurrentProfile;
+            int cellSize = template?.CellSize ?? profile.CounterBarCellSize;
+            int rows = template?.Rows ?? profile.CounterBarRows;
+            int columns = template?.Columns ?? profile.CounterBarColumns;
+            int offset = Math.Min(_instances.Count * 20, 160);
+            int x = template?.X + 20 ?? 200 + offset;
+            int y = template?.Y + 20 ?? 200 + offset;
+
+            var gump = new CounterBarGump(world, x, y, cellSize, rows, columns);
+            profile.CounterBarEnabled = true;
+            gump.IsEnabled = gump.IsVisible = true;
+            gump.Select();
+            UIManager.Add(gump);
+            gump.SetInScreen();
+            return gump;
+        }
+
+        /// <summary>Shows or hides every counter bar while retaining its contents.</summary>
+        public static void SetAllVisible(bool visible)
+        {
+            foreach (CounterBarGump gump in _instances.ToArray())
+            {
+                if (gump.IsDisposed)
+                    continue;
+
+                gump.IsEnabled = visible;
+                gump.IsVisible = visible;
+            }
+        }
+
+        /// <summary>Refreshes the optional hotkey labels on every counter bar.</summary>
+        public static void RefreshAllHotkeyLabels()
+        {
+            foreach (CounterBarGump gump in _instances.ToArray())
+                if (!gump.IsDisposed)
+                    gump.RefreshHotkeyLabels();
+        }
+
+        /// <summary>Makes this bar the target of subsequent per-bar option changes.</summary>
+        public void Select() => SelectedCounterBarGump = this;
+
+        private void RegisterInstance()
+        {
+            _barId = CreateBarId();
+            _instances.Add(this);
+            SelectedCounterBarGump = this;
+        }
+
+        private static string CreateBarId() =>
+            _instances.All(g => g.IsDisposed)
+                ? CounterBarHotkeysManager.PrimaryBarId
+                : Guid.NewGuid().ToString("N");
+
+        private void RestoreBarId(XmlElement xml)
+        {
+            string savedId = xml.GetAttribute("barid");
+
+            if (string.IsNullOrWhiteSpace(savedId) || savedId.IndexOf(':') >= 0)
+                return;
+
+            CounterBarGump duplicate = Find(savedId);
+            if (duplicate != null && duplicate != this)
+                return;
+
+            _barId = savedId;
+        }
 
         private void BuildGump()
         {
@@ -240,7 +348,7 @@ namespace ClassicUO.Game.UI.Gumps
             }
 
             // Drop hotkeys bound to cells that no longer exist after a shrink.
-            CounterBarHotkeysManager.PruneFrom(_rows * _columns);
+            CounterBarHotkeysManager.PruneFrom(_barId, _rows * _columns);
 
             // Re-center keybind labels for the new cell size.
             RefreshHotkeyLabels();
@@ -286,6 +394,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void OnMouseUp(int x, int y, MouseButtonType button)
         {
+            Select();
             base.OnMouseUp(x, y, button);
 
             if (button == MouseButtonType.Left)
@@ -301,6 +410,7 @@ namespace ClassicUO.Game.UI.Gumps
         {
             base.Save(writer);
 
+            writer.WriteAttributeString("barid", _barId);
             writer.WriteAttributeString("rows", _rows.ToString());
             writer.WriteAttributeString("columns", _columns.ToString());
             writer.WriteAttributeString("rectsize", _rectSize.ToString());
@@ -346,7 +456,7 @@ namespace ClassicUO.Game.UI.Gumps
                     }
                 }
 
-                WriteHotkey(writer, CounterBarHotkeysManager.GetBinding(index));
+                WriteHotkey(writer, CounterBarHotkeysManager.GetBinding(_barId, index));
 
                 writer.WriteEndElement();
             }
@@ -374,6 +484,8 @@ namespace ClassicUO.Game.UI.Gumps
         public override void Restore(XmlElement xml)
         {
             base.Restore(xml);
+
+            RestoreBarId(xml);
 
             _rows = int.Parse(xml.GetAttribute("rows"));
             _columns = int.Parse(xml.GetAttribute("columns"));
@@ -411,7 +523,7 @@ namespace ClassicUO.Game.UI.Gumps
                         // Re-register the saved hotkey with the central system (XML is the source of truth).
                         HotkeyBinding hotkey = RestoreHotkey(controlXml);
                         if (hotkey != null && !hotkey.IsEmpty)
-                            CounterBarHotkeysManager.SetBinding(index, hotkey);
+                            CounterBarHotkeysManager.SetBinding(_barId, index, hotkey);
 
                         index++;
                     }
@@ -516,14 +628,26 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void Dispose()
         {
-            if (CurrentCounterBarGump == this)
-            {
-                // Drop this bar's cell hotkeys from the central registry so they don't linger or fire
-                // after the gump is gone (e.g. across a profile switch).
-                CounterBarHotkeysManager.PruneFrom(0);
-                CurrentCounterBarGump = null;
-            }
+            if (IsDisposed)
+                return;
+
+            // Drop only this bar's cell hotkeys so other bars remain independently usable.
+            CounterBarHotkeysManager.ClearBar(_barId);
+            _instances.Remove(this);
+
+            if (SelectedCounterBarGump == this)
+                SelectedCounterBarGump = _instances.LastOrDefault(g => !g.IsDisposed);
+
             base.Dispose();
+        }
+
+        /// <summary>Explicitly removes this bar and disables counters when it was the last one.</summary>
+        public void RemoveBar()
+        {
+            Dispose();
+
+            if (_instances.Count == 0 && ProfileManager.CurrentProfile != null)
+                ProfileManager.CurrentProfile.CounterBarEnabled = false;
         }
 
         public class CounterItem : Control
@@ -598,6 +722,21 @@ namespace ClassicUO.Game.UI.Gumps
                 ContextMenu.Add(_dressAgentMenu);
 
                 ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_sethotkey"), SetHotkey));
+
+                var layoutMenu = new ContextMenuItemEntry(TazLang.Get("counterbar_layout", "Counter bar layout"));
+                layoutMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_addrow", "Add row"), () =>
+                    _gump.SetLayout(_gump.CellSize, _gump.Rows + 1, _gump.Columns)));
+                layoutMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_removerow", "Remove row"), () =>
+                    _gump.SetLayout(_gump.CellSize, _gump.Rows - 1, _gump.Columns)));
+                layoutMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_addcolumn", "Add column"), () =>
+                    _gump.SetLayout(_gump.CellSize, _gump.Rows, _gump.Columns + 1)));
+                layoutMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_removecolumn", "Remove column"), () =>
+                    _gump.SetLayout(_gump.CellSize, _gump.Rows, _gump.Columns - 1)));
+                ContextMenu.Add(layoutMenu);
+
+                ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_addbar", "Add counter bar"), () =>
+                    CounterBarGump.AddNew(_gump.World, _gump)));
+                ContextMenu.Add(new ContextMenuItemEntry(TazLang.Get("counterbar_removebar", "Remove this counter bar"), _gump.RemoveBar));
             }
 
             public ushort Graphic { get; private set; }
@@ -729,11 +868,15 @@ namespace ClassicUO.Game.UI.Gumps
                 // The universal capture window adds itself to the UI and commits on Save; the binding is
                 // registered with the central hotkey system and persisted with the cell on the next gump save.
                 _ = new HotkeyCaptureWindow(
-                    prompt: TazLang.Get("counterbar_slot", new[] { (index + 1).ToString() }),
-                    existing: CounterBarHotkeysManager.GetBinding(index),
+                    prompt: TazLang.GetEx(
+                        "counterbar_slot_bar",
+                        "Counter Bar {0}, Slot {1}",
+                        new[] { GetDisplayNumber(_gump.BarId).ToString(), (index + 1).ToString() }
+                    ),
+                    existing: CounterBarHotkeysManager.GetBinding(_gump.BarId, index),
                     onSaved: binding =>
                     {
-                        CounterBarHotkeysManager.SetBinding(index, binding);
+                        CounterBarHotkeysManager.SetBinding(_gump.BarId, index, binding);
                         UpdateHotkeyLabel();
                     });
             }
@@ -745,7 +888,9 @@ namespace ClassicUO.Game.UI.Gumps
                     return;
 
                 int index = _gump.IndexOf(this);
-                HotkeyBinding binding = index >= 0 ? CounterBarHotkeysManager.GetBinding(index) : null;
+                HotkeyBinding binding = index >= 0
+                    ? CounterBarHotkeysManager.GetBinding(_gump.BarId, index)
+                    : null;
                 bool hasBinding = binding is { IsEmpty: false };
 
                 // The keybind heads the cell's tooltip regardless of the on-cell label toggle.
@@ -877,6 +1022,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             public override void OnMouseUp(int x, int y, MouseButtonType button)
             {
+                _gump.Select();
+
                 if (button == MouseButtonType.Right)
                 {
                     // Refresh the dynamic lists so newly added macros, scripts, and dress configs appear.
