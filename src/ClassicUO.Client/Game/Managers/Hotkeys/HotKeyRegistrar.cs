@@ -111,7 +111,7 @@ namespace ClassicUO.Game.Managers.Hotkeys
         private static void RegisterWorld()
         {
             const string category = "World";
-            ContextModifier(FollowMobileId, "Click to follow a mobile", Modifier(alt: true), category);
+            ContextModifier(FollowMobileId, "Click to follow a mobile (hold Shift to set distance)", Modifier(alt: true), category);
             ContextModifier(PathfindId, "Pathfind modifier", Modifier(shift: true), category);
             ContextModifier(ItemDragLockId, "Lock item drag position", Modifier(ctrl: true), category);
             ContextModifier(ZoomScrollId, "Zoom with mouse wheel", Modifier(ctrl: true), category);

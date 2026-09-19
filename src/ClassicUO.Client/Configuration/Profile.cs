@@ -468,7 +468,14 @@ namespace ClassicUO.Configuration
         public int WebMapServerPort { get; set; } = 8088;
         public bool WebMapAutoStart { get; set; }
 
-        public int AutoFollowDistance { get; set => SetProperty(ref field, value); } = 1;
+        public int AutoFollowDistance
+        {
+            get;
+            set => SetProperty(
+                ref field,
+                Math.Clamp(value, Constants.MIN_AUTO_FOLLOW_DISTANCE, Constants.MAX_AUTO_FOLLOW_DISTANCE)
+            );
+        } = 1;
         public bool DisableAutoFollowAlt { get; set => SetProperty(ref field, value); } = false;
         [JsonConverter(typeof(Point2Converter))] public Point ResizeJournalSize { get; set => SetProperty(ref field, value); } = new(410, 350);
         [JsonConverter(typeof(NullablePoint2Converter))] public Point? OptionsWindowsSize { get; set => SetProperty(ref field, value); }

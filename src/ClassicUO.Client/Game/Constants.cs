@@ -76,6 +76,9 @@ namespace ClassicUO.Game
         public const int MAX_VIEW_RANGE = 24;
         public const int MAX_CONTAINER_OPENED_ON_GROUND_RANGE = 3;
 
+        public const int MIN_AUTO_FOLLOW_DISTANCE = 1;
+        public const int MAX_AUTO_FOLLOW_DISTANCE = 10;
+
         public const int OUT_RANGE_COLOR = 0x038B;
         public const int DEAD_RANGE_COLOR = 0x038E;
         public const int DEATH_SCREEN_TIMER = 1500;

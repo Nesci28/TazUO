@@ -616,7 +616,7 @@ namespace ClassicUO.Game.UI.Gumps
                     {
                         if (World.Get(LocalSerial) is Mobile followTarget)
                         {
-                            followTarget.Follow();
+                            followTarget.Follow(promptForDistance: Keyboard.Shift);
                         }
                     }
                     else if (!World.DelayedObjectClickManager.IsEnabled)
