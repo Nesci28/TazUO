@@ -6,6 +6,7 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Collections;
 using Microsoft.Xna.Framework;
@@ -250,10 +251,54 @@ namespace ClassicUO.Game.GameObjects
         /// Enables auto follow mode with this mobile as the target.
         /// </summary>
         /// <param name="showMessage">Whether to display the "Now following" overhead message.</param>
-        public void Follow(bool showMessage = true)
+        /// <param name="promptForDistance">Whether to ask for the distance before following.</param>
+        public void Follow(bool showMessage = true, bool promptForDistance = false)
         {
             if (ProfileManager.CurrentProfile == null)
                 return;
+
+            if (promptForDistance)
+            {
+                new PromptPopupWindow(
+                    TazLang.Get("mog_tazuo_autofollowdistance_title", "Auto-follow distance"),
+                    string.Format(
+                        TazLang.Get("mog_tazuo_autofollowdistance_prompt", "How many tiles should be kept between you and this mobile? ({0}-{1})"),
+                        Constants.MIN_AUTO_FOLLOW_DISTANCE,
+                        Constants.MAX_AUTO_FOLLOW_DISTANCE
+                    ),
+                    input =>
+                    {
+                        if (
+                            !int.TryParse(input, out int distance)
+                            || distance < Constants.MIN_AUTO_FOLLOW_DISTANCE
+                            || distance > Constants.MAX_AUTO_FOLLOW_DISTANCE
+                        )
+                        {
+                            GameActions.Print(
+                                World,
+                                string.Format(
+                                    TazLang.Get("mog_tazuo_autofollowdistance_invalid", "Auto-follow distance must be a number from {0} to {1}."),
+                                    Constants.MIN_AUTO_FOLLOW_DISTANCE,
+                                    Constants.MAX_AUTO_FOLLOW_DISTANCE
+                                ),
+                                Constants.HUE_ERROR
+                            );
+                            return;
+                        }
+
+                        if (ProfileManager.CurrentProfile == null)
+                            return;
+
+                        ProfileManager.CurrentProfile.AutoFollowDistance = distance;
+                        Follow(showMessage);
+                    },
+                    TazLang.Get("mog_tazuo_autofollowdistance_follow", "Follow"),
+                    TazLang.Get("cancel", "Cancel"),
+                    defaultValue: ProfileManager.CurrentProfile.AutoFollowDistance.ToString(),
+                    hintText: $"{Constants.MIN_AUTO_FOLLOW_DISTANCE}-{Constants.MAX_AUTO_FOLLOW_DISTANCE}"
+                );
+                return;
+            }
 
             if (showMessage)
             {

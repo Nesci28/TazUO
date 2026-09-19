@@ -1078,7 +1078,7 @@ namespace ClassicUO.Game.Scenes
                 }
             }
 
-            if (currentProfile.FollowingMode && SerialHelper.IsMobile(currentProfile.FollowingTarget) && !_world.Player.Pathfinder.AutoWalking)
+            if (currentProfile.FollowingMode && SerialHelper.IsMobile(currentProfile.FollowingTarget))
             {
                 Mobile follow = _world.Mobiles.Get(currentProfile.FollowingTarget);
 
@@ -1090,7 +1090,32 @@ namespace ClassicUO.Game.Scenes
                     {
                         StopFollowing();
                     }
-                    else if (distance > currentProfile.AutoFollowDistance)
+                    else if (distance < currentProfile.AutoFollowDistance)
+                    {
+                        if (_world.Player.Pathfinder.AutoWalking)
+                            _world.Player.Pathfinder.StopAutoWalk();
+
+                        if (!_world.Player.IsParalyzed)
+                        {
+                            _world.Player.GetEndPosition(out int playerX, out int playerY, out _, out Direction playerDirection);
+                            follow.GetEndPosition(out int followX, out int followY, out _, out _);
+
+                            Direction retreatDirection = AutoFollowMovement.GetRetreatDirection(
+                                playerX,
+                                playerY,
+                                playerDirection,
+                                followX,
+                                followY
+                            );
+                            _world.Player.Walk(retreatDirection, currentProfile.AlwaysRun);
+                        }
+                    }
+                    else if (distance == currentProfile.AutoFollowDistance)
+                    {
+                        if (_world.Player.Pathfinder.AutoWalking)
+                            _world.Player.Pathfinder.StopAutoWalk();
+                    }
+                    else if (!_world.Player.Pathfinder.AutoWalking)
                     {
                         if (!_world.Player.Pathfinder.WalkTo(follow.X, follow.Y, follow.Z, currentProfile.AutoFollowDistance) && !_world.Player.IsParalyzed)
                         {
