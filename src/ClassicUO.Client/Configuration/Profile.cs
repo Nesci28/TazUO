@@ -346,6 +346,7 @@ namespace ClassicUO.Configuration
         public bool NameOverheadToggled { get; set => SetProperty(ref field, value); } = false;
         public bool ShowTargetRangeIndicator { get; set => SetProperty(ref field, value); }
         public bool PartyInviteGump { get; set => SetProperty(ref field, value); } = true;
+        public bool DualBoxAutoAcceptTrades { get; set => SetProperty(ref field, value); }
         public bool CustomBarsToggled { get; set => SetProperty(ref field, value); }
         public bool CBBlackBGToggled { get; set => SetProperty(ref field, value); }
         public bool UsePartyHealthBars { get; set => SetProperty(ref field, value); } = true;
