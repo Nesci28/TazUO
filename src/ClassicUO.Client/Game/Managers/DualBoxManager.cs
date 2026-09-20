@@ -10,6 +10,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.UI.Gumps;
@@ -40,6 +41,7 @@ internal enum DualBoxMessageType
     GumpResponse,
     ScriptCommand,
     PartyInvite,
+    MasterIdentity,
     Nack,
     Stop
 }
@@ -90,6 +92,7 @@ internal sealed class DualBoxMessage
     public bool WarMode { get; set; }
     public uint AttackSerial { get; set; }
     public uint PartyLeaderSerial { get; set; }
+    public bool AutoAcceptTrades { get; set; }
     public long GumpSequence { get; set; }
     public uint GumpServerSerial { get; set; }
     public int GumpButton { get; set; }
@@ -159,7 +162,7 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 7;
+    public const int ProtocolVersion = 8;
     public const int DefaultPort = 47651;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
@@ -196,6 +199,7 @@ public sealed class DualBoxManager
         public bool PartyInviteQueued { get; set; }
         public bool PartyInviteSent { get; set; }
         public uint PartyInviteRetryAt { get; set; }
+        public bool MasterIdentitySent { get; set; }
     }
 
     private sealed class PendingGumpResponse
@@ -258,6 +262,8 @@ public sealed class DualBoxManager
     private uint _pendingTargetDeadline;
     private uint _pendingPartyLeaderSerial;
     private uint _pendingPartyInviteDeadline;
+    private uint _connectedMasterSerial;
+    private bool _autoAcceptTradesFromMaster;
     private ushort _targetX;
     private ushort _targetY;
     private sbyte _targetZ;
@@ -275,6 +281,26 @@ public sealed class DualBoxManager
         {
             lock (_gate)
                 return _role == DualBoxRole.Master;
+        }
+    }
+
+    public bool IsClient
+    {
+        get
+        {
+            lock (_gate)
+                return _role == DualBoxRole.Client;
+        }
+    }
+
+    public bool AutoAcceptTradesEnabled
+    {
+        get
+        {
+            lock (_gate)
+                return _role == DualBoxRole.Client
+                    ? _autoAcceptTradesFromMaster
+                    : ProfileManager.CurrentProfile?.DualBoxAutoAcceptTrades == true;
         }
     }
 
@@ -431,6 +457,7 @@ public sealed class DualBoxManager
     public int SyncClients()
     {
         DualBoxMessage masterState = CreateStateMessage(DualBoxMessageType.Sync, false);
+        masterState.AutoAcceptTrades = ProfileManager.CurrentProfile?.DualBoxAutoAcceptTrades == true;
 
         if (!IsUsableState(masterState))
         {
@@ -495,6 +522,24 @@ public sealed class DualBoxManager
             Send(peer, masterState);
 
         return selected.Count;
+    }
+
+    public void SetAutoAcceptTrades(bool enabled)
+    {
+        List<Peer> clients;
+        DualBoxMessage identity = CreateStateMessage(DualBoxMessageType.MasterIdentity, false);
+        identity.AutoAcceptTrades = enabled;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master || !IsUsableState(identity))
+                return;
+
+            clients = [.. _peers];
+        }
+
+        foreach (Peer client in clients)
+            Send(client, identity);
     }
 
     /// <summary>
@@ -1050,6 +1095,49 @@ public sealed class DualBoxManager
         && !clientAlreadyInParty
         && (partyLeaderSerial == 0 || partyLeaderSerial == masterSerial);
 
+    internal static bool ShouldAutoAcceptTrade(
+        bool enabled,
+        bool connectedClient,
+        uint masterSerial,
+        uint traderSerial,
+        bool clientAccepted,
+        bool masterAccepted
+    ) => enabled
+        && connectedClient
+        && SerialHelper.IsMobile(masterSerial)
+        && traderSerial == masterSerial
+        && !clientAccepted
+        && masterAccepted;
+
+    internal void TryAutoAcceptTrade(TradingGump trading)
+    {
+        if (trading == null)
+            return;
+
+        uint masterSerial;
+        bool connectedClient;
+        bool enabled;
+
+        lock (_gate)
+        {
+            masterSerial = _connectedMasterSerial;
+            connectedClient = _role == DualBoxRole.Client && _masterPeer != null;
+            enabled = _autoAcceptTradesFromMaster;
+        }
+
+        if (ShouldAutoAcceptTrade(
+                enabled,
+                connectedClient,
+                masterSerial,
+                trading.TraderSerial,
+                trading.ImAccepting,
+                trading.HeIsAccepting
+            ))
+        {
+            trading.AcceptFromDualBox();
+        }
+    }
+
     internal bool TryHandlePartyInviteTarget(
         World world,
         CursorTarget cursorTarget,
@@ -1380,6 +1468,9 @@ public sealed class DualBoxManager
             case DualBoxMessageType.PartyInvite:
                 MainThreadQueue.EnqueueAction(() => QueuePartyInvite(message), token);
                 break;
+            case DualBoxMessageType.MasterIdentity:
+                MainThreadQueue.EnqueueAction(() => SetMasterIdentity(message), token);
+                break;
             case DualBoxMessageType.Stop:
                 MainThreadQueue.EnqueueAction(ResetClientState, token);
                 break;
@@ -1409,6 +1500,34 @@ public sealed class DualBoxManager
                 clientSerial,
                 alreadyInParty
             );
+        bool sendMasterIdentity = false;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master || !_peers.Contains(peer))
+                return;
+
+            if (sameServer && SerialHelper.IsMobile(masterSerial) && !peer.MasterIdentitySent)
+            {
+                peer.MasterIdentitySent = true;
+                sendMasterIdentity = true;
+            }
+        }
+
+        if (sendMasterIdentity)
+        {
+            Send(
+                peer,
+                new DualBoxMessage
+                {
+                    Type = DualBoxMessageType.MasterIdentity,
+                    Serial = masterSerial,
+                    ServerName = world.ServerName ?? string.Empty,
+                    MapIndex = world.MapIndex,
+                    AutoAcceptTrades = ProfileManager.CurrentProfile?.DualBoxAutoAcceptTrades == true
+                }
+            );
+        }
 
         lock (_gate)
         {
@@ -1539,6 +1658,31 @@ public sealed class DualBoxManager
         _pendingPartyLeaderSerial = message.Serial;
         _pendingPartyInviteDeadline = Time.Ticks + PartyInviteTimeout;
         ProcessPendingPartyInvite(World.Instance);
+    }
+
+    private void SetMasterIdentity(DualBoxMessage message)
+    {
+        World world = World.Instance;
+
+        if (!SerialHelper.IsMobile(message.Serial)
+            || world?.InGame != true
+            || world.Player == null
+            || !string.Equals(world.ServerName, message.ServerName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_role == DualBoxRole.Client && _masterPeer != null)
+            {
+                _connectedMasterSerial = message.Serial;
+                _autoAcceptTradesFromMaster = message.AutoAcceptTrades;
+            }
+        }
+
+        if (message.AutoAcceptTrades)
+            UIManager.ForEach<TradingGump>(TryAutoAcceptTrade);
     }
 
     private void ProcessPendingPartyInvite(World world)
@@ -1786,6 +1930,12 @@ public sealed class DualBoxManager
                 message.Sequence
             );
             return;
+        }
+
+        lock (_gate)
+        {
+            _connectedMasterSerial = message.Serial;
+            _autoAcceptTradesFromMaster = message.AutoAcceptTrades;
         }
 
         _groupSerials.Clear();
@@ -2190,6 +2340,7 @@ public sealed class DualBoxManager
     private void ResyncSelectedClients(string reason)
     {
         DualBoxMessage state = CreateStateMessage(DualBoxMessageType.Sync, false);
+        state.AutoAcceptTrades = ProfileManager.CurrentProfile?.DualBoxAutoAcceptTrades == true;
         List<Peer> selected;
         List<Peer> deselected;
 
@@ -2347,6 +2498,11 @@ public sealed class DualBoxManager
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
         ClearPendingPartyInvite();
+        lock (_gate)
+        {
+            _connectedMasterSerial = 0;
+            _autoAcceptTradesFromMaster = false;
+        }
         _pendingGumpResponses.Clear();
         _clientFollowing = false;
         _clientReady = false;

@@ -57,6 +57,7 @@ public class DualBoxManagerTests
             WarMode = true,
             AttackSerial = 0x01010101,
             PartyLeaderSerial = 0x01020304,
+            AutoAcceptTrades = true,
             GumpSequence = 15,
             GumpServerSerial = 0x10203040,
             GumpButton = 7,
@@ -99,6 +100,7 @@ public class DualBoxManagerTests
         actual.WarMode.Should().BeTrue();
         actual.AttackSerial.Should().Be(expected.AttackSerial);
         actual.PartyLeaderSerial.Should().Be(expected.PartyLeaderSerial);
+        actual.AutoAcceptTrades.Should().BeTrue();
         actual.GumpSequence.Should().Be(expected.GumpSequence);
         actual.GumpServerSerial.Should().Be(expected.GumpServerSerial);
         actual.GumpButton.Should().Be(expected.GumpButton);
@@ -141,6 +143,27 @@ public class DualBoxManagerTests
 
         actual.Type.Should().Be(DualBoxMessageType.PartyInvite);
         actual.Serial.Should().Be(expected.Serial);
+    }
+
+    [Fact]
+    public void ProtocolRoundTripsMasterIdentity()
+    {
+        var expected = new DualBoxMessage
+        {
+            Type = DualBoxMessageType.MasterIdentity,
+            Serial = 0x01020304,
+            ServerName = "Shard",
+            MapIndex = 1,
+            AutoAcceptTrades = true
+        };
+
+        DualBoxMessage actual = DualBoxProtocol.Decode(DualBoxProtocol.Encode(expected));
+
+        actual.Type.Should().Be(DualBoxMessageType.MasterIdentity);
+        actual.Serial.Should().Be(expected.Serial);
+        actual.ServerName.Should().Be(expected.ServerName);
+        actual.MapIndex.Should().Be(expected.MapIndex);
+        actual.AutoAcceptTrades.Should().BeTrue();
     }
 
     [Fact]
@@ -293,6 +316,34 @@ public class DualBoxManagerTests
             leaderSerial,
             clientSerial,
             clientAlreadyInParty
+        ).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(true, true, 0x01020304u, 0x01020304u, false, true, true)]
+    [InlineData(false, true, 0x01020304u, 0x01020304u, false, true, false)]
+    [InlineData(true, false, 0x01020304u, 0x01020304u, false, true, false)]
+    [InlineData(true, true, 0u, 0u, false, true, false)]
+    [InlineData(true, true, 0x01020304u, 0x05060708u, false, true, false)]
+    [InlineData(true, true, 0x01020304u, 0x01020304u, true, true, false)]
+    [InlineData(true, true, 0x01020304u, 0x01020304u, false, false, false)]
+    public void AutoAcceptTradeRequiresConnectedMasterAndBothConfirmations(
+        bool enabled,
+        bool connectedClient,
+        uint masterSerial,
+        uint traderSerial,
+        bool clientAccepted,
+        bool masterAccepted,
+        bool expected
+    )
+    {
+        DualBoxManager.ShouldAutoAcceptTrade(
+            enabled,
+            connectedClient,
+            masterSerial,
+            traderSerial,
+            clientAccepted,
+            masterAccepted
         ).Should().Be(expected);
     }
 }

@@ -13,6 +13,8 @@ public sealed class DualBoxGump : Gump
     private readonly Label _clientsLabel;
     private readonly Label _statusLabel;
     private readonly NiceButton _syncButton;
+    private readonly Checkbox _autoAcceptTradesCheckbox;
+    private bool _refreshingAutoAcceptTrades;
     private uint _nextRefresh;
 
     public override GumpType GumpType => GumpType.DualBox;
@@ -22,7 +24,7 @@ public sealed class DualBoxGump : Gump
         X = x;
         Y = y;
         Width = GumpWidth;
-        Height = 150;
+        Height = 178;
         CanMove = true;
         CanCloseWithEsc = true;
         CanCloseWithRightClick = true;
@@ -54,11 +56,33 @@ public sealed class DualBoxGump : Gump
         _syncButton = AddButton(210, 52, 100, TazLang.Get("dualbox_sync", "Sync (10 tiles)"), 3);
         AddButton(10, 80, 300, TazLang.Get("dualbox_stop", "Stop dual-box connection"), 4);
 
+        _autoAcceptTradesCheckbox = new Checkbox(
+            0x00D2,
+            0x00D3,
+            TazLang.Get("dualbox_auto_accept_trades", "Clients auto-accept master trades"),
+            1,
+            0xFFFF,
+            true
+        )
+        {
+            X = 10,
+            Y = 108,
+            IsChecked = ProfileManager.CurrentProfile?.DualBoxAutoAcceptTrades == true
+        };
+        _autoAcceptTradesCheckbox.SetTooltip(
+            TazLang.Get(
+                "dualbox_auto_accept_trades_tooltip",
+                "When enabled on the master, connected clients accept after the master accepts."
+            )
+        );
+        _autoAcceptTradesCheckbox.ValueChanged += OnAutoAcceptTradesChanged;
+        Add(_autoAcceptTradesCheckbox);
+
         Add(
             _statusLabel = new Label(string.Empty, true, 0xFFFF, GumpWidth - 20)
             {
                 X = 10,
-                Y = 112
+                Y = 138
             }
         );
 
@@ -137,5 +161,25 @@ public sealed class DualBoxGump : Gump
             : $"Master: {(manager.ConnectedClientCount == 0 ? "disconnected" : "connected")}";
         _statusLabel.Text = manager.StatusText;
         _syncButton.IsEnabled = manager.IsMaster;
+
+        bool autoAcceptTrades = manager.AutoAcceptTradesEnabled;
+
+        if (_autoAcceptTradesCheckbox.IsChecked != autoAcceptTrades)
+        {
+            _refreshingAutoAcceptTrades = true;
+            _autoAcceptTradesCheckbox.IsChecked = autoAcceptTrades;
+            _refreshingAutoAcceptTrades = false;
+        }
+
+        _autoAcceptTradesCheckbox.IsEnabled = !manager.IsClient;
+    }
+
+    private void OnAutoAcceptTradesChanged(object sender, System.EventArgs e)
+    {
+        if (_refreshingAutoAcceptTrades || ProfileManager.CurrentProfile == null)
+            return;
+
+        ProfileManager.CurrentProfile.DualBoxAutoAcceptTrades = _autoAcceptTradesCheckbox.IsChecked;
+        DualBoxManager.Instance.SetAutoAcceptTrades(_autoAcceptTradesCheckbox.IsChecked);
     }
 }
