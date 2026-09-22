@@ -2,6 +2,7 @@ using System;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
+using ClassicUO.UnitTests.Fixtures;
 using ClassicUO.UnitTests.Game.LegionScript;
 using Xunit;
 
