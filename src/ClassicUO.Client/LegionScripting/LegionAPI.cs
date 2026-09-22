@@ -6390,6 +6390,27 @@ private static void DecorateSearchResult(
             }
         });
 
+        /// <summary>
+        /// Remove every tile marker on one map, or on every map when allMaps is true.
+        /// With the default map value, only the current facet is cleared.
+        /// </summary>
+        /// <returns>The number of markers removed.</returns>
+        public int ClearMarkedTiles(int map = -1, bool allMaps = false) => OnMain(() =>
+        {
+            if (allMaps)
+                return TileMarkerManager.Instance.RemoveTiles();
+
+            if (map < 0)
+            {
+                if (World?.Map == null)
+                    return 0;
+
+                map = World.Map.Index;
+            }
+
+            return TileMarkerManager.Instance.RemoveTiles(map);
+        });
+
         internal static bool TryGetTilePoint(object point, out int x, out int y)
         {
             x = 0;
