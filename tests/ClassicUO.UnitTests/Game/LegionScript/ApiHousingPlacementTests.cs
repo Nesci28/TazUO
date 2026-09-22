@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Linq;
+using ClassicUO.Assets;
 using ClassicUO.LegionScripting;
 using ClassicUO.LegionScripting.ApiClasses;
 using FluentAssertions;
@@ -97,6 +98,32 @@ public class ApiHousingPlacementTests
         catalog.Should().NotContain(entry => entry.Width == 9 && entry.Depth == 15);
         catalog.Should().Contain(entry => entry.Width == 14 && entry.Depth == 9);
         catalog.Should().Contain(entry => entry.Width == 17 && entry.Depth == 12);
+    }
+
+    [Fact]
+    public void TryGetRunUoFoundationBounds_ValidatesRawMultiBeforeAddingStairRow()
+    {
+        LegionAPI.RunUoFoundationCatalogEntry catalog = LegionAPI.BuildRunUoCustomHouseCatalog()
+            .Single(entry => entry.Width == 7 && entry.Depth == 7 && entry.MultiID == 0x13EC);
+        MultiInfo[] rawMulti =
+        [
+            new MultiInfo { X = -3, Y = -3 },
+            new MultiInfo { X = 3, Y = 3 }
+        ];
+
+        LegionAPI.TryGetRunUoFoundationBounds(
+            catalog,
+            rawMulti,
+            out int minX,
+            out int minY,
+            out int maxX,
+            out int foundationMaxY,
+            out int stairsY).Should().BeTrue();
+
+        (minX, minY, maxX, foundationMaxY, stairsY).Should().Be((-3, -3, 3, 3, 4));
+        (maxX - minX + 1).Should().Be(catalog.Width);
+        (foundationMaxY - minY + 1).Should().Be(catalog.Depth);
+        (stairsY - minY + 1).Should().Be(catalog.Depth + 1);
     }
 
     [Fact]

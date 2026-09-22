@@ -180,13 +180,17 @@ namespace ClassicUO.LegionScripting
                 if (multiTiles == null || multiTiles.Count == 0)
                     return null;
 
-                int minX = multiTiles.Min(tile => (int)tile.X);
-                int maxX = multiTiles.Max(tile => (int)tile.X);
-                int minY = multiTiles.Min(tile => (int)tile.Y);
-                int maxY = multiTiles.Max(tile => (int)tile.Y) + 1;
-
-                if (maxX - minX + 1 != catalog.Width || maxY - minY + 1 != catalog.Depth)
+                if (!TryGetRunUoFoundationBounds(
+                        catalog,
+                        multiTiles,
+                        out int minX,
+                        out int minY,
+                        out int maxX,
+                        out _,
+                        out int stairsY))
+                {
                     return null;
+                }
 
                 var groupedTiles = new Dictionary<long, List<RunUoFoundationComponent>>();
 
@@ -195,9 +199,9 @@ namespace ClassicUO.LegionScripting
 
                 // RunUO HousePlacement.Check calls HouseFoundation.AddStairsTo for these multis.
                 for (int x = minX; x <= maxX; x++)
-                    AddRunUoFoundationComponent(groupedTiles, 0x0063, x, maxY, 0);
+                    AddRunUoFoundationComponent(groupedTiles, 0x0063, x, stairsY, 0);
 
-                var definition = new RunUoFoundationDefinition(catalog, minX, minY, maxX, maxY, groupedTiles);
+                var definition = new RunUoFoundationDefinition(catalog, minX, minY, maxX, stairsY, groupedTiles);
                 BuildRunUoFoundationClearance(definition);
                 return definition;
             }
@@ -205,6 +209,42 @@ namespace ClassicUO.LegionScripting
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Validate the unmodified multi against RunUO's catalog dimensions, then return the row
+        /// where HouseFoundation.AddStairsTo appends its placement-only stairs. The stair row must
+        /// not participate in the catalog dimension check: a 7x7 foundation intentionally becomes
+        /// 7x8 only after RunUO adds those stairs for collision testing.
+        /// </summary>
+        internal static bool TryGetRunUoFoundationBounds(
+            RunUoFoundationCatalogEntry catalog,
+            IReadOnlyList<MultiInfo> multiTiles,
+            out int minX,
+            out int minY,
+            out int maxX,
+            out int foundationMaxY,
+            out int stairsY)
+        {
+            minX = 0;
+            minY = 0;
+            maxX = 0;
+            foundationMaxY = 0;
+            stairsY = 0;
+
+            if (multiTiles == null || multiTiles.Count == 0)
+                return false;
+
+            minX = multiTiles.Min(tile => (int)tile.X);
+            maxX = multiTiles.Max(tile => (int)tile.X);
+            minY = multiTiles.Min(tile => (int)tile.Y);
+            foundationMaxY = multiTiles.Max(tile => (int)tile.Y);
+
+            if (maxX - minX + 1 != catalog.Width || foundationMaxY - minY + 1 != catalog.Depth)
+                return false;
+
+            stairsY = foundationMaxY + 1;
+            return true;
         }
 
         private static void AddRunUoFoundationComponent(
