@@ -3,12 +3,14 @@ using System.Runtime.CompilerServices;
 using ClassicUO.Game;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.UnitTests.Fixtures;
 using FluentAssertions;
 using SDL3;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game;
 
+[Collection(MainThreadCollection.Name)]
 public class GameCursorItemPropertyTests
 {
     private const uint VendorItemSerial = 0x40000001;
@@ -17,6 +19,9 @@ public class GameCursorItemPropertyTests
     private const uint OtherMobileSerial = 0x00000002;
     private const ushort EarringsGraphic = 0x1087;
     private const string RawVendorTooltip = "Solaria's Secret Poisons\nninjitsu +10\nhit chance increase 10%";
+    private readonly MainThreadFixture _mainThread;
+
+    public GameCursorItemPropertyTests(MainThreadFixture mainThread) => _mainThread = mainThread;
 
     [Fact]
     public void ResolvesDirectButtonTileArtFromNormalItemPropertyTooltip()
@@ -32,7 +37,7 @@ public class GameCursorItemPropertyTests
     }
 
     [Fact]
-    public void ResolvesPrecedingButtonTileArtWhenTooltipIsAttachedToAnotherControl()
+    public void ResolvesPrecedingButtonTileArtWhenTooltipIsAttachedToAnotherControl() => _mainThread.Invoke(() =>
     {
         var parent = new TestControl();
         ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
@@ -51,10 +56,10 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(VendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
-    }
+    });
 
     [Fact]
-    public void ResolvesFollowingItemPropertyWhenActualItemArtIsHovered()
+    public void ResolvesFollowingItemPropertyWhenActualItemArtIsHovered() => _mainThread.Invoke(() =>
     {
         var parent = new TestControl();
         ButtonTileArt itemArt = CreateButtonTileArt(EarringsGraphic);
@@ -73,7 +78,7 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(VendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
-    }
+    });
 
     [Fact]
     public void ResolvesTilePicAsGumpPicFromNormalItemPropertyTooltip()
@@ -89,7 +94,7 @@ public class GameCursorItemPropertyTests
     }
 
     [Fact]
-    public void ResolvesTilePicAsGumpPicFromPacketTextWhenOverlayHasTooltip()
+    public void ResolvesTilePicAsGumpPicFromPacketTextWhenOverlayHasTooltip() => _mainThread.Invoke(() =>
     {
         var gump = new Gump(null, 0, 1)
         {
@@ -112,7 +117,7 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(VendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
-    }
+    });
 
     [Fact]
     public void ResolvesButtonTileArtFromPacketTextWhenItemPropertyPrecedesVisual()
@@ -133,7 +138,7 @@ public class GameCursorItemPropertyTests
     }
 
     [Fact]
-    public void ResolvesSerialWhenItemPropertyPrecedesHoveredButtonTileArt()
+    public void ResolvesSerialWhenItemPropertyPrecedesHoveredButtonTileArt() => _mainThread.Invoke(() =>
     {
         var gump = new Gump(null, 0, 1)
         {
@@ -154,10 +159,10 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(VendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
-    }
+    });
 
     [Fact]
-    public void ResolvesCorrectSerialAmongRepeatedScaledButtonTileArtRows()
+    public void ResolvesCorrectSerialAmongRepeatedScaledButtonTileArtRows() => _mainThread.Invoke(() =>
     {
         var gump = new Gump(null, 0, 1)
         {
@@ -183,7 +188,7 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         serial.Should().Be(SecondVendorItemSerial);
         graphic.Should().Be(EarringsGraphic);
-    }
+    });
 
     [Fact]
     public void ResolvesRawTooltipTextFromHoveredButtonTileArtWithoutSerial()
@@ -227,7 +232,7 @@ public class GameCursorItemPropertyTests
     }
 
     [Fact]
-    public void ResolvesItemFromAnotherCharactersPaperDoll()
+    public void ResolvesItemFromAnotherCharactersPaperDoll() => _mainThread.Invoke(() =>
     {
         var paperDoll = new PaperDollGump(null)
         {
@@ -246,10 +251,10 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeTrue();
         paperDollSerial.Should().Be(OtherMobileSerial);
         itemSerial.Should().Be(VendorItemSerial);
-    }
+    });
 
     [Fact]
-    public void DoesNotResolveItemFromPlayersOwnPaperDoll()
+    public void DoesNotResolveItemFromPlayersOwnPaperDoll() => _mainThread.Invoke(() =>
     {
         var paperDoll = new PaperDollGump(null)
         {
@@ -268,7 +273,7 @@ public class GameCursorItemPropertyTests
         resolved.Should().BeFalse();
         paperDollSerial.Should().Be(0);
         itemSerial.Should().Be(0);
-    }
+    });
 
     private static ButtonTileArt CreateButtonTileArt(ushort graphic)
     {
