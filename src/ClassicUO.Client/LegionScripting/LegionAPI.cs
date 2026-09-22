@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -33,7 +34,7 @@ namespace ClassicUO.LegionScripting
     /// <summary>
     /// Python scripting access point
     /// </summary>
-    public class LegionAPI : IDisposable
+    public partial class LegionAPI : IDisposable
     {
         #region Members
 
@@ -5598,20 +5599,19 @@ private static void DecorateSearchResult(
     return !string.IsNullOrEmpty(reason);
 }
 
-    internal static bool IsRoadCandidate(ushort graphic, string name, TileFlag flags)
-    {
-        string normalizedName = (name ?? string.Empty).Trim().ToLowerInvariant();
+    internal static bool IsRoadCandidate(ushort graphic, string name, TileFlag flags) =>
+        IsRunUoRoadGraphic(graphic);
 
-        if (string.IsNullOrEmpty(normalizedName))
-            return false;
-
-        return normalizedName.Contains("road", StringComparison.Ordinal) ||
-               normalizedName.Contains("paved", StringComparison.Ordinal) ||
-               normalizedName.Contains("pavement", StringComparison.Ordinal) ||
-               normalizedName.Contains("cobble", StringComparison.Ordinal) ||
-               normalizedName.Contains("flagstone", StringComparison.Ordinal) ||
-               normalizedName.Contains("flag stone", StringComparison.Ordinal);
-    }
+    internal static bool IsRunUoRoadGraphic(ushort graphic) =>
+        graphic is >= 0x0071 and <= 0x0078 or
+                   >= 0x00E8 and <= 0x00EB or
+                   >= 0x07AE and <= 0x07B1 or
+                   0x3FF4 or
+                   >= 0x3FF8 and <= 0x3FFB or
+                   >= 0x0442 and <= 0x0479 or
+                   >= 0x0501 and <= 0x0510 or
+                   >= 0x0009 and <= 0x0015 or
+                   >= 0x0150 and <= 0x015C;
 
     private static void AddOfficialPlacementUncheckedRules(ApiHousePlacementResult result)
     {
@@ -6311,6 +6311,51 @@ private static void DecorateSearchResult(
         });
 
         /// <summary>
+        /// Mark multiple tiles in one main-thread operation.
+        /// Each point may be a two-value Python tuple/list or an object exposing X and Y properties.
+        /// </summary>
+        /// <param name="points">Tile coordinates such as [(100, 200), (101, 200)].</param>
+        /// <param name="hue">Marker hue.</param>
+        /// <param name="map">Defaults to the current map.</param>
+        public void MarkTiles(IEnumerable points, ushort hue, int map = -1) => OnMain(() =>
+        {
+            if (World?.Map == null || points == null)
+                return;
+
+            int targetMap = map < 0 ? World.Map.Index : map;
+
+            foreach (object point in points)
+            {
+                if (TryGetTilePoint(point, out int x, out int y))
+                    TileMarkerManager.Instance.AddTile(x, y, targetMap, hue);
+            }
+        });
+
+        /// <summary>
+        /// Mark a rectangle, either its border or every tile, in one main-thread operation.
+        /// </summary>
+        public void MarkTileRectangle(int x1, int y1, int x2, int y2, ushort hue, bool borderOnly = true, int map = -1) => OnMain(() =>
+        {
+            if (World?.Map == null)
+                return;
+
+            int targetMap = map < 0 ? World.Map.Index : map;
+            int minX = Math.Min(x1, x2);
+            int maxX = Math.Max(x1, x2);
+            int minY = Math.Min(y1, y2);
+            int maxY = Math.Max(y1, y2);
+
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    if (!borderOnly || x == minX || x == maxX || y == minY || y == maxY)
+                        TileMarkerManager.Instance.AddTile(x, y, targetMap, hue);
+                }
+            }
+        });
+
+        /// <summary>
         /// Remove a marked tile. See MarkTile for more info.
         /// </summary>
         /// <param name="x"></param>
@@ -6326,6 +6371,58 @@ private static void DecorateSearchResult(
 
             TileMarkerManager.Instance.RemoveTile(x, y, map);
         });
+
+        /// <summary>
+        /// Remove multiple tile markers in one main-thread operation.
+        /// Each point may be a two-value Python tuple/list or an object exposing X and Y properties.
+        /// </summary>
+        public void RemoveMarkedTiles(IEnumerable points, int map = -1) => OnMain(() =>
+        {
+            if (World?.Map == null || points == null)
+                return;
+
+            int targetMap = map < 0 ? World.Map.Index : map;
+
+            foreach (object point in points)
+            {
+                if (TryGetTilePoint(point, out int x, out int y))
+                    TileMarkerManager.Instance.RemoveTile(x, y, targetMap);
+            }
+        });
+
+        internal static bool TryGetTilePoint(object point, out int x, out int y)
+        {
+            x = 0;
+            y = 0;
+
+            try
+            {
+                if (point is IList pair && pair.Count >= 2)
+                {
+                    x = Convert.ToInt32(pair[0], CultureInfo.InvariantCulture);
+                    y = Convert.ToInt32(pair[1], CultureInfo.InvariantCulture);
+                    return true;
+                }
+
+                if (point == null)
+                    return false;
+
+                Type pointType = point.GetType();
+                System.Reflection.PropertyInfo xProperty = pointType.GetProperty("X");
+                System.Reflection.PropertyInfo yProperty = pointType.GetProperty("Y");
+
+                if (xProperty == null || yProperty == null)
+                    return false;
+
+                x = Convert.ToInt32(xProperty.GetValue(point), CultureInfo.InvariantCulture);
+                y = Convert.ToInt32(yProperty.GetValue(point), CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         /// <summary>
         /// Create a tracking arrow pointing towards a location.

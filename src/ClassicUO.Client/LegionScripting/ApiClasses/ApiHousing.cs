@@ -208,3 +208,66 @@ public class ApiHousePlacementResult
     public List<ApiHousePlacementBlocker> Blockers { get; set; } = new List<ApiHousePlacementBlocker>();
     public List<ApiHouseInfo> BlockingHouses { get; set; } = new List<ApiHouseInfo>();
 }
+
+/// <summary>
+/// One customizable foundation size from RunUO's house placement tool catalog.
+/// </summary>
+public class ApiCustomHouseSize
+{
+    public int Width { get; set; }
+    public int Depth { get; set; }
+    public int Stories { get; set; }
+    public uint MultiID { get; set; }
+    public string MultiIDHex { get; set; } = string.Empty;
+    public int TargetOffsetX { get; set; }
+    public int TargetOffsetY { get; set; }
+    public int TargetOffsetZ { get; set; }
+    public int Area => Width * Depth;
+}
+
+/// <summary>
+/// Largest valid customizable foundation found for one placement-tool target tile.
+/// </summary>
+public class ApiCustomHousePlacement
+{
+    public int TargetX { get; set; }
+    public int TargetY { get; set; }
+    public int TargetZ { get; set; }
+    public int CenterX { get; set; }
+    public int CenterY { get; set; }
+    public int CenterZ { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int MinX { get; set; }
+    public int MinY { get; set; }
+    public int MaxX { get; set; }
+    public int MaxY { get; set; }
+    public int Width { get; set; }
+    public int Depth { get; set; }
+    public int Stories { get; set; }
+    public int Area { get; set; }
+    public uint MultiID { get; set; }
+    public string MultiIDHex { get; set; } = string.Empty;
+    public long DistanceSquared { get; set; }
+}
+
+/// <summary>
+/// Real-time client estimate for all valid customizable-house target tiles around a coordinate.
+/// </summary>
+public class ApiCustomHouseScanResult
+{
+    public bool Ok { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public int CenterX { get; set; }
+    public int CenterY { get; set; }
+    public int SearchRadius { get; set; }
+    public int Map { get; set; }
+    public int CandidateTargets { get; set; }
+    public int TestedPlacements { get; set; }
+    public int ValidTargets { get; set; }
+    public bool ClientEstimate { get; set; } = true;
+    public string Validator { get; set; } = "client-runuo-custom-house-estimate";
+    public List<string> UncheckedServerSideRules { get; set; } = new List<string>();
+    public List<ApiCustomHousePlacement> Placements { get; set; } = new List<ApiCustomHousePlacement>();
+    public ApiCustomHousePlacement Best { get; set; }
+}

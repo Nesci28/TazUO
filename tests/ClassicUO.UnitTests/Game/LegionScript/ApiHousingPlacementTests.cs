@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Linq;
 using ClassicUO.LegionScripting;
+using ClassicUO.LegionScripting.ApiClasses;
 using FluentAssertions;
 using Xunit;
 
@@ -54,12 +56,56 @@ public class ApiHousingPlacementTests
     }
 
     [Theory]
-    [InlineData("dirt road", true)]
-    [InlineData("paved road", true)]
-    [InlineData("cobblestone", true)]
-    [InlineData("grass", false)]
-    public void IsRoadCandidate_UsesConservativeLandTileNames(string name, bool expected)
+    [InlineData(0x0071, true)]
+    [InlineData(0x0078, true)]
+    [InlineData(0x0079, false)]
+    [InlineData(0x0442, true)]
+    [InlineData(0x0479, true)]
+    [InlineData(0x047A, false)]
+    [InlineData(0x3FF4, true)]
+    [InlineData(0x3FF5, false)]
+    public void IsRoadCandidate_UsesRunUoGraphicRanges(ushort graphic, bool expected)
     {
-        LegionAPI.IsRoadCandidate(0, name, 0).Should().Be(expected);
+        LegionAPI.IsRoadCandidate(graphic, "irrelevant", 0).Should().Be(expected);
+    }
+
+    [Fact]
+    public void BuildRunUoCustomHouseCatalog_MatchesOfficialFoundationCountsAndBoundaries()
+    {
+        var catalog = LegionAPI.BuildRunUoCustomHouseCatalog();
+
+        catalog.Should().HaveCount(102);
+        catalog.Count(entry => entry.Stories == 2).Should().Be(47);
+        catalog.Count(entry => entry.Stories == 3).Should().Be(55);
+
+        catalog.Should().ContainSingle(entry =>
+            entry.Width == 7 && entry.Depth == 7 && entry.Stories == 2 && entry.MultiID == 0x13EC && entry.TargetOffsetY == 4);
+        catalog.Should().ContainSingle(entry =>
+            entry.Width == 13 && entry.Depth == 13 && entry.Stories == 2 && entry.MultiID == 0x143A && entry.TargetOffsetY == 7);
+        catalog.Should().ContainSingle(entry =>
+            entry.Width == 9 && entry.Depth == 14 && entry.Stories == 3 && entry.MultiID == 0x140B && entry.TargetOffsetY == 8);
+        catalog.Should().ContainSingle(entry =>
+            entry.Width == 18 && entry.Depth == 18 && entry.Stories == 3 && entry.MultiID == 0x147B && entry.TargetOffsetY == 10);
+    }
+
+    [Fact]
+    public void BuildRunUoCustomHouseCatalog_DoesNotInventInvalidSizes()
+    {
+        var catalog = LegionAPI.BuildRunUoCustomHouseCatalog();
+
+        catalog.Should().NotContain(entry => entry.Width == 13 && entry.Depth == 7);
+        catalog.Should().NotContain(entry => entry.Width == 9 && entry.Depth == 15);
+        catalog.Should().Contain(entry => entry.Width == 14 && entry.Depth == 9);
+        catalog.Should().Contain(entry => entry.Width == 17 && entry.Depth == 12);
+    }
+
+    [Fact]
+    public void TryGetTilePoint_ReadsPythonCompatibleListsAndPointObjects()
+    {
+        LegionAPI.TryGetTilePoint(new ArrayList { 123, 456 }, out int listX, out int listY).Should().BeTrue();
+        (listX, listY).Should().Be((123, 456));
+
+        LegionAPI.TryGetTilePoint(new ApiPoint3D { X = 789, Y = 321 }, out int pointX, out int pointY).Should().BeTrue();
+        (pointX, pointY).Should().Be((789, 321));
     }
 }
