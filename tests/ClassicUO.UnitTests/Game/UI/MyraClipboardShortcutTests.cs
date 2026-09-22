@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Input;
+using ClassicUO.UnitTests.Fixtures;
 using ClassicUO.UnitTests.Game.LegionScript;
 using FontStashSharp;
 using Microsoft.Xna.Framework;
