@@ -1,80 +1,20 @@
 ---
 title: ApiLand
-description:  Represents Python-accessible land tile in game world.  Inherits spatial visual data from <see cref="ApiGameObject"/> .
+description:  Represents a Python-accessible land tile in the game world.  Inherits spatial and visual data from <see cref="ApiGameObject"/> . 
 ---
 
 ## Class Description
- Represents Python-accessible land tile in game world.
- Inherits spatial visual data from <see cref="ApiGameObject"/> .
+ Represents a Python-accessible land tile in the game world.
+ Inherits spatial and visual data from <see cref="ApiGameObject"/> .
 
 
 ## Properties
-### `Flags`
-
-**Type:** `TileFlag`
-
-### `FlagsValue`
-
-**Type:** `ulong`
-
-### `Name`
-
-**Type:** `string`
-
-### `Height`
-
-**Type:** `int`
-
-### `IsSurface`
-
-**Type:** `bool`
-
-### `IsBridge`
-
-**Type:** `bool`
-
-### `IsWet`
-
-**Type:** `bool`
-
-### `IsFoliage`
-
-**Type:** `bool`
-
-### `IsWall`
-
-**Type:** `bool`
-
-### `IsDoor`
-
-**Type:** `bool`
-
-### `IsImpassable`
-
-**Type:** `bool`
-
-### `IsNoDiagonal`
-
-**Type:** `bool`
-
-### `IsNoHouse`
-
-**Type:** `bool`
-
-### `IsRoof`
-
-**Type:** `bool`
-
-### `IsBackground`
-
-**Type:** `bool`
-
 ### `__class__`
 
 **Type:** `string`
 
- Python-visible class name object.
- Accessible in Python `obj.__class__` .
+ The Python-visible class name of this object.
+ Accessible in Python as `obj.__class__` .
 
 
 
