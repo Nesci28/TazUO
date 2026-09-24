@@ -1260,7 +1260,7 @@ def ProcessCallbacks() -> None:
        API.ProcessCallbacks()
        API.Pause(0.1)
      ```
-
+    
     """
     pass
 
@@ -1377,14 +1377,6 @@ def Attack(serial: "int") -> None:
        API.Attack(enemy)
      ```
     
-    """
-    pass
-
-def GetCombatDps(serial: "int" = 0) -> "Any":
-    """
-     Gets observed combat damage for a target. Mine and Others contain attributed whole hits;
-     Unknown contains damage whose source could not be identified; Total contains all observed damage.
-
     """
     pass
 
@@ -3728,3 +3720,4 @@ class EventSinkApiDeclaration:
         
         """
         pass
+
