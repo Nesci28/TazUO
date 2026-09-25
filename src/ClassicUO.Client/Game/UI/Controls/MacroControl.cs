@@ -520,16 +520,9 @@ namespace ClassicUO.Game.UI.Controls
                 switch (obj.SubMenuType)
                 {
                     case 1:
-                        int count = 0;
-                        int offset = 0;
-                        Macro.GetBoundByCode(obj.Code, ref count, ref offset);
-
-                        string[] names = new string[count];
-
-                        for (int i = 0; i < count; i++)
-                        {
-                            names[i] = _allSubHotkeysNames[i + offset];
-                        }
+                        MacroSubType[] subTypes = Macro.GetSubTypesByCode(obj.Code);
+                        string[] names = subTypes.Select(subType => _allSubHotkeysNames[(int)subType]).ToArray();
+                        int selectedIndex = Array.IndexOf(subTypes, obj.SubCode);
 
                         var sub = new Combobox
                         (
@@ -537,70 +530,85 @@ namespace ClassicUO.Game.UI.Controls
                             Height,
                             180,
                             names,
-                            (int) obj.SubCode - offset,
+                            selectedIndex < 0 ? 0 : selectedIndex,
                             300
                         );
 
                         sub.OnOptionSelected += (senderr, ee) =>
                         {
-                            Macro.GetBoundByCode(obj.Code, ref count, ref offset);
-                            var subType = (MacroSubType) (offset + ee);
+                            MacroSubType previousSubType = obj.SubCode;
+                            MacroSubType subType = subTypes[ee];
                             obj.SubCode = subType;
+
+                            if (
+                                obj.Code == MacroType.UseObject
+                                && (previousSubType == MacroSubType.Serial || subType == MacroSubType.Serial)
+                            )
+                            {
+                                _control.SetupMacroUI();
+                            }
                         };
 
                         Add(sub);
 
                         Height += sub.Height;
 
+                        if (obj.Code == MacroType.UseObject && obj.SubCode == MacroSubType.Serial)
+                        {
+                            AddTextInput(obj);
+                        }
 
                         break;
 
                     case 2:
-
-                        var background = new ResizePic(0x0BB8)
-                        {
-                            X = 16,
-                            Y = Height,
-                            Width = 240,
-                            Height = 60
-                        };
-
-                        Add(background);
-
-                        var textbox = new StbTextBox
-                        (
-                            0xFF,
-                            80,
-                            236,
-                            true,
-                            FontStyle.BlackBorder
-                        )
-                        {
-                            X = background.X + 4,
-                            Y = background.Y + 4,
-                            Width = background.Width - 4,
-                            Height = background.Height - 4
-                        };
-
-                        textbox.SetText(obj.HasString() ? ((MacroObjectString) obj).Text : string.Empty);
-
-                        textbox.TextChanged += (sss, eee) =>
-                        {
-                            if (obj.HasString())
-                            {
-                                ((MacroObjectString) obj).Text = ((StbTextBox) sss).Text;
-                            }
-                        };
-
-                        Add(textbox);
-
-                        WantUpdateSize = true;
-                        Height += background.Height;
-
+                        AddTextInput(obj);
                         break;
                 }
 
                 _control._databox.ReArrangeChildren();
+            }
+
+            private void AddTextInput(MacroObject obj)
+            {
+                var background = new ResizePic(0x0BB8)
+                {
+                    X = 16,
+                    Y = Height,
+                    Width = 240,
+                    Height = 60
+                };
+
+                Add(background);
+
+                var textbox = new StbTextBox
+                (
+                    0xFF,
+                    80,
+                    236,
+                    true,
+                    FontStyle.BlackBorder
+                )
+                {
+                    X = background.X + 4,
+                    Y = background.Y + 4,
+                    Width = background.Width - 4,
+                    Height = background.Height - 4
+                };
+
+                textbox.SetText(obj.HasString() ? ((MacroObjectString)obj).Text : string.Empty);
+
+                textbox.TextChanged += (sss, eee) =>
+                {
+                    if (obj.HasString())
+                    {
+                        ((MacroObjectString)obj).Text = ((StbTextBox)sss).Text;
+                    }
+                };
+
+                Add(textbox);
+
+                WantUpdateSize = true;
+                Height += background.Height;
             }
 
             public override void OnButtonClick(int buttonID)
