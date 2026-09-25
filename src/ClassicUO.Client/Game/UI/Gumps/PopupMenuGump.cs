@@ -6,6 +6,7 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.Managers.VendorSearch;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
 using ClassicUO.Utility;
@@ -46,7 +47,7 @@ namespace ClassicUO.Game.UI.Gumps
 
             Add(pic);
 
-            Mobile menuMobile = World.Get(data.Serial) as Mobile;
+            var menuMobile = World.Get(data.Serial) as Mobile;
             int selectedDefaultCliloc = 0;
             bool hasDefaultAction = menuMobile != null && MobileDefaultContextActionManager.TryGetDefault(menuMobile, out selectedDefaultCliloc);
             var defaultMarkers = new List<(GumpPic Marker, int Cliloc)>();
@@ -194,6 +195,26 @@ namespace ClassicUO.Game.UI.Gumps
                     arrow.ApplyScale(scale, scalePosition: false);
                     Add(arrow);
                 }
+            }
+
+            if (
+                VendorSearchWebManager.TryGetEnabledContextMenuIndex(
+                    data,
+                    World.Player?.Serial ?? 0,
+                    out ushort vendorSearchIndex
+                )
+            )
+            {
+                AddRow(
+                    TazLang.Get("vendor_search_web", "Vendor Search Web"),
+                    0xFFFF,
+                    0,
+                    () =>
+                    {
+                        GameActions.ResponsePopupMenu(_data.Serial, vendorSearchIndex);
+                        VendorSearchWebManager.Instance.OpenBrowser();
+                    }
+                );
             }
 
             width += ScaleHelper.Scaled(20, scale);
