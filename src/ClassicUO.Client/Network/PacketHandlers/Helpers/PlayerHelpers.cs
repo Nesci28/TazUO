@@ -1,5 +1,6 @@
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
+using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
 
 namespace ClassicUO.Network.PacketHandlers.Helpers;
@@ -65,6 +66,7 @@ internal static class PlayerHelpers
             world.Player.CloseRangedGumps();
             world.Player.SetInWorldTile(x, y, z);
             world.Player.UpdateAbilities();
+            DualBoxManager.Instance.OnWalkDenied();
         }
     }
 }

@@ -1,5 +1,6 @@
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
+using ClassicUO.Game.Managers;
 using ClassicUO.IO;
 
 namespace ClassicUO.Network.PacketHandlers;
@@ -20,6 +21,7 @@ internal static class DenyWalk
 
         world.Player.Walker.DenyWalk(seq, x, y, z);
         world.Player.Direction = direction;
+        DualBoxManager.Instance.OnWalkDenied();
 
         world.Weather.Reset();
     }

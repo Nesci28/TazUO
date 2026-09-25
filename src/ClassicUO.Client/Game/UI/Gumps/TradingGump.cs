@@ -49,6 +49,7 @@ namespace ClassicUO.Game.UI.Gumps
 
             ID1 = id1;
             ID2 = id2;
+            TraderSerial = ResolveTraderSerial(world, local, id1, id2);
 
             if (ProfileManager.CurrentProfile != null)
                 GumpScale = ProfileManager.CurrentProfile.TradeGumpScale;
@@ -58,6 +59,7 @@ namespace ClassicUO.Game.UI.Gumps
 
         public uint ID1 { get; }
         public uint ID2 { get; }
+        public uint TraderSerial { get; }
 
         public uint Gold
         {
@@ -693,6 +695,38 @@ namespace ClassicUO.Game.UI.Gumps
         {
             ImAccepting = !ImAccepting;
             GameActions.AcceptTrade(ID1, ImAccepting);
+        }
+
+        internal void AcceptFromDualBox()
+        {
+            if (ImAccepting || IsDisposed)
+                return;
+
+            ImAccepting = true;
+            GameActions.AcceptTrade(ID1, true);
+        }
+
+        private static uint ResolveTraderSerial(World world, uint local, uint id1, uint id2)
+        {
+            uint playerSerial = world?.Player?.Serial ?? 0;
+
+            if (SerialHelper.IsMobile(local) && local != playerSerial)
+                return local;
+
+            uint traderSerial = GetTradeBoxOwner(world, id1, playerSerial);
+            return traderSerial != 0 ? traderSerial : GetTradeBoxOwner(world, id2, playerSerial);
+        }
+
+        private static uint GetTradeBoxOwner(World world, uint boxSerial, uint playerSerial)
+        {
+            if (world?.Get(boxSerial) is Item box
+                && SerialHelper.IsMobile(box.Container)
+                && box.Container != playerSerial)
+            {
+                return box.Container;
+            }
+
+            return 0;
         }
     }
 

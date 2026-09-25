@@ -29,6 +29,7 @@ namespace ClassicUO.Game.Managers
         private readonly uint[] _itemsInHand = new uint[2];
         private MacroObject _lastMacro;
         private MacroObject _currentMacroHead; // head node of the macro currently executing (for toggle-stop)
+        private bool _processingMacroAction;
         private long _nextTimer;
         private readonly World _world;
 
@@ -85,6 +86,8 @@ namespace ClassicUO.Game.Managers
         public long WaitForTargetTimer { get; set; }
 
         public bool WaitingBandageTarget { get; set; }
+
+        internal bool IsProcessingAction => _processingMacroAction;
 
         public static MacroManager TryGetMacroManager(World world) => world.Macros;
 
@@ -564,14 +567,28 @@ namespace ClassicUO.Game.Managers
         }
 
         public void SetMacroToExecute(MacroObject macro)
+            => SetMacroToExecute(macro, true);
+
+        private void SetMacroToExecute(MacroObject macro, bool synchronize)
         {
+            if (macro == null)
+                return;
+
+            Macro owningMacro = synchronize ? FindOwningMacro(macro) : null;
+
             // If this exact macro is already running and it contains a loop,
             // treat triggering it again as a "stop" request.
             if (_lastMacro != null && _currentMacroHead == macro && MacroContainsLoop(macro))
             {
+                if (owningMacro != null)
+                    DualBoxManager.Instance.BroadcastMacroStop();
+
                 StopExecution();
                 return;
             }
+
+            if (owningMacro != null)
+                DualBoxManager.Instance.BroadcastMacro(SerializeMacroDefinition(owningMacro));
 
             // Reset any loop containers in this macro's action chain so a fresh
             // invocation always starts loops from iteration 0, even if a previous
@@ -586,6 +603,76 @@ namespace ClassicUO.Game.Managers
 
             _lastMacro = macro;
             _currentMacroHead = macro;
+        }
+
+        private Macro FindOwningMacro(MacroObject macro)
+        {
+            for (var candidate = (Macro)Items; candidate != null; candidate = (Macro)candidate.Next)
+            {
+                if (ReferenceEquals(candidate.Items, macro))
+                    return candidate;
+            }
+
+            return null;
+        }
+
+        internal bool TryExecuteSynchronizedMacro(string definition)
+        {
+            try
+            {
+                Macro macro = DeserializeMacroDefinition(definition);
+
+                if (macro?.Items is not MacroObject firstAction)
+                    return false;
+
+                WaitingBandageTarget = false;
+                WaitForTargetTimer = 0;
+                SetMacroToExecute(firstAction, false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Could not load synchronized dual-box macro: {ex.Message}");
+                return false;
+            }
+        }
+
+        internal static string SerializeMacroDefinition(Macro macro)
+        {
+            if (macro == null)
+                return string.Empty;
+
+            using var text = new StringWriter();
+            using var writer = new XmlTextWriter(text) { Formatting = Formatting.None };
+            macro.Save(writer);
+            writer.Flush();
+            return text.ToString();
+        }
+
+        internal static Macro DeserializeMacroDefinition(string definition)
+        {
+            if (string.IsNullOrWhiteSpace(definition))
+                return null;
+
+            var settings = new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
+            var document = new XmlDocument { XmlResolver = null };
+
+            using (var text = new StringReader(definition))
+            using (XmlReader reader = XmlReader.Create(text, settings))
+                document.Load(reader);
+
+            XmlElement element = document.DocumentElement;
+
+            if (element?.Name != "macro")
+                return null;
+
+            var macro = new Macro(element.GetAttribute("name"));
+            macro.Load(element);
+            return macro;
         }
 
         private static bool MacroContainsLoop(MacroObject macro)
@@ -656,7 +743,15 @@ namespace ClassicUO.Game.Managers
             }
             else if (_nextTimer <= Time.Ticks)
             {
-                result = Process(_lastMacro);
+                try
+                {
+                    _processingMacroAction = true;
+                    result = Process(_lastMacro);
+                }
+                finally
+                {
+                    _processingMacroAction = false;
+                }
             }
             else // MRC_BREAK_PARSER
             {

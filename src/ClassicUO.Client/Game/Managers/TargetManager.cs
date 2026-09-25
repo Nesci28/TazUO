@@ -270,6 +270,7 @@ namespace ClassicUO.Game.Managers
             if (IsTargeting)
             {
                 //UIManager.RemoveTargetLineGump(LastTarget);
+                DualBoxManager.Instance.OnTargetCursorActivated(targeting);
             }
             else if (lastTargetting)
             {
@@ -287,6 +288,8 @@ namespace ClassicUO.Game.Managers
 
         public void CancelTarget()
         {
+            DualBoxManager.Instance.OnTargetCursorCancelled();
+
             if (TargetingState == CursorTarget.MultiPlacement)
             {
                 _world.HouseManager.Remove(0);
@@ -412,6 +415,8 @@ namespace ClassicUO.Game.Managers
                                                                                    _targetCursorId,
                                                                                    (byte)TargetingType);
 
+                                                DualBoxManager.Instance.OnEntityTargetSelected(serial);
+
                                                 ClearTargetingWithoutTargetCancelPacket();
 
                                                 if (LastTargetInfo.Serial != serial)
@@ -467,6 +472,8 @@ namespace ClassicUO.Game.Managers
                                                                entity.Z,
                                                                _targetCursorId,
                                                                (byte)TargetingType);
+
+                            DualBoxManager.Instance.OnEntityTargetSelected(serial);
 
                             if (SerialHelper.IsMobile(serial) && LastTargetInfo.Serial != serial)
                             {
@@ -582,6 +589,35 @@ namespace ClassicUO.Game.Managers
                         return;
                 }
             }
+        }
+
+        /// <summary>
+        /// Responds to an object target cursor with a mobile serial even when that mobile has not
+        /// been loaded into the local world. Party invitations are resolved server-side by serial.
+        /// </summary>
+        internal bool TargetMobileSerial(uint serial)
+        {
+            if (!IsTargeting
+                || TargetingState != CursorTarget.Object
+                || !SerialHelper.IsMobile(serial))
+            {
+                return false;
+            }
+
+            Entity entity = _world.Get(serial);
+            AsyncNetClient.Socket.Send_TargetObject(
+                serial,
+                entity?.Graphic ?? 0,
+                entity?.X ?? 0,
+                entity?.Y ?? 0,
+                entity?.Z ?? 0,
+                _targetCursorId,
+                (byte)TargetingType
+            );
+
+            ClearTargetingWithoutTargetCancelPacket();
+            Mouse.CancelDoubleClick = true;
+            return true;
         }
 
         public void Target(ushort graphic, ushort x, ushort y, short z, bool wet = false)
@@ -753,6 +789,8 @@ namespace ClassicUO.Game.Managers
                                             z,
                                             _targetCursorId,
                                             (byte)TargetingType);
+
+            DualBoxManager.Instance.OnLocationTargetSelected(graphic, x, y, z);
 
 
             Mouse.CancelDoubleClick = true;
