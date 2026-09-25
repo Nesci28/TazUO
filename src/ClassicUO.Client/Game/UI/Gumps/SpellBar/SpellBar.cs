@@ -300,7 +300,7 @@ public class SpellBar : Gump
             background.Hue = SpellBarManager.SpellBarRows[row].RowHue;
             SpellBarManager.SpellBarRows[row].Slots[col] = this.slot;
 
-            icon.Hue = 0; // Draw() re-applies the active highlight for ability slots
+            icon.Hue = 0; // Draw() re-applies active highlights for spell and ability slots
             SetMacroLabel();
 
             // Seed the script running-highlight once at assignment (events keep it updated thereafter).
@@ -636,8 +636,7 @@ public class SpellBar : Gump
                     }
                     icon.IsVisible = true;
 
-                    bool active = ((byte)World.Player.Abilities[slot.AbilityPrimary ? 0 : 1] & 0x80) != 0;
-                    ushort wanted = (ushort)(active ? 38 : 0);
+                    ushort wanted = slot.GetActiveHue(World);
                     if (icon.Hue != wanted)
                         icon.Hue = wanted;
                 }
@@ -649,9 +648,7 @@ public class SpellBar : Gump
             }
             else if (slot != null && slot.Type == CounterBarSlotType.Spell)
             {
-                // Toggle moves (e.g. Ninjitsu Backstab, Ki Attack) report on/off via ActiveSpellIcons; keep the highlight in sync.
-                bool active = World.ActiveSpellIcons.IsActive((ushort)slot.CurrentSpellID);
-                ushort wanted = (ushort)(active ? 38 : 0);
+                ushort wanted = slot.GetActiveHue(World);
                 if (icon.Hue != wanted)
                     icon.Hue = wanted;
             }
