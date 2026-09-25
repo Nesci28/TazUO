@@ -181,6 +181,37 @@ public class GridHighlightDataTests
         rule.IsMatch(Tooltip("ring\nLuck 80")).Should().BeTrue();
     }
 
+    [Fact]
+    public void MatchingRepairsApplyToEveryRuleAndKeepRuleOrder()
+    {
+        GridHighlightData first = CreateRule(properties:
+        [
+            new GridHighlightProperty { Name = "Luck", MinValue = 100 }
+        ]);
+        GridHighlightData second = CreateRule(itemNames: ["ring"]);
+        GridHighlightData rejected = CreateRule(properties:
+        [
+            new GridHighlightProperty { Name = "Damage Increase", MinValue = 20 }
+        ]);
+        second.LootOnMatch = true;
+        rejected.LootOnMatch = true;
+
+        GridHighlightData[] original = GridHighlightData.AllConfigs;
+        try
+        {
+            GridHighlightData.AllConfigs = [first, second, rejected];
+            GridHighlightData[] matches = GridHighlightData.GetMatches(Tooltip("ring\nLuck 110"));
+
+            matches.Should().Equal(first, second);
+            GridHighlightData.GetBestMatch(Tooltip("ring\nLuck 110")).Should().BeSameAs(first);
+            GridHighlightData.GetAutoLootMatch(matches).Should().BeSameAs(second);
+        }
+        finally
+        {
+            GridHighlightData.AllConfigs = original;
+        }
+    }
+
     private static GridHighlightData CreateRule(
         List<string> itemNames = null,
         List<GridHighlightProperty> properties = null,
