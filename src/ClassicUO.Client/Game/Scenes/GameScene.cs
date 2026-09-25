@@ -262,6 +262,7 @@ namespace ClassicUO.Game.Scenes
             BackpackNotificationManager.Instance.OnSceneLoad();
             HealthNotificationManager.Instance.OnSceneLoad();
             AutoLootManager.Instance.OnSceneLoad();
+            GridHighlightData.OnSceneLoad();
             AutoSkinningManager.Instance.OnSceneLoad();
             ScavengerManager.Instance.OnSceneLoad();
             DressAgentManager.Instance.Load();
