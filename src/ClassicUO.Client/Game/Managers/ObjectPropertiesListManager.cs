@@ -374,6 +374,17 @@ namespace ClassicUO.Game.Managers
             return true;
         }
 
+        internal ItemPropertiesData GetComparedItemProperties()
+        {
+            if (world == null || itemComparedTo == null)
+                return null;
+
+            // Comparison only needs the equipped item's OPL and network layer. Using the Item
+            // constructor would unnecessarily dereference TileData, which may be unavailable for
+            // OPL-only vendor results and in headless/unit-test contexts.
+            return new ItemPropertiesData(world, itemComparedTo.Serial, (byte)itemComparedTo.Layer);
+        }
+
         public string CompileTooltip()
         {
             string result = "";

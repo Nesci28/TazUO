@@ -71,6 +71,10 @@ internal static class ItemComparisonTooltips
         if (equipped == null)
             return null;
 
+        world.OPL.Contains(equipped.Serial);
+        if (secondEquipped != null)
+            world.OPL.Contains(secondEquipped.Serial);
+
         CustomToolTip candidateTooltip = string.IsNullOrWhiteSpace(candidateTooltipText)
             ? new CustomToolTip(
                 world,
@@ -99,6 +103,7 @@ internal static class ItemComparisonTooltips
             hoverReference,
             "<basefont color=\"orange\">Equipped Item<br>"
         );
+        equippedTooltip.OnOPLLoaded += candidateTooltip.RefreshData;
 
         var tooltips = new List<CustomToolTip> { candidateTooltip, equippedTooltip };
 
@@ -115,16 +120,16 @@ internal static class ItemComparisonTooltips
 
         if (secondEquipped != null)
         {
-            tooltips.Add(
-                new CustomToolTip(
-                    world,
-                    secondEquipped,
-                    equippedTooltip.X + equippedTooltip.Width + 10,
-                    equippedTooltip.Y,
-                    hoverReference,
-                    "<basefont color=\"orange\">Equipped Item<br>"
-                )
+            var secondEquippedTooltip = new CustomToolTip(
+                world,
+                secondEquipped,
+                equippedTooltip.X + equippedTooltip.Width + 10,
+                equippedTooltip.Y,
+                hoverReference,
+                "<basefont color=\"orange\">Equipped Item<br>"
             );
+            secondEquippedTooltip.OnOPLLoaded += candidateTooltip.RefreshData;
+            tooltips.Add(secondEquippedTooltip);
         }
 
         return new MultipleToolTipGump(
