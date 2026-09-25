@@ -7,6 +7,7 @@ using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Renderer;
 using ClassicUO.Renderer.Animations;
+using ClassicUO.UnitTests.Fixtures;
 using Xunit;
 
 namespace ClassicUO.UnitTests.Game;
