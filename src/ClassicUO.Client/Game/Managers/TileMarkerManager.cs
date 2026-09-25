@@ -97,6 +97,24 @@ namespace ClassicUO.Game.Managers
             }
         }
 
+        /// <summary>
+        /// Remove every marker, optionally restricting the operation to one map.
+        /// </summary>
+        public int RemoveTiles(int? map = null)
+        {
+            TileLocation[] locations = markedTiles.Keys
+                .Where(location => !map.HasValue || location.Map == map.Value)
+                .ToArray();
+
+            foreach (TileLocation location in locations)
+            {
+                markedTiles.Remove(location);
+                UpdateLiveTilesAt(location.X, location.Y, location.Map, 0);
+            }
+
+            return locations.Length;
+        }
+
         public bool IsTileMarked(int x, int y, int map, out ushort hue) => markedTiles.TryGetValue(new TileLocation(x, y, map), out hue);
 
 

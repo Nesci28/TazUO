@@ -95,6 +95,7 @@
   <ItemGroup>
     <DocSourceFiles Include="$(ProjectDir)/LegionScripting/ApiClasses/*.cs" />
     <DocSourceFiles Include="LegionScripting\LegionAPI.cs" />
+    <DocSourceFiles Include="LegionScripting\LegionAPI.HousePlacementScanner.cs" />
     <DocSourceFiles Include="$(BaseIntermediateOutputPath)/generated/EventGenerator/**/*.Api.Decl.g.cs" />
   </ItemGroup>
 
@@ -103,7 +104,7 @@
     <DocFileArgs>@(DocSourceFiles->'"%(FullPath)"', ' ')</DocFileArgs>
   </PropertyGroup>
 
-  <Target Name="GenerateDocs" AfterTargets="Build">
+  <Target Name="GenerateDocs" AfterTargets="Build" Condition="'$(RunGenerateDocs)' != 'false'">
     <Message Text="Running: dotnet run --project ../APIToMarkdown/APIToMarkdown.csproj $(DocFileArgs)" />
     <Exec Command="dotnet run --project ../APIToMarkdown/APIToMarkdown.csproj &quot;$(ProjectDir)/LegionScripting/docs&quot; $(DocFileArgs)" />
   </Target>
