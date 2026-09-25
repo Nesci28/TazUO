@@ -79,8 +79,8 @@ public static class GumpBrowserTabContent
             if (hasArt)
             {
                 var preview = new MyraGumpTexture(id, zoomSize);
-                int natW = gump.UV.Width;
-                int natH = gump.UV.Height;
+                int natW = gump.LogicalWidth;
+                int natH = gump.LogicalHeight;
                 if (natW > 0 && natH > 0)
                 {
                     float scale = (float)zoomSize / Math.Max(natW, natH);
@@ -126,7 +126,7 @@ public static class GumpBrowserTabContent
                 TazLang.Get("tinkerer_gump_graphicid", new[] { id.ToString(), $"0x{id:X4}" }), MyraLabel.TextStyle.P));
             detailPanel.Widgets.Add(new MyraLabel(
                 hasArt
-                    ? TazLang.Get("tinkerer_gump_dimensions", new[] { gump.UV.Width.ToString(), gump.UV.Height.ToString() })
+                    ? TazLang.Get("tinkerer_gump_dimensions", new[] { gump.LogicalWidth.ToString(), gump.LogicalHeight.ToString() })
                     : TazLang.Get("tinkerer_gump_dimensions_noart", "Dimensions: No art"),
                 MyraLabel.TextStyle.P));
 

@@ -136,7 +136,6 @@ namespace ClassicUO.Game.UI.Gumps
             private readonly Action<ushort> hueChanged;
             private readonly bool isClickable;
             private readonly bool sendSysMessage;
-            private Rectangle rect;
             private Rectangle bounds;
             private Texture2D texture;
             private Vector3 hueVector;
@@ -168,10 +167,10 @@ namespace ClassicUO.Game.UI.Gumps
                 hueVector = ShaderHueTranslator.GetHueVector(hue, true, 1);
                 ref readonly SpriteInfo staticArt = ref Client.Game.UO.Arts.GetArt(0x0FAB);
                 texture = staticArt.Texture;
-                rect = Client.Game.UO.Arts.GetRealArtBounds(0x0FAB);
+                Rectangle rect = Client.Game.UO.Arts.GetRealArtBounds(0x0FAB);
                 Width = 18;
                 Height = 18;
-                this.bounds = staticArt.UV;
+                this.bounds = staticArt.GetPhysicalSourceRectangle(rect);
                 CanMove = true;
                 CanCloseWithRightClick = true;
                 AcceptMouseInput = true;
@@ -240,13 +239,7 @@ namespace ClassicUO.Game.UI.Gumps
                             Width,
                             Height
                         ),
-                        new Rectangle
-                        (
-                            bounds.X + rect.X,
-                            bounds.Y + rect.Y,
-                            rect.Width,
-                            rect.Height
-                        ),
+                        bounds,
                         hueVector
                     );
                 }

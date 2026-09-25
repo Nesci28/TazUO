@@ -66,6 +66,7 @@ namespace ClassicUO.Renderer
         private float _projectionZNear = short.MinValue;
         private float _projectionZFar = short.MaxValue;
         private Matrix _transformMatrix;
+        private float _outputScale = 1f;
         private readonly DynamicVertexBuffer _vertexBuffer;
         private readonly BasicUOEffect _basicUOEffect;
         private Texture2D[] _textureInfo;
@@ -122,6 +123,16 @@ namespace ClassicUO.Renderer
         };
 
         public GraphicsDevice GraphicsDevice { get; }
+
+        /// <summary>
+        /// Maps logical client coordinates to render-target pixels. Native HiDPI uses the SDL
+        /// drawable ratio; Balanced HiDPI may use a lower density and upscale during presentation.
+        /// </summary>
+        public float OutputScale
+        {
+            get => _outputScale;
+            set => _outputScale = Math.Max(1f, value);
+        }
 
         public int TextureSwitches, FlushesDone;
 
@@ -429,7 +440,7 @@ namespace ClassicUO.Renderer
             PushSprite(texture);
         }
 
-        public void DrawShadow(Texture2D texture, Vector2 position, Rectangle sourceRect, bool flip, float depth)
+        public void DrawShadow(Texture2D texture, Vector2 position, Rectangle sourceRect, bool flip, float depth, float sourceScale = 1f)
         {
             // Skip if texture is null or disposed
             if (texture == null || texture.IsDisposed)
@@ -437,8 +448,8 @@ namespace ClassicUO.Renderer
                 return;
             }
 
-            float width = sourceRect.Width;
-            float height = sourceRect.Height * 0.5f;
+            float width = sourceRect.Width * sourceScale;
+            float height = sourceRect.Height * sourceScale * 0.5f;
             float translatedY = position.Y + height - 10;
             float ratio = height / width;
 
@@ -514,7 +525,8 @@ namespace ClassicUO.Renderer
             Vector3 mod,
             Vector3 hue,
             bool flip,
-            float depth
+            float depth,
+            float sourceScale = 1f
         )
         {
             // Skip if texture is null or disposed
@@ -525,14 +537,17 @@ namespace ClassicUO.Renderer
 
             EnsureSize();
 
-            float h03 = sourceRect.Height * mod.X;
-            float h06 = sourceRect.Height * mod.Y;
-            float h09 = sourceRect.Height * mod.Z;
+            float sourceH03 = sourceRect.Height * mod.X;
+            float sourceH06 = sourceRect.Height * mod.Y;
+            float sourceH09 = sourceRect.Height * mod.Z;
+            float h03 = sourceH03 * sourceScale;
+            float h06 = sourceH06 * sourceScale;
+            float h09 = sourceH09 * sourceScale;
 
             float sittingOffset = flip ? -8.0f : 8.0f;
 
-            float width = sourceRect.Width;
-            float widthOffset = sourceRect.Width + sittingOffset;
+            float width = sourceRect.Width * sourceScale;
+            float widthOffset = width + sittingOffset;
 
             if (mod.X != 0.0f)
             {
@@ -622,9 +637,9 @@ namespace ClassicUO.Renderer
                 vertex.Position3.Z = depth;
 
                 float sourceX = ((sourceRect.X + 0.5f) / (float)texture.Width);
-                float sourceY = ((sourceRect.Y + 0.5f + h03) / (float)texture.Height);
+                float sourceY = ((sourceRect.Y + 0.5f + sourceH03) / (float)texture.Height);
                 float sourceW = ((sourceRect.Width - 1f) / (float)texture.Width);
-                float sourceH = ((sourceRect.Height - 1f - h03) / (float)texture.Height);
+                float sourceH = ((sourceRect.Height - 1f - sourceH03) / (float)texture.Height);
 
                 byte effects = (byte)((flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None) & (SpriteEffects)0x03);
 
@@ -686,9 +701,9 @@ namespace ClassicUO.Renderer
                 vertex.Position3.Z = depth;
 
                 float sourceX = ((sourceRect.X + 0.5f) / (float)texture.Width);
-                float sourceY = ((sourceRect.Y + 0.5f + h06) / (float)texture.Height);
+                float sourceY = ((sourceRect.Y + 0.5f + sourceH06) / (float)texture.Height);
                 float sourceW = ((sourceRect.Width - 1f) / (float)texture.Width);
-                float sourceH = ((sourceRect.Height - 1f - h06) / (float)texture.Height);
+                float sourceH = ((sourceRect.Height - 1f - sourceH06) / (float)texture.Height);
 
                 byte effects = (byte)((flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None) & (SpriteEffects)0x03);
 
@@ -1401,11 +1416,19 @@ namespace ClassicUO.Renderer
         }
 
 
-        public void Begin() => Begin(null, Matrix.Identity);
+        public void Begin() => BeginInternal(null, Matrix.Identity, true);
 
-        public void Begin(Effect effect) => Begin(effect, Matrix.Identity);
+        public void Begin(Effect effect) => BeginInternal(effect, Matrix.Identity, true);
 
         public void Begin(Effect customEffect, Matrix transform_matrix)
+            => BeginInternal(customEffect, transform_matrix, true);
+
+        public void BeginUnscaled() => BeginInternal(null, Matrix.Identity, false);
+
+        public void BeginUnscaled(Effect customEffect, Matrix transformMatrix)
+            => BeginInternal(customEffect, transformMatrix, false);
+
+        private void BeginInternal(Effect customEffect, Matrix transformMatrix, bool applyOutputScale)
         {
             EnsureNotStarted();
             _started = true;
@@ -1413,7 +1436,13 @@ namespace ClassicUO.Renderer
             FlushesDone = 0;
 
             _customEffect = customEffect;
-            _transformMatrix = transform_matrix;
+            _transformMatrix = transformMatrix;
+
+            if (applyOutputScale && _outputScale != 1f)
+            {
+                Matrix.CreateScale(_outputScale, _outputScale, 1f, out Matrix outputScaleMatrix);
+                Matrix.Multiply(ref _transformMatrix, ref outputScaleMatrix, out _transformMatrix);
+            }
         }
 
         public void End()
@@ -1645,6 +1674,12 @@ namespace ClassicUO.Renderer
 
             if (texture is Texture2D tex2d)
             {
+                GraphicsDevice.SamplerStates[0] = TextureAtlas.TryGetPreferredSampler(
+                    tex2d,
+                    out SamplerState preferredSampler
+                )
+                    ? preferredSampler
+                    : _sampler;
                 _basicUOEffect.TexelSize.SetValue(new Vector2(1f / tex2d.Width, 1f / tex2d.Height));
                 _basicUOEffect.Pass.Apply();
             }
