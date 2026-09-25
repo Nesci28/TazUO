@@ -21,14 +21,14 @@ public class ItemDetailMyraWindow : MyraControl
     {
         _item = item;
 
-        var layout = new VerticalStackPanel { Spacing = 8 };
+        var layout = new MyraVerticalStackPanel { Spacing = 8 };
         layout.Widgets.Add(BuildGraphicSection());
         layout.Widgets.Add(BuildBasicInfoSection());
         layout.Widgets.Add(BuildLocationSection());
         layout.Widgets.Add(BuildPropertiesSection());
         layout.Widgets.Add(BuildActionsSection());
 
-        SetRootContent(new ScrollViewer { MaxHeight = 600, Content = layout });
+        SetRootContent(new MyraScrollViewer { MaxHeight = 600, Content = layout });
         CenterInViewPort();
         UIManager.Add(this);
         BringOnTop();
@@ -36,13 +36,13 @@ public class ItemDetailMyraWindow : MyraControl
 
     private Widget BuildGraphicSection()
     {
-        var row = new HorizontalStackPanel { Spacing = 8 };
+        var row = new MyraHorizontalStackPanel { Spacing = 8 };
 
         if (_item.Graphic > 0)
             row.Widgets.Add(new MyraArtTexture(_item.Graphic, maxSize: 64)
                 { Tooltip = $"Graphic: {_item.Graphic} (0x{_item.Graphic:X4})" });
 
-        var infoCol = new VerticalStackPanel { Spacing = 2 };
+        var infoCol = new MyraVerticalStackPanel { Spacing = 2 };
         infoCol.Widgets.Add(new MyraLabel($"Graphic ID: {_item.Graphic} (0x{_item.Graphic:X4})", MyraLabel.TextStyle.P));
         infoCol.Widgets.Add(_item.Hue > 0
             ? new MyraLabel($"Hue: {_item.Hue} (0x{_item.Hue:X4})", MyraLabel.TextStyle.P)
@@ -53,7 +53,7 @@ public class ItemDetailMyraWindow : MyraControl
 
     private Widget BuildBasicInfoSection()
     {
-        var panel = new VerticalStackPanel { Spacing = 2 };
+        var panel = new MyraVerticalStackPanel { Spacing = 2 };
         panel.Widgets.Add(new MyraLabel("Basic Information", MyraLabel.TextStyle.H3));
 
         if (_item.CustomName.NotNullNotEmpty())
@@ -79,7 +79,7 @@ public class ItemDetailMyraWindow : MyraControl
 
     private Widget BuildLocationSection()
     {
-        var panel = new VerticalStackPanel { Spacing = 2 };
+        var panel = new MyraVerticalStackPanel { Spacing = 2 };
         panel.Widgets.Add(new MyraLabel("Location", MyraLabel.TextStyle.H3));
 
         if (_item.OnGround)
@@ -106,7 +106,7 @@ public class ItemDetailMyraWindow : MyraControl
 
     private Widget BuildPropertiesSection()
     {
-        var panel = new VerticalStackPanel { Spacing = 2 };
+        var panel = new MyraVerticalStackPanel { Spacing = 2 };
         panel.Widgets.Add(new MyraLabel("Properties", MyraLabel.TextStyle.H3));
 
         if (!string.IsNullOrEmpty(_item.Properties))
@@ -125,10 +125,10 @@ public class ItemDetailMyraWindow : MyraControl
 
     private Widget BuildActionsSection()
     {
-        var panel = new VerticalStackPanel { Spacing = 4 };
+        var panel = new MyraVerticalStackPanel { Spacing = 4 };
         panel.Widgets.Add(new MyraLabel("Actions", MyraLabel.TextStyle.H3));
 
-        var row1 = new HorizontalStackPanel { Spacing = 4 };
+        var row1 = new MyraHorizontalStackPanel { Spacing = 4 };
 
         // Use Item — only if item exists in world
         Item? worldItem = World.Instance?.Items?.Get(_item.Serial);
@@ -168,7 +168,7 @@ public class ItemDetailMyraWindow : MyraControl
 
         panel.Widgets.Add(row1);
 
-        var row2 = new HorizontalStackPanel { Spacing = 4 };
+        var row2 = new MyraHorizontalStackPanel { Spacing = 4 };
 
         if (!_item.OnGround && _item.Container != 0)
         {

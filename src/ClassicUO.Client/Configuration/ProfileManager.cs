@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
+using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 
@@ -165,6 +166,7 @@ namespace ClassicUO.Configuration
             ValidateFields(CurrentProfile);
 
             CurrentProfile.AfterLoad();
+            MyraStyle.ApplyThemePreset(CurrentProfile.GumpThemePreset);
 
             Client.Game?.SetVSync(CurrentProfile.EnableVSync);
         }

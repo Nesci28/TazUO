@@ -22,14 +22,14 @@ public class MyraDialog : MyraControl
     {
         _onClose = onClose;
 
-        var layout = new VerticalStackPanel
+        var layout = new MyraVerticalStackPanel
         {
             Spacing = 8,
             Padding = new Thickness(8)
         };
         layout.Widgets.Add(content);
 
-        var btnRow = new HorizontalStackPanel
+        var btnRow = new MyraHorizontalStackPanel
         {
             Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Right

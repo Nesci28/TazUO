@@ -7,7 +7,6 @@ using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.LegionScripting;
 using Microsoft.Xna.Framework;
-using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
 
 namespace ClassicUO.Game.UI.MyraWindows;
@@ -19,9 +18,9 @@ public class PersistentVarsWindow : MyraControl
     private string? _editingKey;
     private string _editingValue = "";
 
-    private readonly VerticalStackPanel _varsPanel = new() { Spacing = 2, MaxWidth = 700 };
-    private readonly HorizontalStackPanel _scopeButtonRow = new() { Spacing = 4 };
-    private readonly HorizontalStackPanel _scopeDescPanel = new() { Spacing = 4 };
+    private readonly VerticalStackPanel _varsPanel = new MyraVerticalStackPanel { Spacing = 2, MaxWidth = 700 };
+    private readonly HorizontalStackPanel _scopeButtonRow = new MyraHorizontalStackPanel { Spacing = 4 };
+    private readonly HorizontalStackPanel _scopeDescPanel = new MyraHorizontalStackPanel { Spacing = 4 };
 
     public PersistentVarsWindow() : base("Persistent Variables Manager")
     {
@@ -43,12 +42,20 @@ public class PersistentVarsWindow : MyraControl
         UIManager.Add(new PersistentVarsWindow());
     }
 
+    protected override void OnThemeChanged()
+    {
+        base.OnThemeChanged();
+        BuildScopeButtons();
+        BuildScopeDesc();
+        BuildVarsGrid();
+    }
+
     private void Build()
     {
-        var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
+        var root = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
 
         // Scope selector
-        var scopeRow = new HorizontalStackPanel { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        var scopeRow = new MyraHorizontalStackPanel { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         scopeRow.Widgets.Add(new MyraLabel("Scope:", MyraLabel.TextStyle.P));
         BuildScopeButtons();
         scopeRow.Widgets.Add(_scopeButtonRow);
@@ -61,7 +68,7 @@ public class PersistentVarsWindow : MyraControl
 
         // Variables list
         BuildVarsGrid();
-        root.Widgets.Add(new ScrollViewer { MaxHeight = 400, Content = _varsPanel });
+        root.Widgets.Add(new MyraScrollViewer { MaxHeight = 400, Content = _varsPanel });
 
         SetRootContent(root);
     }
@@ -92,7 +99,7 @@ public class PersistentVarsWindow : MyraControl
             });
 
             if (_selectedScope == scope)
-                btn.Background = new SolidBrush(new Color(170, 105, 13, 220));
+                MyraStyle.ApplyButtonSelectedStyle(btn);
 
             _scopeButtonRow.Widgets.Add(btn);
         }
@@ -106,7 +113,7 @@ public class PersistentVarsWindow : MyraControl
 
     private Widget BuildToolbar()
     {
-        var toolbar = new HorizontalStackPanel { Spacing = 4 };
+        var toolbar = new MyraHorizontalStackPanel { Spacing = 4 };
 
         var filterBox = new MyraInputBox { Text = _filterText, HintText = "Filter variables...", Width = 200 };
         filterBox.TextChangedByUser += (_, _) =>
@@ -170,7 +177,7 @@ public class PersistentVarsWindow : MyraControl
                 editBox.TextChangedByUser += (_, _) => _editingValue = editBox.Text ?? "";
                 grid.AddWidget(editBox, dataRow, 1);
 
-                var actionRow = new HorizontalStackPanel { Spacing = 2 };
+                var actionRow = new MyraHorizontalStackPanel { Spacing = 2 };
                 actionRow.Widgets.Add(new MyraButton("Save", () =>
                 {
                     string savedKey = key;
@@ -192,7 +199,7 @@ public class PersistentVarsWindow : MyraControl
             {
                 grid.AddWidget(new MyraLabel(value, MyraLabel.TextStyle.P) { Tooltip = value }, dataRow, 1);
 
-                var actionRow = new HorizontalStackPanel { Spacing = 2 };
+                var actionRow = new MyraHorizontalStackPanel { Spacing = 2 };
                 actionRow.Widgets.Add(new MyraButton("Edit", () =>
                 {
                     _editingKey   = key;
@@ -215,7 +222,7 @@ public class PersistentVarsWindow : MyraControl
         var keyBox   = new MyraInputBox { HintText = "Key name...", Width = 300 };
         var valueBox = new MyraInputBox { HintText = "Value...",    Width = 300 };
 
-        var form = new VerticalStackPanel { Spacing = 4 };
+        var form = new MyraVerticalStackPanel { Spacing = 4 };
         form.Widgets.Add(new MyraLabel($"Add new variable to {_selectedScope} scope:", MyraLabel.TextStyle.P));
         form.Widgets.Add(new MyraLabel("Key:",   MyraLabel.TextStyle.P));
         form.Widgets.Add(keyBox);

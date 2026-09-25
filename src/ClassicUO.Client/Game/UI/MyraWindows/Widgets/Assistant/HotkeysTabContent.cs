@@ -53,10 +53,10 @@ public static class HotkeysTabContent
 
     public static Widget Build()
     {
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
         root.Widgets.Add(new MyraLabel("Hotkeys", MyraLabel.TextStyle.H2));
 
-        var listPanel = new VerticalStackPanel { Spacing = 1 };
+        var listPanel = new MyraVerticalStackPanel { Spacing = 1 };
 
         void BuildList()
         {
@@ -166,7 +166,7 @@ public static class HotkeysTabContent
 
         BuildList();
 
-        var topBar = new HorizontalStackPanel { Spacing = 4 };
+        var topBar = new MyraHorizontalStackPanel { Spacing = 4 };
         topBar.Widgets.Add(new MyraButton("Reset all", () =>
         {
             foreach (HotKeyEntry e in HotKeys.AllRegistered())
@@ -175,7 +175,7 @@ public static class HotkeysTabContent
         }));
         root.Widgets.Add(topBar);
 
-        root.Widgets.Add(new ScrollViewer { Height = 360, Content = listPanel });
+        root.Widgets.Add(new MyraScrollViewer { Height = 360, Content = listPanel });
 
         return root;
     }
