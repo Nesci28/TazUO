@@ -152,6 +152,16 @@ namespace ClassicUO.Game.Scenes
             return false;
         }
 
+        private bool MoveCharByMobileJoystick()
+        {
+            Direction direction = MobileControlBridge.Direction;
+            if (direction == Direction.NONE || !_world.InGame || _world.Player.Pathfinder.AutoWalking)
+                return false;
+
+            _world.Player.Walk(direction, ProfileManager.CurrentProfile.AlwaysRun);
+            return true;
+        }
+
         private bool CanDragSelectOnObject(GameObject obj) => obj is null
                 || obj is Static
                 || obj is Land
@@ -449,7 +459,11 @@ namespace ClassicUO.Game.Scenes
 
             SelectedObject.LastLeftDownObject = SelectedObject.Object;
 
-            if (ProfileManager.CurrentProfile.EnableDragSelect && DragSelectModifierActive())
+            if (BeginMobileDragSelection())
+            {
+                // Touch selection starts only after the finger crosses its drag threshold.
+            }
+            else if (ProfileManager.CurrentProfile.EnableDragSelect && DragSelectModifierActive())
             {
                 if (CanDragSelectOnObject(SelectedObject.Object as GameObject))
                 {

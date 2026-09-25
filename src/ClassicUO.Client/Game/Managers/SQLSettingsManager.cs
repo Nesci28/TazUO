@@ -557,10 +557,13 @@ namespace ClassicUO.Game.Managers
     }
 }
 
+namespace ClassicUO.Configuration
+{
 public enum SettingsScope
 {
     Char,
     Account,
     Server,
     Global
+}
 }

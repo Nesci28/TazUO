@@ -13,6 +13,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ClassicUO.Game.UI;
+using ClassicUO.Game.Scenes;
 
 namespace ClassicUO.Game.Managers
 {
@@ -27,6 +28,55 @@ namespace ClassicUO.Game.Managers
         private static Point _dragOrigin;
         private static bool _isDraggingControl;
         private static IGui _keyboardFocusControl, _lastFocus;
+#if TAZUO_IOS
+        private static IGui _mobileTextInputControl;
+
+        // Desktop focus can be assigned automatically for hotkeys or chat. It
+        // must not summon the software keyboard without a tap in a text field.
+        internal static bool MobileTextInputRequested =>
+            _mobileTextInputControl is { IsDisposed: false, IsVisible: true, IsEnabled: true }
+            && (_mobileTextInputControl.IsEditable
+                || _mobileTextInputControl is MyraControl { HasFocusedTextInput: true });
+
+        internal static void DismissMobileTextInput()
+        {
+            _mobileTextInputControl = null;
+            KeyboardFocusControl = null;
+            _lastFocus?.OnFocusLost();
+            _lastFocus = null;
+        }
+
+        internal static void OpenMobileTextInput()
+        {
+            // Reuse the selected field, including login and Assistant inputs.
+            if (KeyboardFocusControl is { IsDisposed: false, IsVisible: true, IsEnabled: true } focus
+                && (focus.IsEditable || focus is MyraControl { HasFocusedTextInput: true }))
+            {
+                _mobileTextInputControl = focus;
+                return;
+            }
+
+            if (Client.Game.Scene is LoginScene)
+            {
+                GetGump<UI.Gumps.Login.LoginGump>()?.FocusMobileTextInput();
+                _mobileTextInputControl = KeyboardFocusControl;
+                return;
+            }
+
+            if (SystemChat is not { IsDisposed: false })
+                return;
+
+            if (!SystemChat.IsActive)
+                SystemChat.IsActive = true;
+            else
+                SystemChat.SetFocus();
+
+            // SetFocus assigns the regular game focus. Keep the explicit mobile
+            // owner too, otherwise UpdateMobileInput sees no request and SDL
+            // immediately refuses to present UIKit's keyboard.
+            _mobileTextInputControl = SystemChat.TextBoxControl;
+        }
+#endif
         private static bool _needSort;
 
         // Mouse-over pass cache: the per-frame pass in Update() is skipped while neither the cursor
@@ -117,6 +167,10 @@ namespace ClassicUO.Game.Managers
             {
                 if (_keyboardFocusControl != value)
                 {
+#if TAZUO_IOS
+                    if (value != _mobileTextInputControl)
+                        _mobileTextInputControl = null;
+#endif
                     _keyboardFocusControl?.OnFocusLost();
                     _keyboardFocusControl = value;
 
@@ -209,6 +263,35 @@ namespace ClassicUO.Game.Managers
         /// </summary>
         public static void RestoreSystemChatFocus()
         {
+            // The login scene has no chat input. Focusing the global system chat
+            // here would keep the iOS software keyboard visible after the user
+            // taps outside the account/password fields.
+            if (Client.Game.Scene is LoginScene)
+            {
+                IGui loginFocus = KeyboardFocusControl;
+                KeyboardFocusControl = null;
+                if (_lastFocus == loginFocus)
+                {
+                    _lastFocus = null;
+                }
+
+                return;
+            }
+
+#if TAZUO_IOS
+            // Do not implicitly focus the system chat on iOS. A background or
+            // gump click should dismiss the keyboard; chat receives focus only
+            // when the player explicitly taps its text field.
+            IGui mobileFocus = KeyboardFocusControl;
+            KeyboardFocusControl = null;
+            if (_lastFocus == mobileFocus)
+            {
+                _lastFocus = null;
+            }
+
+            return;
+#endif
+
             SystemChatControl chat = SystemChat;
 
             // Already resting on the chat input (or chat doesn't exist) - nothing to steal focus from.
@@ -271,6 +354,27 @@ namespace ClassicUO.Game.Managers
                     // world/background click. Clicks inside the field's own gump keep it focused.
                     RestoreSystemChatFocus();
                 }
+
+#if TAZUO_IOS
+                if (button == MouseButtonType.Left)
+                {
+                    if (MouseOverControl.IsEditable
+                        || MouseOverControl is MyraControl { HasFocusedTextInput: true })
+                    {
+                        KeyboardFocusControl = MouseOverControl;
+                        // Keep the actual control that won focus. TTF fields can
+                        // promote their nested StbTextBox during OnMouseDown;
+                        // storing the wrapper makes the equality gate flicker.
+                        _mobileTextInputControl = KeyboardFocusControl;
+                    }
+                    else
+                    {
+                        // Also dismiss when tapping a label/button in the same
+                        // gump, where desktop intentionally retains focus.
+                        DismissMobileTextInput();
+                    }
+                }
+#endif
 
                 _mouseDownControls[(int)button] = MouseOverControl;
             }
@@ -338,6 +442,16 @@ namespace ClassicUO.Game.Managers
 
             _mouseDownControls[index] = null;
         }
+
+#if TAZUO_IOS
+        internal static void CancelMobilePointer()
+        {
+            if (_mouseDownControls[(int)MouseButtonType.Left] is Button button)
+                button.IsClicked = false;
+            _mouseDownControls[(int)MouseButtonType.Left] = null;
+            EndDragControl(Mouse.Position);
+        }
+#endif
 
         public static bool OnMouseDoubleClick(MouseButtonType button)
         {

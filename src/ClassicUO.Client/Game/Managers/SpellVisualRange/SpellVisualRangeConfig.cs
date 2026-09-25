@@ -5,7 +5,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using ClassicUO.Game.Managers.SpellVisualRange;
+using ClassicUO.Game.Managers;
 
+using ClassicUO.Configuration;
 namespace ClassicUO.Configuration
 {
     /// <summary>

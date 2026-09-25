@@ -1027,6 +1027,15 @@ namespace ClassicUO.Game.UI.Controls
             return;
         }
 
+        // A disposed text control must never remain the global keyboard focus.
+        // On iOS that stale focus keeps SDL text input active and the software
+        // keyboard reappears even after the owning gump has been closed.
+        IGui focused = UIManager.KeyboardFocusControl;
+        if (focused != null && (focused == this || focused.RootParent == this))
+        {
+            UIManager.KeyboardFocusControl = null;
+        }
+
         if (Children != null)
         {
             foreach (Control c in Children)

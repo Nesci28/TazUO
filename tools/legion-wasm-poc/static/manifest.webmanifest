@@ -1,0 +1,10 @@
+{
+  "name": "TazUO Mobile",
+  "short_name": "TazUO",
+  "start_url": "/?game=1",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#08111a",
+  "theme_color": "#08111a",
+  "icons": []
+}

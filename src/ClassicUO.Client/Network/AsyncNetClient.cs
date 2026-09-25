@@ -196,6 +196,9 @@ namespace ClassicUO.Network
         private uint? _localIP;
         private readonly CircularBuffer _sendStream;
         private readonly ConcurrentQueue<byte[]> _incomingMessages = new();
+        private readonly ConcurrentQueue<byte[]> _browserOutgoingMessages = new();
+        private volatile bool _browserTransportAttached;
+        private volatile bool _browserTransportConnected;
         private Task _networkTask;
         private CancellationTokenSource _cancellationTokenSource = new();
         public static PacketsTable PacketsTable { get; private set; }
@@ -203,7 +206,11 @@ namespace ClassicUO.Network
         public static EncryptionHelper? Encryption { get; private set; }
 #nullable disable
         public static AsyncNetClient Socket { get; set; } = new AsyncNetClient();
-        public bool IsConnected => _socket != null && _socket.IsConnected;
+        public bool IsConnected => _browserTransportAttached
+            ? _browserTransportConnected
+            : _socket != null && _socket.IsConnected;
+        /// <summary>True when the client is being driven by a browser WebSocket transport.</summary>
+        public bool IsBrowserTransportAttached => _browserTransportAttached;
         public NetStatistics Statistics { get; }
 
         public AsyncNetClient()
@@ -277,6 +284,41 @@ namespace ClassicUO.Network
 
         public event EventHandler Connected;
         public event EventHandler<SocketError> Disconnected;
+
+        /// <summary>
+        /// Attaches the browser transport without opening a native socket. JavaScript must call
+        /// <see cref="SetBrowserTransportConnected"/> after its WebSocket opens, then forward
+        /// received binary data through <see cref="OnBrowserDataReceived"/>.
+        /// </summary>
+        public void AttachBrowserTransport()
+        {
+            _browserTransportAttached = true;
+            _browserTransportConnected = false;
+            ClearIncomingMessages();
+            ClearBrowserOutgoingMessages();
+        }
+
+        /// <summary>Updates the connection state reported by the browser WebSocket.</summary>
+        public void SetBrowserTransportConnected(bool connected) => _browserTransportConnected = connected;
+
+        /// <summary>Forwards a binary WebSocket message into the normal encryption and receive queue.</summary>
+        public void OnBrowserDataReceived(ReadOnlyMemory<byte> data)
+        {
+            if (!data.IsEmpty)
+                OnDataReceived(data.ToArray());
+        }
+
+        /// <summary>Dequeues an encrypted/compressed packet for JavaScript WebSocket transmission.</summary>
+        public bool TryDequeueBrowserOutgoing(out byte[] packet) => _browserOutgoingMessages.TryDequeue(out packet);
+
+        /// <summary>Detaches the browser transport and clears its pending packets.</summary>
+        public void DetachBrowserTransport()
+        {
+            _browserTransportConnected = false;
+            _browserTransportAttached = false;
+            ClearIncomingMessages();
+            ClearBrowserOutgoingMessages();
+        }
 
         public async Task<bool> Connect(string ip, ushort port, CancellationToken cancellationToken = new ())
         {
@@ -400,6 +442,14 @@ namespace ClassicUO.Network
             }
         }
 
+        /// <summary>Discards packets waiting for browser transmission.</summary>
+        public void ClearBrowserOutgoingMessages()
+        {
+            while (_browserOutgoingMessages.TryDequeue(out _))
+            {
+            }
+        }
+
         public void Send(Span<byte> message, bool ignorePlugin = false, bool skipEncryption = false)
         {
             if (!IsConnected || message is [])
@@ -420,6 +470,14 @@ namespace ClassicUO.Network
             if (!skipEncryption)
             {
                 EncryptionHelper.Instance?.Encrypt(!_isCompressionEnabled, message, message, message.Length);
+            }
+
+            if (_browserTransportAttached)
+            {
+                _browserOutgoingMessages.Enqueue(message.ToArray());
+                Statistics.TotalBytesSent += (uint)message.Length;
+                Statistics.TotalPacketsSent++;
+                return;
             }
 
             lock (_sendStream)

@@ -258,9 +258,12 @@ paket.lock
 
 # JetBrains Rider
 .idea/
-
 # Local HD asset conversion work (contains copyrighted client exports and AI output)
 HDAssetsWork/
+
+# Locally generated browser scene exports from licensed UO client data.
+tools/legion-wasm-poc/static/scene-assets/
+.env.tazuo-test
 *.sln.iml
 
 # CodeRush
@@ -274,3 +277,12 @@ external/FNA
 external/MP3Sharp
 .claude/settings.local.json
 .DS_Store
+mobile-ios/build/
+# Downloaded Pyodide distribution (fetched by tools/mobile-ios/fetch-pyodide.sh;
+# about 1.4 GB unpacked and unsuitable for source control).
+mobile-ios/unity-overlay/legion/pyodide/
+
+mobile-ios/.dotnet/
+mobile-ios/native-runtime.log
+mobile-ios/native-client.log
+mobile-ios/native-runtime.png

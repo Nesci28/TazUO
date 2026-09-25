@@ -622,8 +622,8 @@ namespace ClassicUO.Game.GameObjects
             }
         }
 
-        private bool NoIterateAnimIndex() => !ExecuteAnimation
-                || (LastStepTime > Time.Ticks - Constants.WALKING_DELAY && Steps.Count == 0);
+        private bool NoIterateAnimIndex(bool hadSteps) => !ExecuteAnimation
+                || (LastStepTime > Time.Ticks - Constants.WALKING_DELAY && !hadSteps && Steps.Count == 0);
 
         private void ProcessFootstepsSound()
         {
@@ -671,10 +671,14 @@ namespace ClassicUO.Game.GameObjects
 
         public override void ProcessAnimation(bool evalutate = false)
         {
+            // A slow frame can finish the last queued step. It still needs an
+            // animation frame; checking only the remaining queue makes mobiles
+            // slide without animating when every update completes a whole step.
+            bool hadSteps = Steps.Count != 0;
             ProcessSteps(out byte dir, evalutate);
             ProcessFootstepsSound();
 
-            if (LastAnimationChangeTime >= Time.Ticks || NoIterateAnimIndex())
+            if (LastAnimationChangeTime >= Time.Ticks || NoIterateAnimIndex(hadSteps))
             {
                 return;
             }

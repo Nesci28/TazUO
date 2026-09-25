@@ -1,0 +1,5 @@
+html, body { font-family: system-ui, sans-serif; background: #111827; color: #e5e7eb; }
+.poc { max-width: 54rem; margin: 3rem auto; padding: 0 1rem; }
+.poc h1 { font-size: clamp(1.5rem, 5vw, 2.5rem); }
+.poc p { line-height: 1.6; }
+.poc pre { min-height: 12rem; margin-top: 1.5rem; padding: 1rem; background: #030712; border: 1px solid #374151; border-radius: .5rem; white-space: pre-wrap; }
