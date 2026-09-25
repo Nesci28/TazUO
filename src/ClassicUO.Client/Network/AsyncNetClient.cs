@@ -26,6 +26,9 @@ namespace ClassicUO.Network
 
         public event EventHandler OnConnected, OnDisconnected;
         public event EventHandler<SocketError> OnError;
+        public EndPoint RemoteEndPoint => _socket?.Client?.RemoteEndPoint;
+
+        public uint? GetTcpRoundTripTime() => TcpRoundTripTime.Get(_socket?.Client);
 
         public async Task<bool> ConnectAsync(string ip, int port, CancellationToken cancellationToken = default, int timeoutS = 2)
         {
@@ -211,10 +214,14 @@ namespace ClassicUO.Network
             : _socket != null && _socket.IsConnected;
         /// <summary>True when the client is being driven by a browser WebSocket transport.</summary>
         public bool IsBrowserTransportAttached => _browserTransportAttached;
+        public EndPoint RemoteEndPoint => _socket?.RemoteEndPoint;
+        public uint? TcpRoundTripTime => _socket?.GetTcpRoundTripTime();
+        public PingManager PingManager { get; }
         public NetStatistics Statistics { get; }
 
         public AsyncNetClient()
         {
+            PingManager = new PingManager(this);
             Statistics = new NetStatistics(this);
             _sendStream = new CircularBuffer();
 
