@@ -2355,6 +2355,9 @@ namespace ClassicUO.Game.UI.Gumps
             SettingsOption s;
             PositionHelper.Reset();
 
+            CounterBarGump SelectedCounterBar() =>
+                CounterBarGump.SelectedCounterBarGump ?? CounterBarGump.CurrentCounterBarGump;
+
             _options.Add
             (
                 s = new SettingsOption
@@ -2364,29 +2367,11 @@ namespace ClassicUO.Game.UI.Gumps
                         TazLang.Get("mog_counters_enablecounters"), 0, profile.CounterBarEnabled, (b) =>
                         {
                             profile.CounterBarEnabled = b;
-                            CounterBarGump counterGump = UIManager.GetGump<CounterBarGump>();
 
-                            if (b)
-                            {
-                                if (counterGump != null)
-                                {
-                                    counterGump.IsEnabled = counterGump.IsVisible = b;
-                                }
-                                else
-                                {
-                                    UIManager.Add(counterGump = new CounterBarGump(World, 200, 200));
-                                }
-                            }
+                            if (b && CounterBarGump.CurrentCounterBarGump == null)
+                                CounterBarGump.AddNew(World);
                             else
-                            {
-                                if (counterGump != null)
-                                {
-                                    counterGump.IsEnabled = counterGump.IsVisible = b;
-                                }
-                            }
-
-                            counterGump?.SetLayout(profile.CounterBarCellSize, profile.CounterBarRows,
-                                profile.CounterBarColumns);
+                                CounterBarGump.SetAllVisible(b);
                         }
                     ), MainContent.RightWidth, (int)PAGE.Counters
                 )
@@ -2394,6 +2379,58 @@ namespace ClassicUO.Game.UI.Gumps
 
             PositionHelper.PositionControl(s.FullControl);
             PositionHelper.Indent();
+
+            ModernButton addCounterBar;
+            _options.Add
+            (
+                s = new SettingsOption
+                (
+                    "",
+                    addCounterBar = new ModernButton(
+                        0,
+                        0,
+                        200,
+                        40,
+                        ButtonAction.Activate,
+                        TazLang.Get("mog_counters_addbar", "Add counter bar"),
+                        ThemeSettings.BUTTON_FONT_COLOR
+                    ) { IsSelectable = false },
+                    MainContent.RightWidth,
+                    (int)PAGE.Counters
+                )
+            );
+            addCounterBar.MouseUp += (_, e) =>
+            {
+                if (e.Button == MouseButtonType.Left)
+                    CounterBarGump.AddNew(World, SelectedCounterBar());
+            };
+            PositionHelper.PositionControl(s.FullControl);
+
+            ModernButton removeCounterBar;
+            _options.Add
+            (
+                s = new SettingsOption
+                (
+                    "",
+                    removeCounterBar = new ModernButton(
+                        0,
+                        0,
+                        240,
+                        40,
+                        ButtonAction.Activate,
+                        TazLang.Get("mog_counters_removebar", "Remove selected counter bar"),
+                        ThemeSettings.BUTTON_FONT_COLOR
+                    ) { IsSelectable = false },
+                    MainContent.RightWidth,
+                    (int)PAGE.Counters
+                )
+            );
+            removeCounterBar.MouseUp += (_, e) =>
+            {
+                if (e.Button == MouseButtonType.Left)
+                    SelectedCounterBar()?.RemoveBar();
+            };
+            PositionHelper.PositionControl(s.FullControl);
 
             _options.Add
             (
@@ -2485,7 +2522,7 @@ namespace ClassicUO.Game.UI.Gumps
             PositionHelper.BlankLine();
             PositionHelper.BlankLine();
 
-            _options.Add(s = new SettingsOption(TazLang.Get("mog_counters_counterlayout"), new Area(false), MainContent.RightWidth,
+            _options.Add(s = new SettingsOption(TazLang.Get("mog_counters_selectedlayout", "Selected counter bar layout"), new Area(false), MainContent.RightWidth,
                 (int)PAGE.Counters));
             PositionHelper.PositionControl(s.FullControl);
 
@@ -2497,12 +2534,13 @@ namespace ClassicUO.Game.UI.Gumps
                 (
                     "", new SliderWithLabel
                     (
-                        TazLang.Get("mog_counters_gridsize"), 0, ThemeSettings.SLIDER_WIDTH, 30, 100, profile.CounterBarCellSize,
+                        TazLang.Get("mog_counters_gridsize"), 0, ThemeSettings.SLIDER_WIDTH, 30, 80,
+                        SelectedCounterBar()?.CellSize ?? profile.CounterBarCellSize,
                         (v) =>
                         {
                             profile.CounterBarCellSize = v;
-                            UIManager.GetGump<CounterBarGump>()?.SetLayout(profile.CounterBarCellSize,
-                                profile.CounterBarRows, profile.CounterBarColumns);
+                            CounterBarGump bar = SelectedCounterBar();
+                            bar?.SetLayout(profile.CounterBarCellSize, bar.Rows, bar.Columns);
                         }
                     ), MainContent.RightWidth, (int)PAGE.Counters
                 )
@@ -2516,13 +2554,13 @@ namespace ClassicUO.Game.UI.Gumps
                 (
                     TazLang.Get("mog_counters_rows"), new InputField
                     (
-                        100, 40, text: profile.CounterBarRows.ToString(), numbersOnly: true, onTextChanges: (s, e) =>
+                        100, 40, text: (SelectedCounterBar()?.Rows ?? profile.CounterBarRows).ToString(), numbersOnly: true, onTextChanges: (s, e) =>
                         {
                             if (int.TryParse(((InputField.StbTextBox)s).Text, out int v))
                             {
                                 profile.CounterBarRows = v;
-                                UIManager.GetGump<CounterBarGump>()?.SetLayout(profile.CounterBarCellSize,
-                                    profile.CounterBarRows, profile.CounterBarColumns);
+                                CounterBarGump bar = SelectedCounterBar();
+                                bar?.SetLayout(bar.CellSize, profile.CounterBarRows, bar.Columns);
                             }
                         }
                     ), MainContent.RightWidth, (int)PAGE.Counters
@@ -2539,13 +2577,13 @@ namespace ClassicUO.Game.UI.Gumps
                 (
                     TazLang.Get("mog_counters_columns"), new InputField
                     (
-                        100, 40, text: profile.CounterBarColumns.ToString(), numbersOnly: true, onTextChanges: (s, e) =>
+                        100, 40, text: (SelectedCounterBar()?.Columns ?? profile.CounterBarColumns).ToString(), numbersOnly: true, onTextChanges: (s, e) =>
                         {
                             if (int.TryParse(((InputField.StbTextBox)s).Text, out int v))
                             {
                                 profile.CounterBarColumns = v;
-                                UIManager.GetGump<CounterBarGump>()?.SetLayout(profile.CounterBarCellSize,
-                                    profile.CounterBarRows, profile.CounterBarColumns);
+                                CounterBarGump bar = SelectedCounterBar();
+                                bar?.SetLayout(bar.CellSize, bar.Rows, profile.CounterBarColumns);
                             }
                         }
                     ), MainContent.RightWidth, (int)PAGE.Counters
