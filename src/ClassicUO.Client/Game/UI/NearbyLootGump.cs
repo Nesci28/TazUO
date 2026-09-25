@@ -407,6 +407,7 @@ public sealed class NearbyLootGump : MyraControl
             () => ClearItemTooltip(group.Items[0].Serial),
             () => group.Items.Any(IsBeingLooted),
             () => GetGroupHighlight(group.Items),
+            () => GetGroupHighlightColors(group.Items),
             iconSize: GroupIconSize,
             labelStyle: MyraLabel.TextStyle.H4,
             disclosure: expanded ? ExpandedChevron : CollapsedChevron,
@@ -430,6 +431,7 @@ public sealed class NearbyLootGump : MyraControl
             () => ClearItemTooltip(item.Serial),
             () => IsBeingLooted(item),
             () => GetItemHighlight(item),
+            () => GetItemHighlightColors(item),
             iconSize: indented ? ExpandedItemIconSize : ItemIconSize,
             labelStyle: indented ? MyraLabel.TextStyle.H5 : MyraLabel.TextStyle.P,
             disclosure: indented ? null : CollapsedChevron,
@@ -448,6 +450,7 @@ public sealed class NearbyLootGump : MyraControl
         Action leave,
         Func<bool> isBeingLooted,
         Func<Color?> highlightColor,
+        Func<IReadOnlyList<Color>> highlightColors,
         int iconSize = ItemIconSize,
         MyraLabel.TextStyle labelStyle = MyraLabel.TextStyle.P,
         string disclosure = null,
@@ -455,7 +458,7 @@ public sealed class NearbyLootGump : MyraControl
         bool compact = false
     )
     {
-        var icon = new NearbyLootIconFrame(item.DisplayedGraphic, item.Hue, iconSize, highlightColor);
+        var icon = new NearbyLootIconFrame(item.DisplayedGraphic, item.Hue, iconSize, highlightColor, highlightColors);
         var content = new Grid
         {
             ColumnSpacing = MyraStyle.STANDARD_SPACING,
@@ -571,7 +574,16 @@ public sealed class NearbyLootGump : MyraControl
     private static Color? GetItemHighlight(Item item) =>
         item is { IsDestroyed: false, MatchesHighlightData: true } ? item.HighlightColor : null;
 
-    private static Color? GetGroupHighlight(IReadOnlyList<Item> items)
+    private static IReadOnlyList<Color> GetItemHighlightColors(Item item) =>
+        item is { IsDestroyed: false, MatchesHighlightData: true } ? item.HighlightColors : Array.Empty<Color>();
+
+    private static Color? GetGroupHighlight(IReadOnlyList<Item> items) =>
+        GetGroupHighlightedItem(items)?.HighlightColor;
+
+    private static IReadOnlyList<Color> GetGroupHighlightColors(IReadOnlyList<Item> items) =>
+        GetGroupHighlightedItem(items)?.HighlightColors ?? Array.Empty<Color>();
+
+    private static Item GetGroupHighlightedItem(IReadOnlyList<Item> items)
     {
         foreach (GridHighlightData config in GridHighlightData.AllConfigs)
         {
@@ -583,7 +595,7 @@ public sealed class NearbyLootGump : MyraControl
                 if (item is { IsDestroyed: false, MatchesHighlightData: true } &&
                     string.Equals(item.HighlightName, config.Name, StringComparison.OrdinalIgnoreCase))
                 {
-                    return item.HighlightColor;
+                    return item;
                 }
             }
         }
@@ -598,7 +610,7 @@ public sealed class NearbyLootGump : MyraControl
             }
         }
 
-        return fallback?.HighlightColor;
+        return fallback;
     }
 
     private void QuickLoot(Item item)
@@ -844,12 +856,16 @@ public sealed class NearbyLootGump : MyraControl
     {
         private readonly int _frameSize;
         private readonly Func<Color?> _highlightColor;
+        private readonly Func<IReadOnlyList<Color>> _highlightColors;
+        private readonly List<Panel> _markers = [];
+        private Color[] _lastMarkerColors = [];
         private Color? _lastColor;
         private int _lastThickness = -1;
 
-        public NearbyLootIconFrame(uint graphic, ushort hue, int iconSize, Func<Color?> highlightColor)
+        public NearbyLootIconFrame(uint graphic, ushort hue, int iconSize, Func<Color?> highlightColor, Func<IReadOnlyList<Color>> highlightColors)
         {
             _highlightColor = highlightColor;
+            _highlightColors = highlightColors;
             _frameSize = iconSize + 4;
             Width = _frameSize;
             Height = _frameSize;
@@ -870,13 +886,48 @@ public sealed class NearbyLootGump : MyraControl
             int thickness = color.HasValue
                 ? Math.Max(1, ProfileManager.CurrentProfile?.GridHighlightSize ?? 1)
                 : 0;
-            if (_lastColor == color && _lastThickness == thickness)
+            if (_lastColor != color || _lastThickness != thickness)
+            {
+                _lastColor = color;
+                _lastThickness = thickness;
+                Border = color.HasValue ? new SolidBrush(color.Value) : null;
+                BorderThickness = new Thickness(thickness);
+            }
+
+            IReadOnlyList<Color> colors = _highlightColors?.Invoke() ?? Array.Empty<Color>();
+            int markerCount = Math.Max(0, colors.Count - 1);
+            bool markersChanged = _lastMarkerColors.Length != markerCount;
+            for (int i = 0; !markersChanged && i < markerCount; i++)
+                markersChanged = _lastMarkerColors[i] != colors[i + 1];
+            if (!markersChanged)
                 return;
 
-            _lastColor = color;
-            _lastThickness = thickness;
-            Border = color.HasValue ? new SolidBrush(color.Value) : null;
-            BorderThickness = new Thickness(thickness);
+            foreach (Panel marker in _markers)
+                Widgets.Remove(marker);
+            _markers.Clear();
+            _lastMarkerColors = new Color[markerCount];
+
+            const int markerSize = 5;
+            const int gap = 1;
+            int columns = Math.Max(1, (_frameSize - 4 + gap) / (markerSize + gap));
+            for (int i = 0; i < markerCount; i++)
+            {
+                _lastMarkerColors[i] = colors[i + 1];
+                int x = i % columns * (markerSize + gap);
+                int y = i / columns * (markerSize + gap);
+                if (y + markerSize > _frameSize - 4)
+                    break;
+
+                var marker = new Panel
+                {
+                    Width = markerSize,
+                    Height = markerSize,
+                    Margin = new Thickness(x, y, 0, 0),
+                    Background = new SolidBrush(_lastMarkerColors[i])
+                };
+                Widgets.Add(marker);
+                _markers.Add(marker);
+            }
         }
     }
 }
