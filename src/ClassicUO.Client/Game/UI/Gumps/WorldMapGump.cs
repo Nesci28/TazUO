@@ -123,6 +123,14 @@ public class WorldMapGump : ResizableGump
     private Rectangle _preFullscreenBounds;
 
     private GumpPic _northIcon;
+    private WorldMapControlButton[] _mapControlButtons;
+    private Rectangle _mapActionsBounds;
+    private Rectangle _mapZoomBounds;
+    private Rectangle _mapPathfindBounds;
+    private Rectangle _playerCoordinatesBounds;
+    private Point? _coordinateCopyStart;
+    private bool _canMoveBeforeCoordinateCopy;
+    private bool _coordinateCopyDragged;
 
     private WMapMarker _gotoMarker;
 
@@ -200,6 +208,7 @@ public class WorldMapGump : ResizableGump
             {
                 _freeView = value;
                 SaveSettings();
+                UpdateMapControlButtons();
 
                 // The context menu is only rebuilt on certain events (not on every
                 // right-click), so a programmatic FreeView change - e.g. via GoToMarker
@@ -247,7 +256,7 @@ public class WorldMapGump : ResizableGump
 
         World.WMapManager.SetEnable(_showPartyMembers);
 
-        _zoomIndex = ProfileManager.CurrentProfile.WorldMapZoomIndex;
+        _zoomIndex = Math.Clamp(ProfileManager.CurrentProfile.WorldMapZoomIndex, 0, _zooms.Length - 1);
 
         _showCoordinates = ProfileManager.CurrentProfile.WorldMapShowCoordinates;
         _showSextantCoordinates = ProfileManager.CurrentProfile.WorldMapShowSextantCoordinates;
@@ -332,20 +341,122 @@ public class WorldMapGump : ResizableGump
         BuildContextMenu();
         _northIcon?.Dispose();
         _northIcon = new GumpPic(0, 0, 5021, 0) { Width = 22, Height = 25 };
-        _northIcon.X = Width - _northIcon.Width - BorderControl.BorderSize;
-        _northIcon.Y = !_flipMap ? Height - _northIcon.Height - BorderControl.BorderSize : BorderControl.BorderSize;
         Add(_northIcon);
+        BuildMapControls();
     }
 
     public override void OnResize()
     {
         base.OnResize();
+        PositionMapControls();
+    }
+
+    private void BuildMapControls()
+    {
+        if (_mapControlButtons != null)
+            foreach (WorldMapControlButton button in _mapControlButtons)
+                button.Dispose();
+
+        _mapControlButtons =
+        [
+            new(WorldMapControlIcon.FreeView, () => FreeView = !FreeView),
+            new(WorldMapControlIcon.Center, CenterOnCharacter),
+            new(WorldMapControlIcon.ZoomIn, () => ChangeZoom(1)),
+            new(WorldMapControlIcon.ZoomOut, () => ChangeZoom(-1)),
+            new(WorldMapControlIcon.Pathfind, OpenPathfindingDialog)
+        ];
+        _mapControlButtons[1].SetTooltip(TazLang.Get("map_controls_center"));
+        _mapControlButtons[2].SetTooltip(TazLang.Get("map_controls_zoom_in"));
+        _mapControlButtons[3].SetTooltip(TazLang.Get("map_controls_zoom_out"));
+        _mapControlButtons[4].SetTooltip(TazLang.Get("map_pathfind_location"));
+        foreach (WorldMapControlButton button in _mapControlButtons)
+            Add(button);
+
+        PositionMapControls();
+        UpdateMapControlButtons();
+    }
+
+    private void PositionMapControls()
+    {
+        const int gap = WorldMapControlsLayout.Gap;
+        if (_mapControlButtons != null)
+        {
+            ref readonly SpriteInfo lockIcon = ref Client.Game.UO.Gumps.GetGump(0x82C);
+            (_mapActionsBounds, _mapZoomBounds, _mapPathfindBounds) = WorldMapControlsLayout.Calculate(
+                Width, BorderControl.BorderSize + 2, new Point(lockIcon.UV.Width, lockIcon.UV.Height), ResizeButton.Bounds);
+            for (int i = 0; i < 2; i++)
+            {
+                _mapControlButtons[i].X = _mapActionsBounds.Left + i * (WorldMapControlButton.ButtonSize + gap);
+                _mapControlButtons[i].Y = _mapActionsBounds.Top;
+                _mapControlButtons[i + 2].X = _mapZoomBounds.Left;
+                _mapControlButtons[i + 2].Y = _mapZoomBounds.Top + i * (WorldMapControlButton.ButtonSize + gap);
+            }
+            _mapControlButtons[4].X = _mapPathfindBounds.X;
+            _mapControlButtons[4].Y = _mapPathfindBounds.Y;
+        }
+
         if (_northIcon != null)
         {
             _northIcon.X = Width - _northIcon.Width - BorderControl.BorderSize;
             _northIcon.Y = !_flipMap ? Height - _northIcon.Height - BorderControl.BorderSize : BorderControl.BorderSize;
+            if (_mapZoomBounds.Intersects(_northIcon.Bounds) || _mapPathfindBounds.Intersects(_northIcon.Bounds))
+                _northIcon.X = Math.Min(_mapZoomBounds.Left, _mapPathfindBounds.Left) - _northIcon.Width - gap;
+            if (_mapActionsBounds.Intersects(_northIcon.Bounds))
+                _northIcon.Y = _mapActionsBounds.Bottom + gap;
+            if (_northIcon.Bounds.Intersects(ResizeButton.Bounds))
+                _northIcon.X = ResizeButton.X - _northIcon.Width - gap;
         }
     }
+
+    private Rectangle MoveBelowMapControls(Rectangle bounds)
+    {
+        if (bounds.Intersects(_mapActionsBounds))
+            bounds.Y = _mapActionsBounds.Bottom + WorldMapControlsLayout.Gap;
+        if (bounds.Intersects(_mapZoomBounds))
+            bounds.Y = _mapZoomBounds.Bottom + WorldMapControlsLayout.Gap;
+        if (bounds.Intersects(_mapPathfindBounds))
+            bounds.Y = _mapPathfindBounds.Bottom + WorldMapControlsLayout.Gap;
+        return bounds;
+    }
+
+    private void UpdateMapControlButtons()
+    {
+        if (_mapControlButtons == null)
+            return;
+        _mapControlButtons[0].IsActive = FreeView;
+        _mapControlButtons[0].SetTooltip(TazLang.Get(FreeView ? "map_controls_lock" : "map_controls_unlock"));
+        _mapControlButtons[2].CanActivate = _zoomIndex < _zooms.Length - 1;
+        _mapControlButtons[3].CanActivate = _zoomIndex > 0;
+    }
+
+    private void CenterOnCharacter()
+    {
+        if (!World.InGame)
+            return;
+        following = World.Player;
+        FreeView = false;
+        _isScrolling = false;
+        _scroll = Point.Zero;
+        CanMove = !IsLocked;
+        Client.Game.UO.GameCursor.IsDraggingCursorForced = false;
+        if (_map.Index != World.MapIndex)
+            ChangeMap(World.MapIndex);
+        _center = _lastScroll = new Point(World.Player.X, World.Player.Y);
+    }
+
+    private void ChangeZoom(int delta)
+    {
+        int index = Math.Clamp(_zoomIndex + delta, 0, _zooms.Length - 1);
+        if (index == _zoomIndex)
+            return;
+        _zoomIndex = index;
+        SaveSettings();
+        UpdateMapControlButtons();
+    }
+
+    private void OpenPathfindingDialog() => LocationGoWindow.Show(
+        World, (x, y) => BeginFreshNavTo(_world.Map.Index, x, y), null,
+        mapGump: this, pathfinding: true);
 
     private void BuildOptionDictionary()
     {
@@ -358,11 +469,7 @@ public class WorldMapGump : ResizableGump
         _options["flip_map"] = new ContextMenuItemEntry(TazLang.Get("flip_map"), () =>
         {
             _flipMap = !_flipMap; SaveSettings();
-            if (_northIcon != null)
-            {
-                _northIcon.X = Width - _northIcon.Width - BorderControl.BorderSize;
-                _northIcon.Y = !_flipMap ? Height - _northIcon.Height - BorderControl.BorderSize : BorderControl.BorderSize;
-            }
+            PositionMapControls();
         }, true, _flipMap);
 
         _options["goto_location"] = new ContextMenuItemEntry
@@ -374,18 +481,15 @@ public class WorldMapGump : ResizableGump
                     ClearGoToMarker,
                     _gotoMarker != null // Pass in the current marker location, if any
                         ? new Point(_gotoMarker.X, _gotoMarker.Y)
-                        : null
+                        : null,
+                    mapGump: this
                 )
         );
 
         _options["pathfind_location"] = new ContextMenuItemEntry
         (
             TazLang.Get("map_pathfind_location", "Pathfind to location"),
-            () => LocationGoWindow.Show(
-                    World,
-                    (x, y) => BeginFreshNavTo(_world.Map.Index, x, y),
-                    null
-                )
+            OpenPathfindingDialog
         );
 
         _options["free_view"] = new ContextMenuItemEntry(TazLang.Get("free_view"), () => { FreeView = !FreeView; }, true, FreeView);
@@ -530,6 +634,19 @@ public class WorldMapGump : ResizableGump
     /// Clears the current <em>Go-To</em> marker, if it was set
     /// </summary>
     public void ClearGoToMarker() => _gotoMarker = null;
+
+    internal Map.Map LocationMap => _map;
+
+    // Match the category, facet and zoom gates used by marker rendering. Destinations outside
+    // the viewport remain useful for navigation, so panning does not remove them from the list.
+    internal IEnumerable<MapLocation> GetFilteredLocations() =>
+        _showMarkers && _mapMarkersLoaded && !IsDisposed
+            ? MapLocationCatalog.Markers(_markerFiles, _map.Index, _zoomIndex, _alwaysShowMarkers)
+            : Enumerable.Empty<MapLocation>();
+
+    internal IEnumerable<MapLocation> GetCustomLocations() =>
+        _markerFiles.Where(f => f.FullPath == UserMarkersFilePath)
+            .SelectMany(f => f.Markers).Select(MapLocationCatalog.FromMarker);
 
     private void BuildContextMenuForZones(ContextMenuControl parent)
     {
@@ -864,34 +981,10 @@ public class WorldMapGump : ResizableGump
         out int out_y
     )
     {
-        // Scale width to Zoom
-        float newWidth = Width / Zoom;
-        float newHeight = Height / Zoom;
-
-        // Scale mouse cords to Zoom
-        float newX = a_x / Zoom;
-        float newY = a_y / Zoom;
-
-        // Rotate Cords if map fliped
-        // x' = (x + y)/Sqrt(2)
-        // y' = (y - x)/Sqrt(2)
-        if (_flipMap)
-        {
-            float nw = (newWidth + newHeight) / 1.41f;
-            float nh = (newHeight - newWidth) / 1.41f;
-            newWidth = (int)nw;
-            newHeight = (int)nh;
-
-            float nx = (newX + newY) / 1.41f;
-            float ny = (newY - newX) / 1.41f;
-            newX = (int)nx;
-            newY = (int)ny;
-        }
-
-        // Calulate Click cords to Map Cords
-        // (x,y) = MapCenter - ScaeldMapWidth/2 + ScaledMouseCords
-        out_x = _center.X - (int)(newWidth / 2) + (int)newX;
-        out_y = _center.Y - (int)(newHeight / 2) + (int)newY;
+        Point point = WorldMapCoordinates.CanvasToWorld(
+            new Point(a_x, a_y), new Point(Width, Height), _center, Zoom, _flipMap);
+        out_x = point.X;
+        out_y = point.Y;
     }
 
     private int GetOffset(int x, int y, int centerX, int centerY)
@@ -2836,11 +2929,15 @@ public class WorldMapGump : ResizableGump
             if (_showSextantCoordinates && Sextant.FormatString(new Point(World.Player.X, World.Player.Y), _map, out string sextantCoords))
                 text += "\n" + sextantCoords;
 
+            Vector2 textSize = Fonts.Bold.MeasureString(text);
+            _playerCoordinatesBounds = MoveBelowMapControls(new Rectangle(9, 9,
+                (int)Math.Ceiling(textSize.X), (int)Math.Ceiling(textSize.Y)));
+            int textY = gY + _playerCoordinatesBounds.Y - 4;
             Vector3 hueVector = new(0f, 1f, 1f);
 
-            batcher.DrawString(Fonts.Bold, text, gX + 6, gY + 6, hueVector);
+            batcher.DrawString(Fonts.Bold, text, gX + 6, textY + 1, hueVector);
             hueVector = ShaderHueTranslator.GetHueVector(0);
-            batcher.DrawString(Fonts.Bold, text, gX + 5, gY + 5, hueVector);
+            batcher.DrawString(Fonts.Bold, text, gX + 5, textY, hueVector);
         }
 
         if (_showMouseCoordinates && _lastMousePosition != null)
@@ -2855,6 +2952,9 @@ public class WorldMapGump : ResizableGump
             Vector2 size = Fonts.Regular.MeasureString(mouseCoordinateString);
             int mx = gX + 5;
             int my = gY + Height - (int)Math.Ceiling(size.Y) - 15;
+            var mouseTextBounds = MoveBelowMapControls(new Rectangle(9, my - gY + 4,
+                (int)Math.Ceiling(size.X), (int)Math.Ceiling(size.Y)));
+            my = gY - 4 + mouseTextBounds.Y;
 
             Vector3 hueVector = new(0f, 1f, 1f);
 
@@ -3713,8 +3813,51 @@ public class WorldMapGump : ResizableGump
 
     #region I/O
 
+    private static bool CoordinateCopyModifierPressed =>
+        HotKeys.IsPressed(HotKeyRegistrar.WorldMapCopyCoordinatesId, allowAdditionalModifiers: false)
+        && !Keyboard.Alt
+        && !HotKeys.IsPressed(HotKeyRegistrar.GumpModifierId)
+        && !HotKeys.IsPressed(HotKeyRegistrar.WorldMapMarkerId);
+
+    private bool IsMapCanvasPoint(int x, int y) =>
+        new Rectangle(4, 4, Width - 8, Height - 8).Contains(x, y)
+        && !_mapActionsBounds.Contains(x, y)
+        && !_mapZoomBounds.Contains(x, y)
+        && !_mapPathfindBounds.Contains(x, y);
+
+    private bool IsCoordinateCopyDrag(int x, int y)
+    {
+        int threshold = Math.Max(1, ProfileManager.CurrentProfile?.MinGumpMoveDistance ?? 5);
+        return _coordinateCopyStart is Point start
+            && (Math.Abs(x - start.X) >= threshold || Math.Abs(y - start.Y) >= threshold);
+    }
+
+    private void CopyMouseCoordinates(int x, int y)
+    {
+        if (!World.InGame || _map == null || _mapLoading != 0)
+            return;
+
+        CanvasToWorld(x, y, out int worldX, out int worldY);
+        int[,] sizes = Client.Game.UO.FileManager.Maps.MapsDefaultSize;
+        if (worldX < 0 || worldY < 0 || worldX >= sizes[_map.Index, 0] || worldY >= sizes[_map.Index, 1])
+            return;
+
+        SDL.SDL_SetClipboardText($"{worldX}, {worldY}");
+        GameActions.Print(TazLang.Get("map_copied_coordinates", [worldX.ToString(), worldY.ToString()]));
+    }
+
     public override void OnMouseUp(int x, int y, MouseButtonType button)
     {
+        if (button == MouseButtonType.Left && _coordinateCopyStart.HasValue)
+        {
+            bool copy = !_coordinateCopyDragged && !IsCoordinateCopyDrag(x, y) && IsMapCanvasPoint(x, y);
+            _coordinateCopyStart = null;
+            CanMove = _canMoveBeforeCoordinateCopy && !IsLocked;
+            if (copy && !Client.Game.UO.GameCursor.ItemHold.Enabled)
+                CopyMouseCoordinates(x, y);
+            return;
+        }
+
         bool allowTarget = _allowPositionalTarget && World.TargetManager.IsTargeting && World.TargetManager.TargetingState == CursorTarget.Position;
         if (allowTarget && button == MouseButtonType.Left)
         {
@@ -3738,7 +3881,7 @@ public class WorldMapGump : ResizableGump
 
         if (button == MouseButtonType.Left && !Keyboard.Alt && !Keyboard.Ctrl && !Keyboard.Shift)
         {
-            if (x > 10 && x < 120 && y > 10 && y < 25)
+            if (_showCoordinates && _playerCoordinatesBounds.Contains(x, y))
             {
                 SDL.SDL_SetClipboardText($"{World.Player.X}, {World.Player.Y}, {World.Player.Z}");
                 GameActions.Print("Copied player coords to clipboard.");
@@ -3754,6 +3897,16 @@ public class WorldMapGump : ResizableGump
     {
         if (!Client.Game.UO.GameCursor.ItemHold.Enabled)
         {
+            if (button == MouseButtonType.Left && CoordinateCopyModifierPressed && IsMapCanvasPoint(x, y))
+            {
+                _coordinateCopyStart = new Point(x, y);
+                _coordinateCopyDragged = false;
+                _canMoveBeforeCoordinateCopy = CanMove;
+                CanMove = false;
+                Mouse.CancelDoubleClick = true;
+                return;
+            }
+
             if (button == MouseButtonType.Left && HotKeys.IsPressed(HotKeyRegistrar.WorldMapMarkerId) && !Keyboard.Alt)
             {
                 CanvasToWorld(x, y, out int wX, out int wY);
@@ -4010,6 +4163,12 @@ public class WorldMapGump : ResizableGump
     {
         _lastMousePosition = new Point(x, y);
 
+        if (_coordinateCopyStart.HasValue)
+        {
+            _coordinateCopyDragged |= IsCoordinateCopyDrag(x, y);
+            return;
+        }
+
         Point offset = Mouse.LButtonPressed ? Mouse.LDragOffset : Mouse.MButtonPressed ? Mouse.MDragOffset : Point.Zero;
 
         if (_isScrolling && offset != Point.Zero)
@@ -4072,31 +4231,15 @@ public class WorldMapGump : ResizableGump
 
     public override void OnMouseWheel(MouseEventType delta)
     {
-        if (delta == MouseEventType.WheelScrollUp)
-        {
-            _zoomIndex++;
-
-            if (_zoomIndex >= _zooms.Length)
-            {
-                _zoomIndex = _zooms.Length - 1;
-            }
-        }
-        else
-        {
-            _zoomIndex--;
-
-            if (_zoomIndex < 0)
-            {
-                _zoomIndex = 0;
-            }
-        }
-
-
+        ChangeZoom(delta == MouseEventType.WheelScrollUp ? 1 : -1);
         base.OnMouseWheel(delta);
     }
 
     public override bool OnMouseDoubleClick(int x, int y, MouseButtonType button)
     {
+        if (button == MouseButtonType.Left && (_coordinateCopyStart.HasValue || CoordinateCopyModifierPressed))
+            return true;
+
         if (button != MouseButtonType.Left || _isScrolling || Keyboard.Alt)
         {
             return base.OnMouseDoubleClick(x, y, button);
@@ -4164,6 +4307,8 @@ public class WorldMapGump : ResizableGump
     protected override void OnMouseExit(int x, int y)
     {
         _lastMousePosition = null;
+        if (_coordinateCopyStart.HasValue)
+            _coordinateCopyDragged = true;
         base.OnMouseExit(x, y);
     }
 
