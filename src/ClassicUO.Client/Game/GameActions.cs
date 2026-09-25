@@ -1223,7 +1223,10 @@ internal static class GameActions
             return false;
 
         if (profile?.BandageAgentUseNewPacket ?? true)
+        {
             Socket.Send_TargetSelectedObject(bandage.Serial, target);
+            HealthbarGrabberGump.OnTargetSelected(world, target, TargetType.Beneficial);
+        }
         else
         {
             TargetManager.SetAutoTarget(target, profile?.BandageAgentTargetType ?? TargetType.Beneficial);
