@@ -898,7 +898,7 @@ namespace ClassicUO.Game.Scenes
 
                         if (HotKeys.IsPressed(HotKeyRegistrar.FollowMobileId) && !ProfileManager.CurrentProfile.DisableAutoFollowAlt && ent is Mobile followMobile)
                         {
-                            followMobile.Follow();
+                            followMobile.Follow(promptForDistance: Keyboard.Shift);
                         }
                         else if (!_world.DelayedObjectClickManager.IsEnabled)
                         {

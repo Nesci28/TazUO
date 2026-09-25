@@ -3776,7 +3776,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             content.AddToRight
             (
-                new SliderWithLabel(TazLang.Get("mog_tazuo_autofollowdistance"), 0, ThemeSettings.SLIDER_WIDTH, 1, 10,
+                new SliderWithLabel(TazLang.Get("mog_tazuo_autofollowdistance"), 0, ThemeSettings.SLIDER_WIDTH,
+                    Constants.MIN_AUTO_FOLLOW_DISTANCE, Constants.MAX_AUTO_FOLLOW_DISTANCE,
                     profile.AutoFollowDistance, (i) => { profile.AutoFollowDistance = i; }),
                 true, page
             );
@@ -4950,6 +4951,9 @@ namespace ClassicUO.Game.UI.Gumps
             content.AddToRight(GenHotKeyDisplay("Remove item from counterbar", "ALT RIGHT-CLICK", ewidth), true, page);
             content.AddToRight(
                 GenHotKeyDisplay("Click a mobile to follow them", "ALT CLICK", ewidth,
+                    !CurrentProfile.DisableAutoFollowAlt), true, page);
+            content.AddToRight(
+                GenHotKeyDisplay("Choose auto-follow distance", "SHIFT ALT CLICK", ewidth,
                     !CurrentProfile.DisableAutoFollowAlt), true, page);
             content.AddToRight(
                 GenHotKeyDisplay("Activate chat", "ENTER", ewidth,

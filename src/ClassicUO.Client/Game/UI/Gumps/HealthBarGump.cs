@@ -291,7 +291,7 @@ namespace ClassicUO.Game.UI.Gumps
                 if (!ProfileManager.CurrentProfile.DisableAutoFollowAlt)
                 {
                     if (_world.Mobiles.Get(LocalSerial) is Mobile mobile)
-                        mobile.Follow();
+                        mobile.Follow(promptForDistance: Keyboard.Shift);
                 }
             }
         }
