@@ -38,16 +38,17 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         }
         public static void SaveGridHighlightConfiguration()
         {
-            if (ProfileManager.CurrentProfile == null)
+            Profile profile = ProfileManager.CurrentProfile;
+            if (profile == null)
                 return;
             var config = new GridHighlightSettings
             {
-                Properties = ProfileManager.CurrentProfile.ConfigurableProperties?.ToList(),
-                Resistances = ProfileManager.CurrentProfile.ConfigurableResistances?.ToList(),
-                Negatives = ProfileManager.CurrentProfile.ConfigurableNegatives?.ToList(),
-                SuperSlayers = ProfileManager.CurrentProfile.ConfigurableSuperSlayers?.ToList(),
-                Slayers = ProfileManager.CurrentProfile.ConfigurableSlayers?.ToList(),
-                Rarities = ProfileManager.CurrentProfile.ConfigurableRarities?.ToList()
+                Properties = profile.ConfigurableProperties?.ToList(),
+                Resistances = profile.ConfigurableResistances?.ToList(),
+                Negatives = profile.ConfigurableNegatives?.ToList(),
+                SuperSlayers = profile.ConfigurableSuperSlayers?.ToList(),
+                Slayers = profile.ConfigurableSlayers?.ToList(),
+                Rarities = profile.ConfigurableRarities?.ToList()
             };
 
             string path = Path.Combine(CUOEnviroment.ExecutablePath, "Data", CONFIG_FILE_NAME);
