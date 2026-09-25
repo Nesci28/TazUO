@@ -403,6 +403,7 @@ namespace ClassicUO.Game.Managers
                                         {
                                             if (s)
                                             {
+                                                _world.CombatDamageTracker.RecordHarmfulTargetIntent(serial, TargetingType);
                                                 AsyncNetClient.Socket.Send_TargetObject(entity,
                                                                                    entity.Graphic,
                                                                                    entity.X,
@@ -458,7 +459,7 @@ namespace ClassicUO.Game.Managers
                             _lastDataBuffer[17] = (byte)(entity.Graphic >> 8);
                             _lastDataBuffer[18] = (byte)entity.Graphic;
 
-
+                            _world.CombatDamageTracker.RecordHarmfulTargetIntent(serial, TargetingType);
                             AsyncNetClient.Socket.Send_TargetObject(entity,
                                                                entity.Graphic,
                                                                entity.X,
