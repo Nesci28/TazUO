@@ -31,7 +31,11 @@ namespace ClassicUO.Game.UI.Gumps
         {
             if (MordernPaperdollGump == null)
             {
-                ExternalImageLoader.Instance.TryGetEmbeddedTexture("modern-paperdollgump.png", out MordernPaperdollGump);
+                string textureName =
+                    ProfileManager.CurrentProfile?.UseLegionPaperdollTheme == true
+                        ? LegionTheme.ModernPaperdollTexture
+                        : "modern-paperdollgump.png";
+                ExternalImageLoader.Instance.TryGetEmbeddedTexture(textureName, out MordernPaperdollGump);
             }
         }
         #endregion
@@ -69,7 +73,11 @@ namespace ClassicUO.Game.UI.Gumps
             #endregion
 
             InitializeTexture();
-            Add(backgroundImage = new EmbeddedGumpPic(0, 0, MordernPaperdollGump, ProfileManager.CurrentProfile.ModernPaperDollHue));
+            ushort backgroundHue =
+                ProfileManager.CurrentProfile.UseLegionPaperdollTheme
+                    ? (ushort)0
+                    : ProfileManager.CurrentProfile.ModernPaperDollHue;
+            Add(backgroundImage = new EmbeddedGumpPic(0, 0, MordernPaperdollGump, backgroundHue));
 
             var _menuHit = new HitBox(Width - 26, 1, 25, 16, alpha: 0f);
             Add(_menuHit);
@@ -242,7 +250,24 @@ namespace ClassicUO.Game.UI.Gumps
 
         public void UpdateOptions()
         {
-            backgroundImage.Hue = ProfileManager.CurrentProfile.ModernPaperDollHue;
+            string textureName =
+                ProfileManager.CurrentProfile.UseLegionPaperdollTheme
+                    ? LegionTheme.ModernPaperdollTexture
+                    : "modern-paperdollgump.png";
+
+            if (
+                backgroundImage is EmbeddedGumpPic embeddedBackground
+                && LegionTheme.TryGetTexture(textureName, out Texture2D texture)
+            )
+            {
+                MordernPaperdollGump = texture;
+                embeddedBackground.Texture = texture;
+            }
+
+            backgroundImage.Hue =
+                ProfileManager.CurrentProfile.UseLegionPaperdollTheme
+                    ? (ushort)0
+                    : ProfileManager.CurrentProfile.ModernPaperDollHue;
             AnchorType = ProfileManager.CurrentProfile.ModernPaperdollAnchorEnabled ? ANCHOR_TYPE.NONE : ANCHOR_TYPE.DISABLED;
             foreach (KeyValuePair<Layer[], ItemSlot> layerSlot in itemLayerSlots)
             {
