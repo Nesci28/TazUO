@@ -263,6 +263,8 @@ namespace ClassicUO.Game.Scenes
 
             if (ProfileManager.CurrentProfile.VoiceRecognitionEnabled)
                 VoiceRecognitionManager.Instance.InitializeAsync(ProfileManager.CurrentProfile.VoiceModelPath, startListeningAfter: true);
+
+            DualBoxManager.Instance.StartClient();
         }
 
         private void ChatOnMessageReceived(object sender, MessageEventArgs e)

@@ -164,6 +164,7 @@ public sealed class DualBoxManager
 {
     public const int ProtocolVersion = 8;
     public const int DefaultPort = 47651;
+    private const uint ClientReconnectDelay = 1000;
     public const int SyncRange = 10;
     public const int MaxScriptCommandLength = 4096;
     public const int MaxMacroDefinitionLength = 8192;
@@ -224,6 +225,8 @@ public sealed class DualBoxManager
     private CancellationTokenSource _cancellation;
     private TcpListener _listener;
     private Peer _masterPeer;
+    private bool _clientConnectionPending;
+    private uint _nextClientConnectAttempt;
     private DualBoxRole _role;
     private string _status = "Stopped";
     private uint _nextHeartbeat;
@@ -396,16 +399,13 @@ public sealed class DualBoxManager
         Stop();
 
         var cancellation = new CancellationTokenSource();
-        DualBoxMessage hello = CreateStateMessage(DualBoxMessageType.Hello, false);
 
         lock (_gate)
         {
             _role = DualBoxRole.Client;
             _cancellation = cancellation;
-            _status = $"Connecting to 127.0.0.1:{DefaultPort}";
+            _status = "Waiting for master.";
         }
-
-        _ = ConnectClientAsync(hello, cancellation.Token);
     }
 
     public void Stop()
@@ -426,6 +426,8 @@ public sealed class DualBoxManager
             _cancellation = null;
             _listener = null;
             _masterPeer = null;
+            _clientConnectionPending = false;
+            _nextClientConnectAttempt = 0;
             _peers.Clear();
             _role = DualBoxRole.Standalone;
             _status = "Stopped";
@@ -1036,6 +1038,7 @@ public sealed class DualBoxManager
         if (role != DualBoxRole.Client)
             return;
 
+        TryConnectClient();
         ProcessPendingPartyInvite(world);
 
         if (Time.Ticks >= _nextHeartbeat)
@@ -1202,13 +1205,39 @@ public sealed class DualBoxManager
         }
     }
 
+    private void TryConnectClient()
+    {
+        CancellationToken token;
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Client
+                || _clientConnectionPending
+                || _masterPeer != null
+                || Time.Ticks < _nextClientConnectAttempt)
+            {
+                return;
+            }
+
+            _clientConnectionPending = true;
+            _nextClientConnectAttempt = Time.Ticks + ClientReconnectDelay;
+            _status = $"Connecting to 127.0.0.1:{DefaultPort}";
+            token = _cancellation.Token;
+        }
+
+        DualBoxMessage hello = CreateStateMessage(DualBoxMessageType.Hello, false);
+        _ = ConnectClientAsync(hello, token);
+    }
+
     private async Task ConnectClientAsync(DualBoxMessage hello, CancellationToken token)
     {
+        TcpClient client = null;
         Peer peer = null;
+        bool connected = false;
 
         try
         {
-            var client = new TcpClient(AddressFamily.InterNetwork) { NoDelay = true };
+            client = new TcpClient(AddressFamily.InterNetwork) { NoDelay = true };
             await client.ConnectAsync(IPAddress.Loopback, DefaultPort, token).ConfigureAwait(false);
             peer = new Peer(client);
 
@@ -1221,6 +1250,7 @@ public sealed class DualBoxManager
                 }
 
                 _masterPeer = peer;
+                connected = true;
                 _status = "Connected; waiting for the master to sync.";
             }
 
@@ -1230,9 +1260,11 @@ public sealed class DualBoxManager
         catch (OperationCanceledException)
         {
         }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionRefused)
+        {
+        }
         catch (Exception ex)
         {
-            SetStatus($"Client connection failed: {ex.Message}");
             Log.Warn($"Dual box client connection failed: {ex.Message}");
         }
         finally
@@ -1249,13 +1281,16 @@ public sealed class DualBoxManager
                 if (isCurrentSession)
                 {
                     _masterPeer = null;
-                    _status = "Disconnected from master.";
+                    _status = connected ? "Disconnected from master; retrying." : "Waiting for master.";
+
+                    if (!connected)
+                        _clientConnectionPending = false;
                 }
             }
 
-            peer?.Client.Close();
+            client?.Close();
 
-            if (isCurrentSession)
+            if (isCurrentSession && connected)
             {
                 MainThreadQueue.EnqueueAction(
                     () =>
@@ -1271,6 +1306,9 @@ public sealed class DualBoxManager
                         }
 
                         ResetClientState();
+
+                        lock (_gate)
+                            _clientConnectionPending = false;
                     },
                     token
                 );

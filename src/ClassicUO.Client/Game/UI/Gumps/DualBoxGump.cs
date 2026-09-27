@@ -13,6 +13,7 @@ public sealed class DualBoxGump : Gump
     private readonly Label _clientsLabel;
     private readonly Label _statusLabel;
     private readonly NiceButton _syncButton;
+    private readonly NiceButton _stopButton;
     private readonly Checkbox _autoAcceptTradesCheckbox;
     private bool _refreshingAutoAcceptTrades;
     private uint _nextRefresh;
@@ -51,10 +52,9 @@ public sealed class DualBoxGump : Gump
         Add(_modeLabel = new Label(string.Empty, true, 0xFFFF) { X = 10, Y = 30 });
         Add(_clientsLabel = new Label(string.Empty, true, 0xFFFF) { X = 105, Y = 30 });
 
-        AddButton(10, 52, 90, TazLang.Get("dualbox_master", "Master"), 1);
-        AddButton(110, 52, 90, TazLang.Get("dualbox_client", "Client"), 2);
+        AddButton(10, 52, 190, TazLang.Get("dualbox_master", "Master"), 1);
         _syncButton = AddButton(210, 52, 100, TazLang.Get("dualbox_sync", "Sync (10 tiles)"), 3);
-        AddButton(10, 80, 300, TazLang.Get("dualbox_stop", "Stop dual-box connection"), 4);
+        _stopButton = AddButton(10, 80, 300, TazLang.Get("dualbox_stop", "Stop dual-box connection"), 4);
 
         _autoAcceptTradesCheckbox = new Checkbox(
             0x00D2,
@@ -126,14 +126,14 @@ public sealed class DualBoxGump : Gump
             case 1:
                 manager.StartMaster();
                 break;
-            case 2:
-                manager.StartClient();
-                break;
             case 3:
                 manager.SyncClients();
                 break;
             case 4:
-                manager.Stop();
+                if (manager.IsClient || manager.IsMaster)
+                    manager.Stop();
+                else
+                    manager.StartClient();
                 break;
         }
 
@@ -161,6 +161,9 @@ public sealed class DualBoxGump : Gump
             : $"Master: {(manager.ConnectedClientCount == 0 ? "disconnected" : "connected")}";
         _statusLabel.Text = manager.StatusText;
         _syncButton.IsEnabled = manager.IsMaster;
+        _stopButton.SetText(manager.IsClient || manager.IsMaster
+            ? TazLang.Get("dualbox_stop", "Stop dual-box connection")
+            : TazLang.Get("dualbox_resume_client", "Resume as client"));
 
         bool autoAcceptTrades = manager.AutoAcceptTradesEnabled;
 
