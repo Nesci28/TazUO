@@ -43,7 +43,8 @@ internal enum DualBoxMessageType
     PartyInvite,
     MasterIdentity,
     Nack,
-    Stop
+    Stop,
+    FlushStep
 }
 
 internal enum DualBoxTargetKind
@@ -162,7 +163,7 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 8;
+    public const int ProtocolVersion = 9;
     public const int DefaultPort = 47651;
     private const uint ClientReconnectDelay = 1000;
     public const int SyncRange = 10;
@@ -180,6 +181,7 @@ public sealed class DualBoxManager
     private const uint PartyInviteRetryDelay = 2000;
     private const uint FollowerStateTimeout = 2000;
     private const uint FollowerMovementGracePeriod = 3000;
+    private const uint FollowerStepFlushDelay = 500;
 
     private sealed class Peer
     {
@@ -205,6 +207,10 @@ public sealed class DualBoxManager
         public bool MasterIdentitySent { get; set; }
         public uint LastStateTick { get; set; }
         public uint PositionGraceUntil { get; set; }
+        public long ConfirmedSequence { get; set; }
+        public long LastSentSequence { get; set; }
+        public uint LastSentStepTick { get; set; }
+        public bool FlushRequested { get; set; }
     }
 
     private sealed class PendingGumpResponse
@@ -244,6 +250,9 @@ public sealed class DualBoxManager
     private long _clientMacroSequence;
     private long _clientActionSequence;
     private long _clientGumpSequence;
+    private long _clientConfirmedSequence;
+    private long _clientLastReceivedSequence;
+    private long _clientFlushSequence;
     private Peer _partyInvitePeer;
     private uint _partyInviteClientSerial;
     private uint _partyInviteDeadline;
@@ -505,6 +514,10 @@ public sealed class DualBoxManager
                 peer.Selected = inRange;
                 peer.Ready = false;
                 peer.ExpectedSequence = masterState.Sequence;
+                peer.ConfirmedSequence = masterState.Sequence;
+                peer.LastSentSequence = masterState.Sequence;
+                peer.LastSentStepTick = 0;
+                peer.FlushRequested = false;
                 peer.MountReady = false;
                 peer.ExpectedMounted = masterState.Mounted;
                 peer.ExpectedMountSequence = masterState.MountSequence;
@@ -914,16 +927,27 @@ public sealed class DualBoxManager
                     if (!peer.MountReady)
                         return false;
 
-                    if (peer.State == null
-                        || peer.LastStateTick == 0
-                        || HasDeadlinePassed(Time.Ticks, peer.LastStateTick + FollowerStateTimeout)
-                        || !IsWithinFollowerDrift(
-                            world.MapIndex,
-                            world.Player.X,
-                            world.Player.Y,
-                            peer.State.X,
-                            peer.State.Y
-                        ))
+                    if (peer.LastSentSequence - peer.ConfirmedSequence >= 2)
+                        return false;
+
+                    bool movementPending = peer.LastSentSequence > peer.ConfirmedSequence
+                        && peer.LastSentStepTick != 0
+                        && !HasDeadlinePassed(
+                            Time.Ticks,
+                            peer.LastSentStepTick + FollowerStateTimeout
+                        );
+
+                    if (!movementPending
+                        && (peer.State == null
+                            || peer.LastStateTick == 0
+                            || HasDeadlinePassed(Time.Ticks, peer.LastStateTick + FollowerStateTimeout)
+                            || !IsWithinFollowerDrift(
+                                world.MapIndex,
+                                world.Player.X,
+                                world.Player.Y,
+                                peer.State.X,
+                                peer.State.Y
+                            )))
                     {
                         return false;
                     }
@@ -971,8 +995,10 @@ public sealed class DualBoxManager
 
             foreach (Peer peer in selected)
             {
-                peer.Ready = false;
                 peer.ExpectedSequence = message.Sequence;
+                peer.LastSentSequence = message.Sequence;
+                peer.LastSentStepTick = Time.Ticks;
+                peer.FlushRequested = false;
             }
 
             _status = $"Step {message.Sequence}: waiting for {selected.Count} client(s).";
@@ -1003,6 +1029,11 @@ public sealed class DualBoxManager
             FailClientStep($"The game server could not confirm follower step {_clientSequence}.");
             return;
         }
+
+        _clientConfirmedSequence = _clientSequence;
+
+        if (_clientFlushSequence <= _clientConfirmedSequence)
+            _clientFlushSequence = 0;
 
         _clientReady = true;
         SetStatus("Synchronized with master.");
@@ -1071,6 +1102,7 @@ public sealed class DualBoxManager
         {
             UpdateMasterPartyInvite(world);
             UpdateMasterMountState(world);
+            FlushIdleFollowerSteps();
 
             if (HasFollowerDrift(world))
                 ResyncSelectedClients("Follower position drifted; realigning.");
@@ -1102,8 +1134,14 @@ public sealed class DualBoxManager
             return;
         }
 
-        if (_clientFollowing && !_awaitingWalkSequence.HasValue && _pendingSteps.Count != 0)
+        if (_clientFollowing
+            && !_awaitingWalkSequence.HasValue
+            && _pendingSteps.Count != 0
+            && (_pendingSteps.Count > 1
+                || _clientFlushSequence >= _pendingSteps.Peek().Sequence))
+        {
             ProcessPendingStep(world);
+        }
     }
 
     internal static bool IsWithinSyncRange(int x1, int y1, int x2, int y2)
@@ -1127,6 +1165,39 @@ public sealed class DualBoxManager
     internal static ushort ApplyFormationOffset(ushort coordinate, int offset)
         => (ushort)Math.Clamp(coordinate + offset, 0, ushort.MaxValue);
 
+    private void FlushIdleFollowerSteps()
+    {
+        List<(Peer Peer, long Sequence)> pending = [];
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return;
+
+            uint now = Time.Ticks;
+
+            foreach (Peer peer in _peers)
+            {
+                if (!peer.Selected
+                    || !peer.Ready
+                    || !peer.MountReady
+                    || peer.FlushRequested
+                    || peer.LastSentSequence - peer.ConfirmedSequence != 1
+                    || peer.LastSentStepTick == 0
+                    || !HasDeadlinePassed(now, peer.LastSentStepTick + FollowerStepFlushDelay))
+                {
+                    continue;
+                }
+
+                peer.FlushRequested = true;
+                pending.Add((peer, peer.LastSentSequence));
+            }
+        }
+
+        foreach ((Peer peer, long sequence) in pending)
+            Send(peer, new DualBoxMessage { Type = DualBoxMessageType.FlushStep, Sequence = sequence });
+    }
+
     private bool HasFollowerDrift(World world)
     {
         world.Player.GetEndPosition(out int masterX, out int masterY, out _, out _);
@@ -1143,6 +1214,16 @@ public sealed class DualBoxManager
 
                 if (peer.PositionGraceUntil != 0
                     && !HasDeadlinePassed(Time.Ticks, peer.PositionGraceUntil))
+                {
+                    continue;
+                }
+
+                if (peer.LastSentSequence > peer.ConfirmedSequence
+                    && peer.LastSentStepTick != 0
+                    && !HasDeadlinePassed(
+                        Time.Ticks,
+                        peer.LastSentStepTick + FollowerStateTimeout
+                    ))
                 {
                     continue;
                 }
@@ -1521,13 +1602,22 @@ public sealed class DualBoxManager
                     partyServerName = message.ServerName;
                 }
 
-                if (peer.Selected && message.Sequence == peer.ExpectedSequence)
-                    peer.Ready = message.Type != DualBoxMessageType.Nack && message.Ready;
+                if (peer.Selected
+                    && message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State
+                    && message.Sequence >= peer.ConfirmedSequence)
+                {
+                    peer.ConfirmedSequence = Math.Min(message.Sequence, peer.LastSentSequence);
+                    peer.Ready = message.Ready;
+
+                    if (peer.ConfirmedSequence >= peer.LastSentSequence)
+                        peer.FlushRequested = false;
+                }
 
                 if (message.Type == DualBoxMessageType.Nack
                     && peer.Selected
-                    && message.Sequence == peer.ExpectedSequence)
+                    && message.Sequence <= peer.LastSentSequence)
                 {
+                    peer.Ready = false;
                     needsResync = true;
                 }
 
@@ -1584,6 +1674,9 @@ public sealed class DualBoxManager
                 break;
             case DualBoxMessageType.Step:
                 MainThreadQueue.EnqueueAction(() => QueueStep(message), token);
+                break;
+            case DualBoxMessageType.FlushStep:
+                MainThreadQueue.EnqueueAction(() => FlushClientSteps(message), token);
                 break;
             case DualBoxMessageType.MountState:
                 MainThreadQueue.EnqueueAction(() => QueueMountState(message), token);
@@ -2201,6 +2294,9 @@ public sealed class DualBoxManager
         _aligning = true;
         _alignmentPathStarted = false;
         _awaitingWalkSequence = null;
+        _clientConfirmedSequence = message.Sequence;
+        _clientLastReceivedSequence = message.Sequence;
+        _clientFlushSequence = 0;
 
         ConfigureClientFormation(World.Instance, message, local);
         _targetX = GetFollowerCoordinate(message.X, _clientFormationOffsetX);
@@ -2357,24 +2453,32 @@ public sealed class DualBoxManager
 
     private void QueueStep(DualBoxMessage message)
     {
-        if (!_clientFollowing || message.Sequence <= _clientSequence)
+        if (!_clientFollowing || message.Sequence <= _clientLastReceivedSequence)
             return;
 
-        if (message.Sequence != _clientSequence + 1
-            || _pendingSteps.Count != 0
-            || _awaitingWalkSequence.HasValue)
+        long outstandingSteps = _pendingSteps.Count + (_awaitingWalkSequence.HasValue ? 1 : 0);
+
+        if (message.Sequence != _clientLastReceivedSequence + 1 || outstandingSteps >= 2)
         {
             _pendingSteps.Clear();
             FailClientStep(
-                $"Received out-of-order master step {message.Sequence}; expected {_clientSequence + 1}.",
+                $"Received out-of-order master step {message.Sequence}; expected {_clientLastReceivedSequence + 1}.",
                 message.Sequence
             );
             return;
         }
 
-        _clientReady = false;
+        _clientLastReceivedSequence = message.Sequence;
         _pendingSteps.Enqueue(message);
         SetStatus($"Applying master step {message.Sequence}...");
+    }
+
+    private void FlushClientSteps(DualBoxMessage message)
+    {
+        if (!_clientFollowing || message.Sequence < _clientLastReceivedSequence)
+            return;
+
+        _clientFlushSequence = Math.Max(_clientFlushSequence, message.Sequence);
     }
 
     private void ProcessAlignment(World world)
@@ -2477,6 +2581,7 @@ public sealed class DualBoxManager
         }
 
         byte walkSequence = player.Walker.WalkSequence;
+        _clientReady = false;
         _executingRemoteStep = true;
         bool walked;
 
@@ -2750,6 +2855,10 @@ public sealed class DualBoxManager
 
                 peer.Ready = false;
                 peer.ExpectedSequence = state.Sequence;
+                peer.ConfirmedSequence = state.Sequence;
+                peer.LastSentSequence = state.Sequence;
+                peer.LastSentStepTick = 0;
+                peer.FlushRequested = false;
                 peer.MountReady = false;
                 peer.ExpectedMounted = state.Mounted;
                 peer.ExpectedMountSequence = state.MountSequence;
@@ -2778,7 +2887,8 @@ public sealed class DualBoxManager
     private DualBoxMessage CreateStateMessage(DualBoxMessageType type, bool ready)
     {
         World world = World.Instance;
-        var result = new DualBoxMessage { Type = type, Ready = ready, Sequence = _clientSequence };
+        long sequence = _role == DualBoxRole.Client ? _clientConfirmedSequence : _clientSequence;
+        var result = new DualBoxMessage { Type = type, Ready = ready, Sequence = sequence };
 
         if (world?.InGame != true || world.Player == null)
             return result;
@@ -2892,6 +3002,9 @@ public sealed class DualBoxManager
         _executingRemoteStep = false;
         _awaitingWalkSequence = null;
         _clientSequence = 0;
+        _clientConfirmedSequence = 0;
+        _clientLastReceivedSequence = 0;
+        _clientFlushSequence = 0;
         _mountSequence = 0;
         _clientMountSequence = 0;
         _clientMacroSequence = 0;
