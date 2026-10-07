@@ -194,6 +194,19 @@ public class DualBoxManagerTests
         second.Code.Should().Be(MacroType.WaitForTarget);
     }
 
+    [Fact]
+    public void TeleportMacroDetectionOnlyMatchesTeleportSpellActions()
+    {
+        var teleport = new Macro("Teleport");
+        teleport.PushToBack(new MacroObject(MacroType.CastSpell, MacroSubType.Teleport));
+
+        var heal = new Macro("Heal");
+        heal.PushToBack(new MacroObject(MacroType.CastSpell, MacroSubType.GreaterHeal));
+
+        MacroManager.IsTeleportMacroDefinition(MacroManager.SerializeMacroDefinition(teleport)).Should().BeTrue();
+        MacroManager.IsTeleportMacroDefinition(MacroManager.SerializeMacroDefinition(heal)).Should().BeFalse();
+    }
+
     [Theory]
     [InlineData((int)CursorTarget.Object, true)]
     [InlineData((int)CursorTarget.Position, true)]

@@ -716,6 +716,35 @@ namespace ClassicUO.Game.Managers
             return macro;
         }
 
+        internal static bool IsTeleportMacroDefinition(string definition)
+        {
+            try
+            {
+                Macro macro = DeserializeMacroDefinition(definition);
+
+                for (MacroObject action = (MacroObject)macro?.Items; action != null; action = (MacroObject)action.Next)
+                {
+                    if (action is MacroLoopContainer loop)
+                    {
+                        if (loop.Items.Any(item => item.Code == MacroType.CastSpell && item.SubCode == MacroSubType.Teleport))
+                        {
+                            return true;
+                        }
+                    }
+                    else if (action.Code == MacroType.CastSpell && action.SubCode == MacroSubType.Teleport)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Could not inspect synchronized macro for Teleport: {ex.Message}");
+            }
+
+            return false;
+        }
+
         private static bool MacroContainsLoop(MacroObject macro)
         {
             for (MacroObject node = macro; node != null; node = (MacroObject)node.Next)

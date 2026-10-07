@@ -253,6 +253,7 @@ public sealed class DualBoxManager
     private int _mountActionAttempts;
     private uint _mountActionDeadline;
     private bool _clientFollowing;
+    private bool _clientTeleportTargetPending;
     private bool _clientReady;
     private bool _aligning;
     private bool _alignmentPathStarted;
@@ -1771,6 +1772,7 @@ public sealed class DualBoxManager
         }
 
         _clientMacroSequence = message.MacroSequence;
+        _clientTeleportTargetPending = MacroManager.IsTeleportMacroDefinition(message.MacroDefinition);
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
 
@@ -1790,6 +1792,7 @@ public sealed class DualBoxManager
             return;
 
         _clientMacroSequence = message.MacroSequence;
+        _clientTeleportTargetPending = false;
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
         World.Instance?.Macros?.StopExecution();
@@ -1931,13 +1934,31 @@ public sealed class DualBoxManager
                 targetManager.Target(_pendingTarget.TargetSerial);
                 break;
             case DualBoxTargetKind.Location:
+                ushort targetGraphic = _pendingTarget.TargetGraphic;
+                ushort targetX = _pendingTarget.TargetX;
+                ushort targetY = _pendingTarget.TargetY;
+                sbyte targetZ = _pendingTarget.TargetZ;
+
+                if (_clientTeleportTargetPending)
+                {
+                    GetTeleportFollowerTarget(
+                        world,
+                        _pendingTarget,
+                        out targetGraphic,
+                        out targetX,
+                        out targetY,
+                        out targetZ
+                    );
+                }
+
                 targetManager.Target(
-                    _pendingTarget.TargetGraphic,
-                    _pendingTarget.TargetX,
-                    _pendingTarget.TargetY,
-                    _pendingTarget.TargetZ,
+                    targetGraphic,
+                    targetX,
+                    targetY,
+                    targetZ,
                     adjustSurfaceHeight: false
                 );
+                _clientTeleportTargetPending = false;
                 break;
             default:
                 return;
@@ -1945,6 +1966,74 @@ public sealed class DualBoxManager
 
         _pendingTarget = null;
         _pendingTargetDeadline = 0;
+    }
+
+    private static readonly (int X, int Y)[] TeleportFollowerOffsets =
+    [
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+        (1, 1),
+        (1, -1),
+        (-1, 1),
+        (-1, -1)
+    ];
+
+    private static void GetTeleportFollowerTarget(
+        World world,
+        DualBoxMessage message,
+        out ushort graphic,
+        out ushort x,
+        out ushort y,
+        out sbyte z
+    )
+    {
+        graphic = message.TargetGraphic;
+        x = message.TargetX;
+        y = message.TargetY;
+        z = message.TargetZ;
+
+        foreach ((int offsetX, int offsetY) in TeleportFollowerOffsets)
+        {
+            int candidateX = message.TargetX + offsetX;
+            int candidateY = message.TargetY + offsetY;
+
+            if (candidateX < 0 || candidateX > ushort.MaxValue || candidateY < 0 || candidateY > ushort.MaxValue)
+                continue;
+
+            List<GameObject> objects = Pathfinder.GetAllObjectsAt(candidateX, candidateY);
+            bool occupied = objects.Any(obj => obj is Mobile mobile && !mobile.IsDead);
+            bool hasLand = objects.Any(obj => obj is Land);
+            Pathfinder._listPool.Return(objects);
+
+            if (occupied || !hasLand)
+                continue;
+
+            sbyte candidateZ = world.Map.GetTileZ(candidateX, candidateY);
+
+            if (!world.Player.Pathfinder.CalculateNewZ(candidateX, candidateY, ref candidateZ, 0))
+                continue;
+
+            graphic = 0;
+            x = (ushort)candidateX;
+            y = (ushort)candidateY;
+            z = candidateZ;
+            return;
+        }
+
+        // Keep the replay deterministic even when the local map has not loaded the destination.
+        // The server remains authoritative and can reject this fallback if it is blocked.
+        if (message.TargetX < ushort.MaxValue)
+        {
+            graphic = 0;
+            x = (ushort)(message.TargetX + 1);
+        }
+        else if (message.TargetX > 0)
+        {
+            graphic = 0;
+            x = (ushort)(message.TargetX - 1);
+        }
     }
 
     private void BeginAlignment(DualBoxMessage message)
@@ -2553,6 +2642,7 @@ public sealed class DualBoxManager
         _mountSequence = 0;
         _clientMountSequence = 0;
         _clientMacroSequence = 0;
+        _clientTeleportTargetPending = false;
         _clientActionSequence = 0;
         _clientGumpSequence = 0;
         _pendingMountSequence = 0;
