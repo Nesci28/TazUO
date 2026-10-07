@@ -58,7 +58,7 @@ namespace ClassicUO.Game.Managers
             48, 32, 33, 47, 36, 38
         ];
 
-        private readonly int[] _spellsCountTable =
+        private static readonly int[] _spellsCountTable =
         [
             Constants.SPELLBOOK_1_SPELLS_COUNT,
             Constants.SPELLBOOK_2_SPELLS_COUNT,
@@ -708,6 +708,41 @@ namespace ClassicUO.Game.Managers
             }
 
             return result;
+        }
+
+        /// <summary>Resolves a Cast Spell macro subtype to the full spell index used by the server.</summary>
+        internal static int GetCastSpellIndex(MacroSubType subCode)
+        {
+            int spell = subCode - MacroSubType.Clumsy + 1;
+
+            if (spell <= 0 || spell > 151)
+                return 0;
+
+            int totalCount = 0;
+
+            for (int spellType = 0; spellType < _spellsCountTable.Length; spellType++)
+            {
+                totalCount += _spellsCountTable[spellType];
+
+                if (spell > totalCount)
+                    continue;
+
+                spell -= totalCount - _spellsCountTable[spellType];
+                spell += spellType * 100;
+
+                if (spellType > 2)
+                {
+                    spell += 100;
+
+                    // Mysticism spell indices start at 678.
+                    if (spellType == 6)
+                        spell -= 23;
+                }
+
+                return spell;
+            }
+
+            return 0;
         }
 
         private int Process(MacroObject macro)
@@ -1523,42 +1558,10 @@ namespace ClassicUO.Game.Managers
                     break;
 
                 case MacroType.CastSpell:
-                    int spell = macro.SubCode - MacroSubType.Clumsy + 1;
+                    int spell = GetCastSpellIndex(macro.SubCode);
 
-                    if (spell > 0 && spell <= 151)
-                    {
-                        int totalCount = 0;
-                        int spellType;
-
-                        for (spellType = 0; spellType < 8; spellType++)
-                        {
-                            totalCount += _spellsCountTable[spellType];
-
-                            if (spell <= totalCount)
-                            {
-                                break;
-                            }
-                        }
-
-                        if (spellType < 7)
-                        {
-                            spell -= totalCount - _spellsCountTable[spellType];
-                            spell += spellType * 100;
-
-                            if (spellType > 2)
-                            {
-                                spell += 100;
-
-                                // fix offset for mysticism
-                                if (spellType == 6)
-                                {
-                                    spell -= 23;
-                                }
-                            }
-
-                            GameActions.CastSpell(spell);
-                        }
-                    }
+                    if (spell > 0)
+                        GameActions.CastSpell(spell);
 
                     break;
 

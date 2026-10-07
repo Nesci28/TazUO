@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
 using ClassicUO.Assets;
+using ClassicUO.Common.Enums;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.LegionScripting;
@@ -271,7 +272,7 @@ public class CounterBarSlot
                 return (ushort)Spell.GumpIconSmallID;
 
             case CounterBarSlotType.Macro:
-                return world?.Macros?.FindMacro(MacroName)?.Graphic ?? 0;
+                return GetMacroIconGraphic(world?.Macros?.FindMacro(MacroName));
 
             case CounterBarSlotType.Ability:
                 int idx = GetAbilityIndex(world);
@@ -281,6 +282,49 @@ public class CounterBarSlot
         }
 
         return 0;
+    }
+
+    private static ushort GetMacroIconGraphic(Macro macro)
+    {
+        if (macro == null)
+            return 0;
+
+        if (macro.Graphic.GetValueOrDefault() != 0)
+            return macro.Graphic.Value;
+
+        for (var action = macro.Items as MacroObject; action != null; action = action.Next as MacroObject)
+        {
+            ushort graphic = GetMacroActionIcon(action);
+            if (graphic != 0)
+                return graphic;
+        }
+
+        return 0;
+    }
+
+    private static ushort GetMacroActionIcon(MacroObject action)
+    {
+        if (action is MacroLoopContainer loop)
+        {
+            foreach (MacroObject item in loop.Items)
+            {
+                ushort graphic = GetMacroActionIcon(item);
+                if (graphic != 0)
+                    return graphic;
+            }
+
+            return 0;
+        }
+
+        int spellId;
+        if (action.Code == MacroType.CastSpell && action.SubCode >= MacroSubType.Clumsy && action.SubCode <= MacroSubType.RisingColossus)
+            spellId = MacroManager.GetCastSpellIndex(action.SubCode);
+        else if (action.Code == MacroType.CastMasterySpell && action.SubCode >= MacroSubType.Inspire && action.SubCode <= MacroSubType.Boarding)
+            spellId = action.SubCode - MacroSubType.Inspire + 701;
+        else
+            return 0;
+
+        return (ushort)SpellDefinition.FullIndexGetSpell(spellId).GumpIconSmallID;
     }
 
     /// <summary>Gets the tooltip text for this slot. Returns false (and empty text) when none applies.</summary>
