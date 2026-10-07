@@ -52,8 +52,7 @@ Holding a control for 500 ms emits a `longpress` phase,
 which is the browser equivalent of the desktop context action. The production client will route the
 same `tazuo-control` events into its existing input/action dispatcher.
 
-The canvas uses land and static art exported by `tools/HDAssets` from `map0LegacyMUL.uop` and the
-classic art files. Movement events update the player position and recenter the visible map every
+The canvas uses a small land and static art export from licensed UO client data. Movement events update the player position and recenter the visible map every
 animation frame. The export is intentionally small for the proof of concept; production will stream
 nearby blocks and decode the remaining art/animation groups as the FNA renderer is ported.
 

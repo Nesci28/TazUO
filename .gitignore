@@ -258,9 +258,6 @@ paket.lock
 
 # JetBrains Rider
 .idea/
-# Local HD asset conversion work (contains copyrighted client exports and AI output)
-HDAssetsWork/
-
 # Locally generated browser scene exports from licensed UO client data.
 tools/legion-wasm-poc/static/scene-assets/
 .env.tazuo-test
