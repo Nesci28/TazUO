@@ -266,6 +266,7 @@ public sealed class DualBoxManager
     private int _mountActionAttempts;
     private uint _mountActionDeadline;
     private bool _clientFollowing;
+    private bool _clientExactPathReplay;
     private bool _clientTeleportTargetPending;
     private bool _clientReady;
     private bool _aligning;
@@ -288,6 +289,9 @@ public sealed class DualBoxManager
     private bool _clientSeparateFormation;
     private int _clientFormationOffsetX;
     private int _clientFormationOffsetY;
+
+    private bool RequiresExactPathCoordinates
+        => _clientExactPathReplay || !_clientSeparateFormation;
 
     private DualBoxManager() { }
 
@@ -1065,7 +1069,7 @@ public sealed class DualBoxManager
 
     public bool ShouldIgnoreMobile(uint serial)
         => _clientFollowing
-            && !_clientSeparateFormation
+            && RequiresExactPathCoordinates
             && _groupSerials.Contains(serial);
 
     public void ProcessAutoWalk(Pathfinder pathfinder)
@@ -2311,6 +2315,10 @@ public sealed class DualBoxManager
     private void ConfigureClientFormation(World world, DualBoxMessage master, DualBoxMessage local)
     {
         _clientSeparateFormation = UsesSeparateFeluccaFormation(master.MapIndex);
+        // Movement instructions are replayed on the master's exact tiles.  The delay in the
+        // instruction queue keeps the follower behind the master without creating a parallel
+        // path that cuts corners.
+        _clientExactPathReplay = true;
         _clientFormationOffsetX = 0;
         _clientFormationOffsetY = 0;
 
@@ -2406,7 +2414,7 @@ public sealed class DualBoxManager
 
     private sbyte GetFollowerTargetZ(World world, DualBoxMessage local, DualBoxMessage master)
     {
-        if (!_clientSeparateFormation)
+        if (RequiresExactPathCoordinates)
             return master.Z;
 
         ushort targetX = GetFollowerCoordinate(master.X, _clientFormationOffsetX);
@@ -2423,7 +2431,7 @@ public sealed class DualBoxManager
     }
 
     private ushort GetFollowerCoordinate(ushort coordinate, int offset)
-        => _clientSeparateFormation
+        => !RequiresExactPathCoordinates
             ? ApplyFormationOffset(coordinate, offset)
             : coordinate;
 
@@ -2492,7 +2500,7 @@ public sealed class DualBoxManager
 
         bool atTarget = x == _targetX
             && y == _targetY
-            && (_clientSeparateFormation || z == _targetZ);
+            && (!RequiresExactPathCoordinates || z == _targetZ);
 
         if (!atTarget)
         {
@@ -2572,7 +2580,7 @@ public sealed class DualBoxManager
         ushort expectedStartY = GetFollowerCoordinate(message.StartY, _clientFormationOffsetY);
 
         if (x != expectedStartX || y != expectedStartY
-            || (!_clientSeparateFormation && z != message.StartZ)
+            || (RequiresExactPathCoordinates && z != message.StartZ)
             || (direction & Direction.Mask) != ((Direction)message.StartDirection & Direction.Mask))
         {
             _pendingSteps.Clear();
@@ -2613,7 +2621,7 @@ public sealed class DualBoxManager
         ushort expectedY = GetFollowerCoordinate(message.Y, _clientFormationOffsetY);
 
         if (x != expectedX || y != expectedY
-            || (!_clientSeparateFormation && z != message.Z)
+            || (RequiresExactPathCoordinates && z != message.Z)
             || (direction & Direction.Mask) != ((Direction)message.Direction & Direction.Mask)
             || actualStep.Running != message.Run)
         {
@@ -2996,6 +3004,7 @@ public sealed class DualBoxManager
         }
         _pendingGumpResponses.Clear();
         _clientFollowing = false;
+        _clientExactPathReplay = false;
         _clientReady = false;
         _aligning = false;
         _alignmentPathStarted = false;
