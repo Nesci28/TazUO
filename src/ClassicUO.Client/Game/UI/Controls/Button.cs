@@ -230,10 +230,10 @@ namespace ClassicUO.Game.UI.Controls
             {
                 ref readonly SpriteInfo gumpInfo = ref Client.Game.UO.Gumps.GetGump(drawGraphic);
                 destination = new Rectangle(
-                    x + ((Width - gumpInfo.LogicalWidth) >> 1),
-                    y + ((Height - gumpInfo.LogicalHeight) >> 1),
-                    gumpInfo.LogicalWidth,
-                    gumpInfo.LogicalHeight
+                    x + ((Width - gumpInfo.UV.Width) >> 1),
+                    y + ((Height - gumpInfo.UV.Height) >> 1),
+                    gumpInfo.UV.Width,
+                    gumpInfo.UV.Height
                 );
             }
 
