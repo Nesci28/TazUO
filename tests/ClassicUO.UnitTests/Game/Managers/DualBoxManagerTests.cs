@@ -41,6 +41,29 @@ public class DualBoxManagerTests
         DualBoxManager.ApplyFormationOffset(coordinate, offset).Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData(0, 100, 100, 103, 100, true)]
+    [InlineData(0, 100, 100, 104, 100, false)]
+    [InlineData(1, 100, 100, 101, 100, true)]
+    [InlineData(1, 100, 100, 102, 100, false)]
+    public void FollowerDriftUsesAConservativeFeluccaThreshold(
+        int mapIndex,
+        int masterX,
+        int masterY,
+        int followerX,
+        int followerY,
+        bool expected
+    )
+    {
+        DualBoxManager.IsWithinFollowerDrift(
+            mapIndex,
+            masterX,
+            masterY,
+            followerX,
+            followerY
+        ).Should().Be(expected);
+    }
+
     [Fact]
     public void ProtocolRoundTripsMovementAndGroupState()
     {

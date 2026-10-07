@@ -178,6 +178,8 @@ public sealed class DualBoxManager
     internal const int MaxMountActionAttempts = 2;
     internal const uint PartyInviteTimeout = 15000;
     private const uint PartyInviteRetryDelay = 2000;
+    private const uint FollowerStateTimeout = 2000;
+    private const uint FollowerMovementGracePeriod = 3000;
 
     private sealed class Peer
     {
@@ -201,6 +203,8 @@ public sealed class DualBoxManager
         public bool PartyInviteSent { get; set; }
         public uint PartyInviteRetryAt { get; set; }
         public bool MasterIdentitySent { get; set; }
+        public uint LastStateTick { get; set; }
+        public uint PositionGraceUntil { get; set; }
     }
 
     private sealed class PendingGumpResponse
@@ -624,6 +628,15 @@ public sealed class DualBoxManager
                 MacroSequence = _activeMasterMacroSequence,
                 MacroDefinition = definition
             };
+
+            if (MacroManager.IsTeleportMacroDefinition(definition))
+            {
+                foreach (Peer client in clients)
+                {
+                    client.Ready = false;
+                    client.PositionGraceUntil = Time.Ticks + FollowerMovementGracePeriod;
+                }
+            }
         }
 
         foreach (Peer client in clients)
@@ -856,6 +869,12 @@ public sealed class DualBoxManager
             clients = _peers.Where(p => p.Selected).ToList();
             message.MacroSequence = _activeMasterMacroSequence;
             ClearMasterTargetSyncLocked();
+
+            foreach (Peer client in clients)
+            {
+                client.Ready = false;
+                client.PositionGraceUntil = Time.Ticks + FollowerMovementGracePeriod;
+            }
         }
 
         foreach (Peer client in clients)
@@ -894,6 +913,20 @@ public sealed class DualBoxManager
 
                     if (!peer.MountReady)
                         return false;
+
+                    if (peer.State == null
+                        || peer.LastStateTick == 0
+                        || HasDeadlinePassed(Time.Ticks, peer.LastStateTick + FollowerStateTimeout)
+                        || !IsWithinFollowerDrift(
+                            world.MapIndex,
+                            world.Player.X,
+                            world.Player.Y,
+                            peer.State.X,
+                            peer.State.Y
+                        ))
+                    {
+                        return false;
+                    }
                 }
 
                 return true;
@@ -1038,6 +1071,10 @@ public sealed class DualBoxManager
         {
             UpdateMasterPartyInvite(world);
             UpdateMasterMountState(world);
+
+            if (HasFollowerDrift(world))
+                ResyncSelectedClients("Follower position drifted; realigning.");
+
             return;
         }
 
@@ -1072,11 +1109,63 @@ public sealed class DualBoxManager
     internal static bool IsWithinSyncRange(int x1, int y1, int x2, int y2)
         => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= SyncRange;
 
+    internal static int MaxFollowerDrift(int mapIndex)
+        => mapIndex == 0 ? 3 : 1;
+
+    internal static bool IsWithinFollowerDrift(
+        int mapIndex,
+        int masterX,
+        int masterY,
+        int followerX,
+        int followerY
+    ) => Math.Max(Math.Abs(masterX - followerX), Math.Abs(masterY - followerY))
+        <= MaxFollowerDrift(mapIndex);
+
     internal static bool UsesSeparateFeluccaFormation(int mapIndex)
         => mapIndex == 0;
 
     internal static ushort ApplyFormationOffset(ushort coordinate, int offset)
         => (ushort)Math.Clamp(coordinate + offset, 0, ushort.MaxValue);
+
+    private bool HasFollowerDrift(World world)
+    {
+        world.Player.GetEndPosition(out int masterX, out int masterY, out _, out _);
+
+        lock (_gate)
+        {
+            if (_role != DualBoxRole.Master)
+                return false;
+
+            foreach (Peer peer in _peers)
+            {
+                if (!peer.Selected || !peer.Ready || !peer.MountReady)
+                    continue;
+
+                if (peer.PositionGraceUntil != 0
+                    && !HasDeadlinePassed(Time.Ticks, peer.PositionGraceUntil))
+                {
+                    continue;
+                }
+
+                if (peer.State == null
+                    || peer.LastStateTick == 0
+                    || HasDeadlinePassed(Time.Ticks, peer.LastStateTick + FollowerStateTimeout)
+                    || peer.State.MapIndex != world.MapIndex
+                    || !IsWithinFollowerDrift(
+                        world.MapIndex,
+                        masterX,
+                        masterY,
+                        peer.State.X,
+                        peer.State.Y
+                    ))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     internal static bool IsSynchronizableTargetCursor(CursorTarget targeting)
         => targeting is CursorTarget.Object or CursorTarget.Position or CursorTarget.MultiPlacement;
@@ -1415,6 +1504,9 @@ public sealed class DualBoxManager
             else if (message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State or DualBoxMessageType.Nack)
             {
                 peer.State = message;
+
+                if (message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State)
+                    peer.LastStateTick = Time.Ticks;
 
                 if ((message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State)
                     && IsUsableState(message)
@@ -2135,10 +2227,17 @@ public sealed class DualBoxManager
         if (Math.Max(
                 Math.Abs(_clientFormationOffsetX),
                 Math.Abs(_clientFormationOffsetY)
-            ) >= 2)
+            ) == 2)
             return;
 
-        if (TryFindFeluccaFormationOffset(world, master, out int offsetX, out int offsetY))
+        if (TryFindFeluccaFormationOffset(
+                world,
+                master,
+                local.X,
+                local.Y,
+                out int offsetX,
+                out int offsetY
+            ))
         {
             _clientFormationOffsetX = offsetX;
             _clientFormationOffsetY = offsetY;
@@ -2161,6 +2260,8 @@ public sealed class DualBoxManager
     private static bool TryFindFeluccaFormationOffset(
         World world,
         DualBoxMessage master,
+        int localX,
+        int localY,
         out int offsetX,
         out int offsetY
     )
@@ -2171,7 +2272,12 @@ public sealed class DualBoxManager
         if (world?.Player == null)
             return false;
 
-        foreach ((int candidateOffsetX, int candidateOffsetY) in FeluccaFormationOffsets)
+        foreach ((int candidateOffsetX, int candidateOffsetY) in FeluccaFormationOffsets.OrderBy(
+            offset => Math.Max(
+                Math.Abs(ApplyFormationOffset(master.X, offset.X) - localX),
+                Math.Abs(ApplyFormationOffset(master.Y, offset.Y) - localY)
+            )
+        ))
         {
             ushort candidateX = ApplyFormationOffset(master.X, candidateOffsetX);
             ushort candidateY = ApplyFormationOffset(master.Y, candidateOffsetY);
