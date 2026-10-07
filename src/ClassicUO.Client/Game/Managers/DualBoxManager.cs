@@ -1935,7 +1935,8 @@ public sealed class DualBoxManager
                     _pendingTarget.TargetGraphic,
                     _pendingTarget.TargetX,
                     _pendingTarget.TargetY,
-                    _pendingTarget.TargetZ
+                    _pendingTarget.TargetZ,
+                    adjustSurfaceHeight: false
                 );
                 break;
             default:

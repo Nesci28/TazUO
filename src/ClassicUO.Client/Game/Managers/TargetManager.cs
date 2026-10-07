@@ -633,7 +633,22 @@ namespace ClassicUO.Game.Managers
             return true;
         }
 
-        public void Target(ushort graphic, ushort x, ushort y, short z, bool wet = false)
+        /// <summary>
+        /// Sends a location target to the server.
+        /// </summary>
+        /// <param name="adjustSurfaceHeight">
+        /// Adds the selected static tile's height when the coordinates came directly from the
+        /// world picker. Set this to <see langword="false"/> when replaying coordinates that have
+        /// already been normalized for the target packet.
+        /// </param>
+        public void Target(
+            ushort graphic,
+            ushort x,
+            ushort y,
+            short z,
+            bool wet = false,
+            bool adjustSurfaceHeight = true
+        )
         {
             if (!IsTargeting)
             {
@@ -686,7 +701,7 @@ namespace ClassicUO.Game.Managers
 
                 ref StaticTiles itemData = ref Client.Game.UO.FileManager.TileData.StaticData[graphic];
 
-                if (Client.Game.UO.Version >= ClientVersion.CV_7090 && itemData.IsSurface)
+                if (adjustSurfaceHeight && Client.Game.UO.Version >= ClientVersion.CV_7090 && itemData.IsSurface)
                 {
                     z += itemData.Height;
                 }
