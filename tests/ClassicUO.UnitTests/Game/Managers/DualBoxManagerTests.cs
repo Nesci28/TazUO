@@ -22,6 +22,25 @@ public class DualBoxManagerTests
         DualBoxManager.IsWithinSyncRange(x1, y1, x2, y2).Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    public void FeluccaUsesSeparateFollowerFormation(int mapIndex, bool expected)
+    {
+        DualBoxManager.UsesSeparateFeluccaFormation(mapIndex).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(100, -1, 99)]
+    [InlineData(100, 1, 101)]
+    [InlineData(0, -1, 0)]
+    [InlineData(65535, 1, 65535)]
+    public void FormationOffsetsStayInsideMapCoordinates(ushort coordinate, int offset, ushort expected)
+    {
+        DualBoxManager.ApplyFormationOffset(coordinate, offset).Should().Be(expected);
+    }
+
     [Fact]
     public void ProtocolRoundTripsMovementAndGroupState()
     {

@@ -272,6 +272,9 @@ public sealed class DualBoxManager
     private ushort _targetY;
     private sbyte _targetZ;
     private Direction _targetDirection;
+    private bool _clientSeparateFormation;
+    private int _clientFormationOffsetX;
+    private int _clientFormationOffsetY;
 
     private DualBoxManager() { }
 
@@ -997,7 +1000,9 @@ public sealed class DualBoxManager
     }
 
     public bool ShouldIgnoreMobile(uint serial)
-        => _clientFollowing && _groupSerials.Contains(serial);
+        => _clientFollowing
+            && !_clientSeparateFormation
+            && _groupSerials.Contains(serial);
 
     public void ProcessAutoWalk(Pathfinder pathfinder)
     {
@@ -1066,6 +1071,12 @@ public sealed class DualBoxManager
 
     internal static bool IsWithinSyncRange(int x1, int y1, int x2, int y2)
         => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= SyncRange;
+
+    internal static bool UsesSeparateFeluccaFormation(int mapIndex)
+        => mapIndex == 0;
+
+    internal static ushort ApplyFormationOffset(ushort coordinate, int offset)
+        => (ushort)Math.Clamp(coordinate + offset, 0, ushort.MaxValue);
 
     internal static bool IsSynchronizableTargetCursor(CursorTarget targeting)
         => targeting is CursorTarget.Object or CursorTarget.Position or CursorTarget.MultiPlacement;
@@ -1980,6 +1991,18 @@ public sealed class DualBoxManager
         (-1, -1)
     ];
 
+    private static readonly (int X, int Y)[] FeluccaFormationOffsets =
+    [
+        (-2, 0),
+        (2, 0),
+        (0, -2),
+        (0, 2),
+        (-2, -2),
+        (-2, 2),
+        (2, -2),
+        (2, 2)
+    ];
+
     private static void GetTeleportFollowerTarget(
         World world,
         DualBoxMessage message,
@@ -2086,14 +2109,121 @@ public sealed class DualBoxManager
         _aligning = true;
         _alignmentPathStarted = false;
         _awaitingWalkSequence = null;
-        _targetX = message.X;
-        _targetY = message.Y;
-        _targetZ = message.Z;
+
+        ConfigureClientFormation(World.Instance, message, local);
+        _targetX = GetFollowerCoordinate(message.X, _clientFormationOffsetX);
+        _targetY = GetFollowerCoordinate(message.Y, _clientFormationOffsetY);
+        _targetZ = GetFollowerTargetZ(World.Instance, local, message);
         _targetDirection = (Direction)message.Direction & Direction.Mask;
         SetStatus("Aligning with master...");
         QueueMountState(message);
         SendClientState(DualBoxMessageType.State, "Aligning");
     }
+
+    private void ConfigureClientFormation(World world, DualBoxMessage master, DualBoxMessage local)
+    {
+        _clientSeparateFormation = UsesSeparateFeluccaFormation(master.MapIndex);
+        _clientFormationOffsetX = 0;
+        _clientFormationOffsetY = 0;
+
+        if (!_clientSeparateFormation)
+            return;
+
+        _clientFormationOffsetX = local.X - master.X;
+        _clientFormationOffsetY = local.Y - master.Y;
+
+        if (Math.Max(
+                Math.Abs(_clientFormationOffsetX),
+                Math.Abs(_clientFormationOffsetY)
+            ) >= 2)
+            return;
+
+        if (TryFindFeluccaFormationOffset(world, master, out int offsetX, out int offsetY))
+        {
+            _clientFormationOffsetX = offsetX;
+            _clientFormationOffsetY = offsetY;
+            return;
+        }
+
+        // Keep a deterministic fallback when the destination tile has not loaded yet. The
+        // normal movement confirmation remains authoritative and will trigger a resync if it
+        // turns out to be blocked.
+        if (master.X <= ushort.MaxValue - 2)
+            _clientFormationOffsetX = 2;
+        else if (master.X >= 2)
+            _clientFormationOffsetX = -2;
+        else if (master.Y <= ushort.MaxValue - 2)
+            _clientFormationOffsetY = 2;
+        else
+            _clientFormationOffsetY = -2;
+    }
+
+    private static bool TryFindFeluccaFormationOffset(
+        World world,
+        DualBoxMessage master,
+        out int offsetX,
+        out int offsetY
+    )
+    {
+        offsetX = 0;
+        offsetY = 0;
+
+        if (world?.Player == null)
+            return false;
+
+        foreach ((int candidateOffsetX, int candidateOffsetY) in FeluccaFormationOffsets)
+        {
+            ushort candidateX = ApplyFormationOffset(master.X, candidateOffsetX);
+            ushort candidateY = ApplyFormationOffset(master.Y, candidateOffsetY);
+
+            if (Math.Max(
+                    Math.Abs(candidateX - master.X),
+                    Math.Abs(candidateY - master.Y)
+                ) < 2)
+                continue;
+
+            List<GameObject> objects = Pathfinder.GetAllObjectsAt(candidateX, candidateY);
+            bool occupied = objects.Any(obj => obj is Mobile mobile && !mobile.IsDead);
+            Pathfinder._listPool.Return(objects);
+
+            if (occupied)
+                continue;
+
+            sbyte candidateZ = world.Map.GetTileZ(candidateX, candidateY);
+
+            if (!world.Player.Pathfinder.CalculateNewZ(candidateX, candidateY, ref candidateZ, 0))
+                continue;
+
+            offsetX = candidateOffsetX;
+            offsetY = candidateOffsetY;
+            return true;
+        }
+
+        return false;
+    }
+
+    private sbyte GetFollowerTargetZ(World world, DualBoxMessage local, DualBoxMessage master)
+    {
+        if (!_clientSeparateFormation)
+            return master.Z;
+
+        ushort targetX = GetFollowerCoordinate(master.X, _clientFormationOffsetX);
+        ushort targetY = GetFollowerCoordinate(master.Y, _clientFormationOffsetY);
+
+        if (local.X == targetX && local.Y == targetY)
+            return local.Z;
+
+        sbyte targetZ = world.Map.GetTileZ(targetX, targetY);
+
+        return world.Player.Pathfinder.CalculateNewZ(targetX, targetY, ref targetZ, 0)
+            ? targetZ
+            : master.Z;
+    }
+
+    private ushort GetFollowerCoordinate(ushort coordinate, int offset)
+        => _clientSeparateFormation
+            ? ApplyFormationOffset(coordinate, offset)
+            : coordinate;
 
     private void QueueMountState(DualBoxMessage message)
     {
@@ -2150,13 +2280,17 @@ public sealed class DualBoxManager
 
         player.GetEndPosition(out int x, out int y, out sbyte z, out Direction direction);
 
-        if (x != _targetX || y != _targetY || z != _targetZ)
+        bool atTarget = x == _targetX
+            && y == _targetY
+            && (_clientSeparateFormation || z == _targetZ);
+
+        if (!atTarget)
         {
             if (_alignmentPathStarted)
             {
                 if (!player.Pathfinder.AutoWalking && player.Walker.UnacceptedPacketsCount == 0)
                 {
-                    FailClientStep("Could not reach the master's tile.");
+                    FailClientStep("Could not reach the master's formation tile.");
                     _aligning = false;
                 }
 
@@ -2176,7 +2310,7 @@ public sealed class DualBoxManager
 
             if (!_alignmentPathStarted)
             {
-                FailClientStep("Could not pathfind onto the master.");
+                FailClientStep("Could not pathfind onto the master's formation tile.");
                 _aligning = false;
             }
 
@@ -2224,7 +2358,11 @@ public sealed class DualBoxManager
         DualBoxMessage message = _pendingSteps.Peek();
         player.GetEndPosition(out int x, out int y, out sbyte z, out Direction direction);
 
-        if (x != message.StartX || y != message.StartY || z != message.StartZ
+        ushort expectedStartX = GetFollowerCoordinate(message.StartX, _clientFormationOffsetX);
+        ushort expectedStartY = GetFollowerCoordinate(message.StartY, _clientFormationOffsetY);
+
+        if (x != expectedStartX || y != expectedStartY
+            || (!_clientSeparateFormation && z != message.StartZ)
             || (direction & Direction.Mask) != ((Direction)message.StartDirection & Direction.Mask))
         {
             _pendingSteps.Clear();
@@ -2260,7 +2398,11 @@ public sealed class DualBoxManager
 
         ref StepInfo actualStep = ref player.Walker.StepInfos[player.Walker.StepsCount - 1];
 
-        if (x != message.X || y != message.Y || z != message.Z
+        ushort expectedX = GetFollowerCoordinate(message.X, _clientFormationOffsetX);
+        ushort expectedY = GetFollowerCoordinate(message.Y, _clientFormationOffsetY);
+
+        if (x != expectedX || y != expectedY
+            || (!_clientSeparateFormation && z != message.Z)
             || (direction & Direction.Mask) != ((Direction)message.Direction & Direction.Mask)
             || actualStep.Running != message.Run)
         {
@@ -2648,6 +2790,9 @@ public sealed class DualBoxManager
         _clientMountSequence = 0;
         _clientMacroSequence = 0;
         _clientTeleportTargetPending = false;
+        _clientSeparateFormation = false;
+        _clientFormationOffsetX = 0;
+        _clientFormationOffsetY = 0;
         _clientActionSequence = 0;
         _clientGumpSequence = 0;
         _pendingMountSequence = 0;
