@@ -1994,7 +1994,12 @@ public sealed class DualBoxManager
         y = message.TargetY;
         z = message.TargetZ;
 
-        foreach ((int offsetX, int offsetY) in TeleportFollowerOffsets)
+        int towardX = Math.Sign(world.Player.X - message.TargetX);
+        int towardY = Math.Sign(world.Player.Y - message.TargetY);
+
+        foreach ((int offsetX, int offsetY) in TeleportFollowerOffsets.OrderByDescending(
+            offset => offset.X * towardX + offset.Y * towardY
+        ))
         {
             int candidateX = message.TargetX + offsetX;
             int candidateY = message.TargetY + offsetY;
