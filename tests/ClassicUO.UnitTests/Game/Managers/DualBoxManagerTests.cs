@@ -44,8 +44,8 @@ public class DualBoxManagerTests
     [Theory]
     [InlineData(0, 100, 100, 103, 100, true)]
     [InlineData(0, 100, 100, 104, 100, false)]
-    [InlineData(1, 100, 100, 101, 100, true)]
-    [InlineData(1, 100, 100, 102, 100, false)]
+    [InlineData(1, 100, 100, 102, 100, true)]
+    [InlineData(1, 100, 100, 103, 100, false)]
     public void FollowerDriftUsesAConservativeFeluccaThreshold(
         int mapIndex,
         int masterX,
@@ -62,6 +62,42 @@ public class DualBoxManagerTests
             followerX,
             followerY
         ).Should().Be(expected);
+    }
+
+    [Fact]
+    public void MovementBufferKeepsItsTailUntilAnotherInstructionArrives()
+    {
+        var buffer = new DualBoxStepBuffer();
+        buffer.Enqueue(new DualBoxMessage { Sequence = 1, StartX = 10, X = 11 });
+        buffer.Enqueue(new DualBoxMessage { Sequence = 2, StartX = 11, X = 12 });
+
+        buffer.CanReplay.Should().BeFalse();
+
+        buffer.Enqueue(new DualBoxMessage { Sequence = 3, StartX = 12, X = 13 });
+
+        buffer.CanReplay.Should().BeTrue();
+        buffer.Dequeue().Sequence.Should().Be(1);
+        buffer.Count.Should().Be(2);
+    }
+
+    [Fact]
+    public void TurnsDoNotConsumeTheMovementSeparationBuffer()
+    {
+        var buffer = new DualBoxStepBuffer();
+        buffer.Enqueue(new DualBoxMessage { Sequence = 1, StartX = 10, X = 11 });
+        buffer.Enqueue(new DualBoxMessage { Sequence = 2, StartX = 11, X = 11, Direction = 2 });
+        buffer.Enqueue(new DualBoxMessage { Sequence = 3, StartX = 11, X = 11, Direction = 4 });
+        buffer.Enqueue(new DualBoxMessage { Sequence = 4, StartX = 11, X = 12 });
+
+        buffer.TranslationCount.Should().Be(2);
+        buffer.CanReplay.Should().BeFalse();
+
+        buffer.Enqueue(new DualBoxMessage { Sequence = 5, StartX = 12, X = 13 });
+
+        buffer.CanReplay.Should().BeTrue();
+        buffer.Dequeue().Sequence.Should().Be(1);
+        buffer.TranslationCount.Should().Be(2);
+        buffer.CanReplay.Should().BeFalse();
     }
 
     [Fact]

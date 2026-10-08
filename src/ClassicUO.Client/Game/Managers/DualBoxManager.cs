@@ -43,8 +43,7 @@ internal enum DualBoxMessageType
     PartyInvite,
     MasterIdentity,
     Nack,
-    Stop,
-    FlushStep
+    Stop
 }
 
 internal enum DualBoxTargetKind
@@ -110,6 +109,54 @@ internal sealed class DualBoxGumpEntry
     public string Text { get; set; } = string.Empty;
 }
 
+internal sealed class DualBoxStepBuffer
+{
+    internal const int RetainedInstructions = 2;
+    // A blocked historical tile may need several master moves to become free again. This is a
+    // temporary safety runway; under normal movement the follower still stays two translations
+    // behind because it replays as soon as the third one arrives.
+    internal const int MaxUnconfirmedTranslations = 8;
+    internal const int MaxBufferedInstructions = 1024;
+    private readonly Queue<DualBoxMessage> _steps = [];
+    private int _translationCount;
+
+    internal int Count => _steps.Count;
+    internal int TranslationCount => _translationCount;
+
+    // The tail stays buffered indefinitely, including turns; only a new translating instruction
+    // releases it. Turns do not create spatial separation, so they must not consume the buffer.
+    internal bool CanReplay => TranslationCount > RetainedInstructions;
+
+    internal static bool IsTranslation(DualBoxMessage step)
+        => step.StartX != step.X || step.StartY != step.Y || step.StartZ != step.Z;
+
+    internal void Enqueue(DualBoxMessage step)
+    {
+        _steps.Enqueue(step);
+
+        if (IsTranslation(step))
+            _translationCount++;
+    }
+
+    internal DualBoxMessage Peek() => _steps.Peek();
+
+    internal DualBoxMessage Dequeue()
+    {
+        DualBoxMessage step = _steps.Dequeue();
+
+        if (IsTranslation(step))
+            _translationCount--;
+
+        return step;
+    }
+
+    internal void Clear()
+    {
+        _steps.Clear();
+        _translationCount = 0;
+    }
+}
+
 internal static class DualBoxProtocol
 {
     internal const int MaxMessageSize = 64 * 1024;
@@ -163,7 +210,7 @@ internal static class DualBoxProtocol
 /// </summary>
 public sealed class DualBoxManager
 {
-    public const int ProtocolVersion = 9;
+    public const int ProtocolVersion = 10;
     public const int DefaultPort = 47651;
     private const uint ClientReconnectDelay = 1000;
     public const int SyncRange = 10;
@@ -181,7 +228,7 @@ public sealed class DualBoxManager
     private const uint PartyInviteRetryDelay = 2000;
     private const uint FollowerStateTimeout = 2000;
     private const uint FollowerMovementGracePeriod = 3000;
-    private const uint FollowerStepFlushDelay = 500;
+    private const string FollowerWaitingForMasterTile = "Waiting for the master's tile to clear.";
 
     private sealed class Peer
     {
@@ -209,8 +256,8 @@ public sealed class DualBoxManager
         public uint PositionGraceUntil { get; set; }
         public long ConfirmedSequence { get; set; }
         public long LastSentSequence { get; set; }
-        public uint LastSentStepTick { get; set; }
-        public bool FlushRequested { get; set; }
+        public bool WaitingForMasterTile { get; set; }
+        public Queue<long> PendingMovementSequences { get; } = [];
     }
 
     private sealed class PendingGumpResponse
@@ -228,7 +275,7 @@ public sealed class DualBoxManager
     private static readonly Lazy<DualBoxManager> _instance = new(() => new DualBoxManager());
     private readonly object _gate = new();
     private readonly List<Peer> _peers = [];
-    private readonly Queue<DualBoxMessage> _pendingSteps = [];
+    private readonly DualBoxStepBuffer _pendingSteps = new();
     private readonly Queue<PendingGumpResponse> _pendingGumpResponses = [];
     private readonly HashSet<uint> _groupSerials = [];
 
@@ -252,7 +299,6 @@ public sealed class DualBoxManager
     private long _clientGumpSequence;
     private long _clientConfirmedSequence;
     private long _clientLastReceivedSequence;
-    private long _clientFlushSequence;
     private Peer _partyInvitePeer;
     private uint _partyInviteClientSerial;
     private uint _partyInviteDeadline;
@@ -269,6 +315,7 @@ public sealed class DualBoxManager
     private bool _clientExactPathReplay;
     private bool _clientTeleportTargetPending;
     private bool _clientReady;
+    private bool _clientWaitingForMasterTile;
     private bool _aligning;
     private bool _alignmentPathStarted;
     private bool _executingRemoteStep;
@@ -520,8 +567,8 @@ public sealed class DualBoxManager
                 peer.ExpectedSequence = masterState.Sequence;
                 peer.ConfirmedSequence = masterState.Sequence;
                 peer.LastSentSequence = masterState.Sequence;
-                peer.LastSentStepTick = 0;
-                peer.FlushRequested = false;
+                peer.WaitingForMasterTile = false;
+                peer.PendingMovementSequences.Clear();
                 peer.MountReady = false;
                 peer.ExpectedMounted = masterState.Mounted;
                 peer.ExpectedMountSequence = masterState.MountSequence;
@@ -907,7 +954,8 @@ public sealed class DualBoxManager
 
     /// <summary>
     /// Prevents the master from outrunning followers and prevents manual movement on an active
-    /// follower. The master is released once every selected follower confirms the current step.
+    /// follower. The master normally stays only two translating instructions ahead; a short
+    /// extra runway lets it clear a historical tile when the follower is temporarily blocked.
     /// </summary>
     public bool AllowLocalWalk()
     {
@@ -931,15 +979,11 @@ public sealed class DualBoxManager
                     if (!peer.MountReady)
                         return false;
 
-                    if (peer.LastSentSequence - peer.ConfirmedSequence >= 2)
+                    if (!peer.WaitingForMasterTile
+                        && peer.PendingMovementSequences.Count >= DualBoxStepBuffer.MaxUnconfirmedTranslations)
                         return false;
 
-                    bool movementPending = peer.LastSentSequence > peer.ConfirmedSequence
-                        && peer.LastSentStepTick != 0
-                        && !HasDeadlinePassed(
-                            Time.Ticks,
-                            peer.LastSentStepTick + FollowerStateTimeout
-                        );
+                    bool movementPending = peer.LastSentSequence > peer.ConfirmedSequence;
 
                     if (!movementPending
                         && (peer.State == null
@@ -1001,8 +1045,9 @@ public sealed class DualBoxManager
             {
                 peer.ExpectedSequence = message.Sequence;
                 peer.LastSentSequence = message.Sequence;
-                peer.LastSentStepTick = Time.Ticks;
-                peer.FlushRequested = false;
+
+                if (DualBoxStepBuffer.IsTranslation(message))
+                    peer.PendingMovementSequences.Enqueue(message.Sequence);
             }
 
             _status = $"Step {message.Sequence}: waiting for {selected.Count} client(s).";
@@ -1035,9 +1080,6 @@ public sealed class DualBoxManager
         }
 
         _clientConfirmedSequence = _clientSequence;
-
-        if (_clientFlushSequence <= _clientConfirmedSequence)
-            _clientFlushSequence = 0;
 
         _clientReady = true;
         SetStatus("Synchronized with master.");
@@ -1106,7 +1148,6 @@ public sealed class DualBoxManager
         {
             UpdateMasterPartyInvite(world);
             UpdateMasterMountState(world);
-            FlushIdleFollowerSteps();
 
             if (HasFollowerDrift(world))
                 ResyncSelectedClients("Follower position drifted; realigning.");
@@ -1123,7 +1164,12 @@ public sealed class DualBoxManager
         if (Time.Ticks >= _nextHeartbeat)
         {
             _nextHeartbeat = Time.Ticks + 500;
-            SendClientState(DualBoxMessageType.State, _clientReady ? string.Empty : "Not ready");
+            string stateError = !_clientReady
+                ? "Not ready"
+                : _clientWaitingForMasterTile
+                    ? FollowerWaitingForMasterTile
+                    : string.Empty;
+            SendClientState(DualBoxMessageType.State, stateError);
         }
 
         ProcessPendingTarget(world);
@@ -1140,9 +1186,7 @@ public sealed class DualBoxManager
 
         if (_clientFollowing
             && !_awaitingWalkSequence.HasValue
-            && _pendingSteps.Count != 0
-            && (_pendingSteps.Count > 1
-                || _clientFlushSequence >= _pendingSteps.Peek().Sequence))
+            && _pendingSteps.CanReplay)
         {
             ProcessPendingStep(world);
         }
@@ -1152,7 +1196,7 @@ public sealed class DualBoxManager
         => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= SyncRange;
 
     internal static int MaxFollowerDrift(int mapIndex)
-        => mapIndex == 0 ? 3 : 1;
+        => mapIndex == 0 ? 3 : 2;
 
     internal static bool IsWithinFollowerDrift(
         int mapIndex,
@@ -1168,39 +1212,6 @@ public sealed class DualBoxManager
 
     internal static ushort ApplyFormationOffset(ushort coordinate, int offset)
         => (ushort)Math.Clamp(coordinate + offset, 0, ushort.MaxValue);
-
-    private void FlushIdleFollowerSteps()
-    {
-        List<(Peer Peer, long Sequence)> pending = [];
-
-        lock (_gate)
-        {
-            if (_role != DualBoxRole.Master)
-                return;
-
-            uint now = Time.Ticks;
-
-            foreach (Peer peer in _peers)
-            {
-                if (!peer.Selected
-                    || !peer.Ready
-                    || !peer.MountReady
-                    || peer.FlushRequested
-                    || peer.LastSentSequence - peer.ConfirmedSequence != 1
-                    || peer.LastSentStepTick == 0
-                    || !HasDeadlinePassed(now, peer.LastSentStepTick + FollowerStepFlushDelay))
-                {
-                    continue;
-                }
-
-                peer.FlushRequested = true;
-                pending.Add((peer, peer.LastSentSequence));
-            }
-        }
-
-        foreach ((Peer peer, long sequence) in pending)
-            Send(peer, new DualBoxMessage { Type = DualBoxMessageType.FlushStep, Sequence = sequence });
-    }
 
     private bool HasFollowerDrift(World world)
     {
@@ -1222,12 +1233,7 @@ public sealed class DualBoxManager
                     continue;
                 }
 
-                if (peer.LastSentSequence > peer.ConfirmedSequence
-                    && peer.LastSentStepTick != 0
-                    && !HasDeadlinePassed(
-                        Time.Ticks,
-                        peer.LastSentStepTick + FollowerStateTimeout
-                    ))
+                if (peer.LastSentSequence > peer.ConfirmedSequence)
                 {
                     continue;
                 }
@@ -1593,6 +1599,13 @@ public sealed class DualBoxManager
                 if (message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State)
                     peer.LastStateTick = Time.Ticks;
 
+                if (message.Type == DualBoxMessageType.State)
+                    peer.WaitingForMasterTile = string.Equals(
+                        message.Error,
+                        FollowerWaitingForMasterTile,
+                        StringComparison.Ordinal
+                    );
+
                 if ((message.Type is DualBoxMessageType.Hello or DualBoxMessageType.State)
                     && IsUsableState(message)
                     && !peer.PartyInviteQueued
@@ -1613,8 +1626,12 @@ public sealed class DualBoxManager
                     peer.ConfirmedSequence = Math.Min(message.Sequence, peer.LastSentSequence);
                     peer.Ready = message.Ready;
 
-                    if (peer.ConfirmedSequence >= peer.LastSentSequence)
-                        peer.FlushRequested = false;
+                    while (peer.PendingMovementSequences.Count != 0
+                           && peer.PendingMovementSequences.Peek() <= peer.ConfirmedSequence)
+                    {
+                        peer.PendingMovementSequences.Dequeue();
+                    }
+
                 }
 
                 if (message.Type == DualBoxMessageType.Nack
@@ -1678,9 +1695,6 @@ public sealed class DualBoxManager
                 break;
             case DualBoxMessageType.Step:
                 MainThreadQueue.EnqueueAction(() => QueueStep(message), token);
-                break;
-            case DualBoxMessageType.FlushStep:
-                MainThreadQueue.EnqueueAction(() => FlushClientSteps(message), token);
                 break;
             case DualBoxMessageType.MountState:
                 MainThreadQueue.EnqueueAction(() => QueueMountState(message), token);
@@ -2295,12 +2309,12 @@ public sealed class DualBoxManager
         _clientSequence = message.Sequence;
         _clientFollowing = true;
         _clientReady = false;
+        _clientWaitingForMasterTile = false;
         _aligning = true;
         _alignmentPathStarted = false;
         _awaitingWalkSequence = null;
         _clientConfirmedSequence = message.Sequence;
         _clientLastReceivedSequence = message.Sequence;
-        _clientFlushSequence = 0;
 
         ConfigureClientFormation(World.Instance, message, local);
         _targetX = GetFollowerCoordinate(message.X, _clientFormationOffsetX);
@@ -2464,9 +2478,8 @@ public sealed class DualBoxManager
         if (!_clientFollowing || message.Sequence <= _clientLastReceivedSequence)
             return;
 
-        long outstandingSteps = _pendingSteps.Count + (_awaitingWalkSequence.HasValue ? 1 : 0);
-
-        if (message.Sequence != _clientLastReceivedSequence + 1 || outstandingSteps >= 2)
+        if (message.Sequence != _clientLastReceivedSequence + 1
+            || _pendingSteps.Count >= DualBoxStepBuffer.MaxBufferedInstructions)
         {
             _pendingSteps.Clear();
             FailClientStep(
@@ -2479,14 +2492,6 @@ public sealed class DualBoxManager
         _clientLastReceivedSequence = message.Sequence;
         _pendingSteps.Enqueue(message);
         SetStatus($"Applying master step {message.Sequence}...");
-    }
-
-    private void FlushClientSteps(DualBoxMessage message)
-    {
-        if (!_clientFollowing || message.Sequence < _clientLastReceivedSequence)
-            return;
-
-        _clientFlushSequence = Math.Max(_clientFlushSequence, message.Sequence);
     }
 
     private void ProcessAlignment(World world)
@@ -2574,14 +2579,23 @@ public sealed class DualBoxManager
             return;
 
         DualBoxMessage message = _pendingSteps.Peek();
+
+        if (DualBoxStepBuffer.IsTranslation(message) && IsMasterOnFollowerTarget(world, message))
+        {
+            SetClientWaitingForMasterTile(true);
+            return;
+        }
+
+        SetClientWaitingForMasterTile(false);
+
         player.GetEndPosition(out int x, out int y, out sbyte z, out Direction direction);
 
         ushort expectedStartX = GetFollowerCoordinate(message.StartX, _clientFormationOffsetX);
         ushort expectedStartY = GetFollowerCoordinate(message.StartY, _clientFormationOffsetY);
 
-        if (x != expectedStartX || y != expectedStartY
-            || (RequiresExactPathCoordinates && z != message.StartZ)
-            || (direction & Direction.Mask) != ((Direction)message.StartDirection & Direction.Mask))
+        if (x != expectedStartX
+            || y != expectedStartY
+            || (RequiresExactPathCoordinates && z != message.StartZ))
         {
             _pendingSteps.Clear();
             FailClientStep($"Follower position did not match step {message.Sequence}.", message.Sequence);
@@ -2636,11 +2650,44 @@ public sealed class DualBoxManager
         SetStatus($"Waiting for server confirmation of step {message.Sequence}...");
     }
 
+    private bool IsMasterOnFollowerTarget(World world, DualBoxMessage message)
+    {
+        if (!_clientFollowing || _connectedMasterSerial == 0)
+            return false;
+
+        if (world?.Mobiles == null
+            || !world.Mobiles.TryGetValue(_connectedMasterSerial, out Mobile master)
+            || master == null
+            || master.IsDead)
+            return false;
+
+        master.GetEndPosition(out int masterX, out int masterY, out sbyte masterZ, out _);
+
+        ushort targetX = GetFollowerCoordinate(message.X, _clientFormationOffsetX);
+        ushort targetY = GetFollowerCoordinate(message.Y, _clientFormationOffsetY);
+
+        return targetX == masterX && targetY == masterY
+            && (!RequiresExactPathCoordinates || message.Z == masterZ);
+    }
+
     private void FailClientStep(string error, long? sequence = null)
     {
+        _clientWaitingForMasterTile = false;
         _clientReady = false;
         SetStatus(error);
         SendClientState(DualBoxMessageType.Nack, error, sequence);
+    }
+
+    private void SetClientWaitingForMasterTile(bool waiting)
+    {
+        if (_clientWaitingForMasterTile == waiting)
+            return;
+
+        _clientWaitingForMasterTile = waiting;
+        SendClientState(
+            DualBoxMessageType.State,
+            waiting ? FollowerWaitingForMasterTile : string.Empty
+        );
     }
 
     private void UpdateMasterMountState(World world)
@@ -2865,8 +2912,8 @@ public sealed class DualBoxManager
                 peer.ExpectedSequence = state.Sequence;
                 peer.ConfirmedSequence = state.Sequence;
                 peer.LastSentSequence = state.Sequence;
-                peer.LastSentStepTick = 0;
-                peer.FlushRequested = false;
+                peer.WaitingForMasterTile = false;
+                peer.PendingMovementSequences.Clear();
                 peer.MountReady = false;
                 peer.ExpectedMounted = state.Mounted;
                 peer.ExpectedMountSequence = state.MountSequence;
@@ -3006,6 +3053,7 @@ public sealed class DualBoxManager
         _clientFollowing = false;
         _clientExactPathReplay = false;
         _clientReady = false;
+        _clientWaitingForMasterTile = false;
         _aligning = false;
         _alignmentPathStarted = false;
         _executingRemoteStep = false;
@@ -3013,7 +3061,6 @@ public sealed class DualBoxManager
         _clientSequence = 0;
         _clientConfirmedSequence = 0;
         _clientLastReceivedSequence = 0;
-        _clientFlushSequence = 0;
         _mountSequence = 0;
         _clientMountSequence = 0;
         _clientMacroSequence = 0;
