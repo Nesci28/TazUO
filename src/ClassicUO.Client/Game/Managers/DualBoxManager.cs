@@ -228,6 +228,7 @@ public sealed class DualBoxManager
     private const uint PartyInviteRetryDelay = 2000;
     private const uint FollowerStateTimeout = 2000;
     private const uint FollowerMovementGracePeriod = 3000;
+    private const uint FollowerRecoveryTimeout = 4000;
     private const string FollowerWaitingForMasterTile = "Waiting for the master's tile to clear.";
 
     private sealed class Peer
@@ -317,6 +318,10 @@ public sealed class DualBoxManager
     private bool _clientTeleportTargetPending;
     private bool _clientReady;
     private bool _clientWaitingForMasterTile;
+    private bool _clientRecoveringPath;
+    private bool _clientRecoveryPendingConfirmation;
+    private long _clientRecoverySequence;
+    private uint _clientRecoveryDeadline;
     private bool _aligning;
     private bool _alignmentPathStarted;
     private bool _executingRemoteStep;
@@ -1087,6 +1092,8 @@ public sealed class DualBoxManager
         {
             byte expectedSequence = _awaitingWalkSequence.Value;
             _awaitingWalkSequence = null;
+            _clientRecoveryPendingConfirmation = false;
+            _clientRecoveringPath = false;
             _pendingSteps.Clear();
             FailClientStep($"Expected game-server confirmation {expectedSequence}, received {sequence}.");
             return;
@@ -1096,7 +1103,20 @@ public sealed class DualBoxManager
 
         if (!accepted)
         {
+            _clientRecoveryPendingConfirmation = false;
+            _clientRecoveringPath = false;
             FailClientStep($"The game server could not confirm follower step {_clientSequence}.");
+            return;
+        }
+
+        if (_clientRecoveryPendingConfirmation)
+        {
+            _clientRecoveryPendingConfirmation = false;
+            _clientRecoveringPath = true;
+            _clientRecoveryDeadline = Time.Ticks + FollowerRecoveryTimeout;
+            _clientReady = true;
+            SetStatus("Re-routing around a blocked master step...");
+            SendClientState(DualBoxMessageType.State, string.Empty);
             return;
         }
 
@@ -1120,6 +1140,8 @@ public sealed class DualBoxManager
         }
         else if (role == DualBoxRole.Client && _clientFollowing)
         {
+            _clientRecoveryPendingConfirmation = false;
+            _clientRecoveringPath = false;
             _pendingSteps.Clear();
             _awaitingWalkSequence = null;
             _clientReady = false;
@@ -1137,9 +1159,9 @@ public sealed class DualBoxManager
 
     public void ProcessAutoWalk(Pathfinder pathfinder)
     {
-        bool isAlignmentStep = _clientFollowing && _aligning;
+        bool isRemoteStep = _clientFollowing && (_aligning || _clientRecoveringPath);
 
-        if (isAlignmentStep)
+        if (isRemoteStep)
             _executingRemoteStep = true;
 
         try
@@ -1148,7 +1170,7 @@ public sealed class DualBoxManager
         }
         finally
         {
-            if (isAlignmentStep)
+            if (isRemoteStep)
                 _executingRemoteStep = false;
         }
     }
@@ -1208,7 +1230,7 @@ public sealed class DualBoxManager
         if (_clientFollowing
             && !_awaitingWalkSequence.HasValue
             && _pendingSteps.Count != 0
-            && (!_clientSeparateFormation || _pendingSteps.CanReplay))
+            && (!_clientSeparateFormation || _pendingSteps.CanReplay || _clientRecoveringPath))
         {
             ProcessPendingStep(world);
         }
@@ -2341,6 +2363,10 @@ public sealed class DualBoxManager
         _clientFollowing = true;
         _clientReady = false;
         _clientWaitingForMasterTile = false;
+        _clientRecoveringPath = false;
+        _clientRecoveryPendingConfirmation = false;
+        _clientRecoverySequence = 0;
+        _clientRecoveryDeadline = 0;
         _aligning = true;
         _alignmentPathStarted = false;
         _awaitingWalkSequence = null;
@@ -2348,9 +2374,13 @@ public sealed class DualBoxManager
         _clientLastReceivedSequence = message.Sequence;
 
         ConfigureClientFormation(World.Instance, message, local);
-        _targetX = GetFollowerCoordinate(message.X, _clientFormationOffsetX);
-        _targetY = GetFollowerCoordinate(message.Y, _clientFormationOffsetY);
-        _targetZ = GetFollowerTargetZ(World.Instance, local, message);
+        _targetX = _clientSeparateFormation
+            ? ApplyFormationOffset(message.X, _clientFormationOffsetX)
+            : message.X;
+        _targetY = _clientSeparateFormation
+            ? ApplyFormationOffset(message.Y, _clientFormationOffsetY)
+            : message.Y;
+        _targetZ = GetAlignmentTargetZ(World.Instance, local, message);
         _targetDirection = (Direction)message.Direction & Direction.Mask;
         SetStatus("Aligning with master...");
         QueueMountState(message);
@@ -2456,20 +2486,17 @@ public sealed class DualBoxManager
         return false;
     }
 
-    private sbyte GetFollowerTargetZ(World world, DualBoxMessage local, DualBoxMessage master)
+    private sbyte GetAlignmentTargetZ(World world, DualBoxMessage local, DualBoxMessage master)
     {
-        if (RequiresExactPathCoordinates)
+        if (!_clientSeparateFormation)
             return master.Z;
 
-        ushort targetX = GetFollowerCoordinate(master.X, _clientFormationOffsetX);
-        ushort targetY = GetFollowerCoordinate(master.Y, _clientFormationOffsetY);
-
-        if (local.X == targetX && local.Y == targetY)
+        if (local.X == _targetX && local.Y == _targetY)
             return local.Z;
 
-        sbyte targetZ = world.Map.GetTileZ(targetX, targetY);
+        sbyte targetZ = world.Map.GetTileZ(_targetX, _targetY);
 
-        return world.Player.Pathfinder.CalculateNewZ(targetX, targetY, ref targetZ, 0)
+        return world.Player.Pathfinder.CalculateNewZ(_targetX, _targetY, ref targetZ, 0)
             ? targetZ
             : master.Z;
     }
@@ -2620,11 +2647,51 @@ public sealed class DualBoxManager
 
         if (DualBoxStepBuffer.IsTranslation(message) && IsMasterOnFollowerTarget(world, message))
         {
+            if (_clientRecoveringPath)
+                player.Pathfinder.StopAutoWalk();
+
+            _clientRecoveringPath = false;
+            _clientRecoverySequence = 0;
+            _clientRecoveryDeadline = 0;
             SetClientWaitingForMasterTile(true);
             return;
         }
 
         SetClientWaitingForMasterTile(false);
+
+        if (_clientRecoveringPath)
+        {
+            if (Time.Ticks > _clientRecoveryDeadline)
+            {
+                _clientRecoveringPath = false;
+                _pendingSteps.Clear();
+                FailClientStep(
+                    $"Could not route around the blocked master step {_clientRecoverySequence}.",
+                    _clientRecoverySequence
+                );
+                return;
+            }
+
+            if (player.Pathfinder.AutoWalking || player.Walker.UnacceptedPacketsCount != 0)
+                return;
+
+            if (IsAtFollowerStepTarget(player, message))
+            {
+                _clientRecoveringPath = false;
+                _clientRecoverySequence = 0;
+                _clientRecoveryDeadline = 0;
+                _pendingSteps.Dequeue();
+                _clientSequence = message.Sequence;
+                _clientConfirmedSequence = message.Sequence;
+                _clientReady = true;
+                SetStatus($"Recovered master step {message.Sequence}.");
+                SendClientState(DualBoxMessageType.State, string.Empty);
+                return;
+            }
+
+            BeginFollowerRecovery(world, message);
+            return;
+        }
 
         player.GetEndPosition(out int x, out int y, out sbyte z, out Direction direction);
 
@@ -2638,6 +2705,12 @@ public sealed class DualBoxManager
                 && (direction & Direction.Mask)
                     != ((Direction)message.StartDirection & Direction.Mask)))
         {
+            if (_clientSeparateFormation && DualBoxStepBuffer.IsTranslation(message))
+            {
+                if (BeginFollowerRecovery(world, message))
+                    return;
+            }
+
             _pendingSteps.Clear();
             FailClientStep($"Follower position did not match step {message.Sequence}.", message.Sequence);
             return;
@@ -2663,6 +2736,12 @@ public sealed class DualBoxManager
 
         if (!walked)
         {
+            if (_clientSeparateFormation && DualBoxStepBuffer.IsTranslation(message))
+            {
+                if (BeginFollowerRecovery(world, message))
+                    return;
+            }
+
             _pendingSteps.Clear();
             FailClientStep($"Follower rejected step {message.Sequence}.", message.Sequence);
             return;
@@ -2680,6 +2759,16 @@ public sealed class DualBoxManager
             || (direction & Direction.Mask) != ((Direction)message.Direction & Direction.Mask)
             || actualStep.Running != message.Run)
         {
+            if (_clientSeparateFormation && DualBoxStepBuffer.IsTranslation(message))
+            {
+                _clientRecoveryPendingConfirmation = true;
+                _clientRecoverySequence = message.Sequence;
+                _clientRecoveryDeadline = Time.Ticks + FollowerRecoveryTimeout;
+                _awaitingWalkSequence = walkSequence;
+                SetStatus($"Waiting to reroute blocked master step {message.Sequence}...");
+                return;
+            }
+
             _pendingSteps.Clear();
             FailClientStep($"Follower ended step {message.Sequence} on a different tile.", message.Sequence);
             return;
@@ -2689,6 +2778,71 @@ public sealed class DualBoxManager
         _clientSequence = message.Sequence;
         _awaitingWalkSequence = walkSequence;
         SetStatus($"Waiting for server confirmation of step {message.Sequence}...");
+    }
+
+    private bool IsAtFollowerStepTarget(PlayerMobile player, DualBoxMessage message)
+    {
+        player.GetEndPosition(out int x, out int y, out sbyte z, out _);
+
+        return x == GetFollowerCoordinate(message.X, _clientFormationOffsetX)
+            && y == GetFollowerCoordinate(message.Y, _clientFormationOffsetY)
+            && (!RequiresExactPathCoordinates || z == message.Z);
+    }
+
+    private bool BeginFollowerRecovery(World world, DualBoxMessage message)
+    {
+        if (!_clientSeparateFormation || !DualBoxStepBuffer.IsTranslation(message))
+            return false;
+
+        if (_clientRecoverySequence != message.Sequence)
+        {
+            _clientRecoverySequence = message.Sequence;
+            _clientRecoveryDeadline = Time.Ticks + FollowerRecoveryTimeout;
+        }
+
+        if (Time.Ticks > _clientRecoveryDeadline)
+            return false;
+
+        PlayerMobile player = world.Player;
+
+        if (IsAtFollowerStepTarget(player, message))
+        {
+            _clientRecoveringPath = true;
+            _clientReady = true;
+            return true;
+        }
+
+        player.Pathfinder.StopAutoWalk();
+        _clientRecoveringPath = true;
+        _clientReady = true;
+        _executingRemoteStep = true;
+        bool started;
+
+        try
+        {
+            started = player.Pathfinder.WalkTo(
+                GetFollowerCoordinate(message.X, _clientFormationOffsetX),
+                GetFollowerCoordinate(message.Y, _clientFormationOffsetY),
+                message.Z,
+                0,
+                message.Run
+            );
+        }
+        finally
+        {
+            _executingRemoteStep = false;
+        }
+
+        if (started)
+        {
+            SetStatus($"Routing around an obstacle for master step {message.Sequence}...");
+        }
+        else
+        {
+            SetStatus($"Waiting for a clear route to master step {message.Sequence}...");
+        }
+
+        return true;
     }
 
     private bool IsMasterOnFollowerTarget(World world, DualBoxMessage message)
@@ -2714,6 +2868,10 @@ public sealed class DualBoxManager
     private void FailClientStep(string error, long? sequence = null)
     {
         _clientWaitingForMasterTile = false;
+        _clientRecoveringPath = false;
+        _clientRecoveryPendingConfirmation = false;
+        _clientRecoverySequence = 0;
+        _clientRecoveryDeadline = 0;
         _clientReady = false;
         SetStatus(error);
         SendClientState(DualBoxMessageType.Nack, error, sequence);
@@ -3096,6 +3254,10 @@ public sealed class DualBoxManager
         _clientExactPathReplay = false;
         _clientReady = false;
         _clientWaitingForMasterTile = false;
+        _clientRecoveringPath = false;
+        _clientRecoveryPendingConfirmation = false;
+        _clientRecoverySequence = 0;
+        _clientRecoveryDeadline = 0;
         _aligning = false;
         _alignmentPathStarted = false;
         _executingRemoteStep = false;
