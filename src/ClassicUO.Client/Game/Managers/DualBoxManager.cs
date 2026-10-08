@@ -256,6 +256,7 @@ public sealed class DualBoxManager
         public uint PositionGraceUntil { get; set; }
         public long ConfirmedSequence { get; set; }
         public long LastSentSequence { get; set; }
+        public uint LastSentStepTick { get; set; }
         public bool WaitingForMasterTile { get; set; }
         public Queue<long> PendingMovementSequences { get; } = [];
     }
@@ -567,6 +568,7 @@ public sealed class DualBoxManager
                 peer.ExpectedSequence = masterState.Sequence;
                 peer.ConfirmedSequence = masterState.Sequence;
                 peer.LastSentSequence = masterState.Sequence;
+                peer.LastSentStepTick = 0;
                 peer.WaitingForMasterTile = false;
                 peer.PendingMovementSequences.Clear();
                 peer.MountReady = false;
@@ -979,11 +981,26 @@ public sealed class DualBoxManager
                     if (!peer.MountReady)
                         return false;
 
-                    if (!peer.WaitingForMasterTile
-                        && peer.PendingMovementSequences.Count >= DualBoxStepBuffer.MaxUnconfirmedTranslations)
-                        return false;
+                    bool bufferedMovement = UsesSeparateFeluccaFormation(world.MapIndex);
 
-                    bool movementPending = peer.LastSentSequence > peer.ConfirmedSequence;
+                    if (bufferedMovement)
+                    {
+                        if (!peer.WaitingForMasterTile
+                            && peer.PendingMovementSequences.Count >= DualBoxStepBuffer.MaxUnconfirmedTranslations)
+                            return false;
+                    }
+                    else if (peer.LastSentSequence - peer.ConfirmedSequence >= 1)
+                    {
+                        return false;
+                    }
+
+                    bool movementPending = peer.LastSentSequence > peer.ConfirmedSequence
+                        && (bufferedMovement
+                            || (peer.LastSentStepTick != 0
+                                && !HasDeadlinePassed(
+                                    Time.Ticks,
+                                    peer.LastSentStepTick + FollowerStateTimeout
+                                )));
 
                     if (!movementPending
                         && (peer.State == null
@@ -1015,6 +1032,7 @@ public sealed class DualBoxManager
     {
         List<Peer> selected;
         DualBoxMessage message;
+        bool bufferedMovement = UsesSeparateFeluccaFormation(World.Instance?.MapIndex ?? -1);
 
         lock (_gate)
         {
@@ -1045,8 +1063,11 @@ public sealed class DualBoxManager
             {
                 peer.ExpectedSequence = message.Sequence;
                 peer.LastSentSequence = message.Sequence;
+                peer.LastSentStepTick = Time.Ticks;
 
-                if (DualBoxStepBuffer.IsTranslation(message))
+                if (!bufferedMovement)
+                    peer.Ready = false;
+                else if (DualBoxStepBuffer.IsTranslation(message))
                     peer.PendingMovementSequences.Enqueue(message.Sequence);
             }
 
@@ -1111,7 +1132,7 @@ public sealed class DualBoxManager
 
     public bool ShouldIgnoreMobile(uint serial)
         => _clientFollowing
-            && RequiresExactPathCoordinates
+            && !_clientSeparateFormation
             && _groupSerials.Contains(serial);
 
     public void ProcessAutoWalk(Pathfinder pathfinder)
@@ -1186,7 +1207,8 @@ public sealed class DualBoxManager
 
         if (_clientFollowing
             && !_awaitingWalkSequence.HasValue
-            && _pendingSteps.CanReplay)
+            && _pendingSteps.Count != 0
+            && (!_clientSeparateFormation || _pendingSteps.CanReplay))
         {
             ProcessPendingStep(world);
         }
@@ -1196,7 +1218,7 @@ public sealed class DualBoxManager
         => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= SyncRange;
 
     internal static int MaxFollowerDrift(int mapIndex)
-        => mapIndex == 0 ? 3 : 2;
+        => mapIndex == 0 ? 3 : 1;
 
     internal static bool IsWithinFollowerDrift(
         int mapIndex,
@@ -1233,7 +1255,16 @@ public sealed class DualBoxManager
                     continue;
                 }
 
-                if (peer.LastSentSequence > peer.ConfirmedSequence)
+                bool bufferedMovement = UsesSeparateFeluccaFormation(world.MapIndex);
+                bool movementPending = peer.LastSentSequence > peer.ConfirmedSequence
+                    && (bufferedMovement
+                        || (peer.LastSentStepTick != 0
+                            && !HasDeadlinePassed(
+                                Time.Ticks,
+                                peer.LastSentStepTick + FollowerStateTimeout
+                            )));
+
+                if (movementPending)
                 {
                     continue;
                 }
@@ -2329,10 +2360,9 @@ public sealed class DualBoxManager
     private void ConfigureClientFormation(World world, DualBoxMessage master, DualBoxMessage local)
     {
         _clientSeparateFormation = UsesSeparateFeluccaFormation(master.MapIndex);
-        // Movement instructions are replayed on the master's exact tiles.  The delay in the
-        // instruction queue keeps the follower behind the master without creating a parallel
-        // path that cuts corners.
-        _clientExactPathReplay = true;
+        // Felucca uses the delayed exact-path replay. Other facets keep the legacy formation:
+        // the follower processes one instruction at a time and can occupy the master's tile.
+        _clientExactPathReplay = _clientSeparateFormation;
         _clientFormationOffsetX = 0;
         _clientFormationOffsetY = 0;
 
@@ -2478,8 +2508,12 @@ public sealed class DualBoxManager
         if (!_clientFollowing || message.Sequence <= _clientLastReceivedSequence)
             return;
 
+        bool bufferedMovement = _clientSeparateFormation;
+
         if (message.Sequence != _clientLastReceivedSequence + 1
-            || _pendingSteps.Count >= DualBoxStepBuffer.MaxBufferedInstructions)
+            || (!bufferedMovement
+                && (_pendingSteps.Count != 0 || _awaitingWalkSequence.HasValue))
+            || (bufferedMovement && _pendingSteps.Count >= DualBoxStepBuffer.MaxBufferedInstructions))
         {
             _pendingSteps.Clear();
             FailClientStep(
@@ -2491,6 +2525,10 @@ public sealed class DualBoxManager
 
         _clientLastReceivedSequence = message.Sequence;
         _pendingSteps.Enqueue(message);
+
+        if (!bufferedMovement)
+            _clientReady = false;
+
         SetStatus($"Applying master step {message.Sequence}...");
     }
 
@@ -2595,7 +2633,10 @@ public sealed class DualBoxManager
 
         if (x != expectedStartX
             || y != expectedStartY
-            || (RequiresExactPathCoordinates && z != message.StartZ))
+            || (RequiresExactPathCoordinates && z != message.StartZ)
+            || (!_clientSeparateFormation
+                && (direction & Direction.Mask)
+                    != ((Direction)message.StartDirection & Direction.Mask)))
         {
             _pendingSteps.Clear();
             FailClientStep($"Follower position did not match step {message.Sequence}.", message.Sequence);
@@ -2652,7 +2693,7 @@ public sealed class DualBoxManager
 
     private bool IsMasterOnFollowerTarget(World world, DualBoxMessage message)
     {
-        if (!_clientFollowing || _connectedMasterSerial == 0)
+        if (!_clientFollowing || !_clientSeparateFormation || _connectedMasterSerial == 0)
             return false;
 
         if (world?.Mobiles == null
@@ -2912,6 +2953,7 @@ public sealed class DualBoxManager
                 peer.ExpectedSequence = state.Sequence;
                 peer.ConfirmedSequence = state.Sequence;
                 peer.LastSentSequence = state.Sequence;
+                peer.LastSentStepTick = 0;
                 peer.WaitingForMasterTile = false;
                 peer.PendingMovementSequences.Clear();
                 peer.MountReady = false;
