@@ -48,6 +48,7 @@ namespace ClassicUO.Game.Managers
         private bool FriendBandagingEnabled => ProfileManager.CurrentProfile?.BandageAgentBandageFriends ?? false;
         private bool AllyBandagingEnabled => ProfileManager.CurrentProfile?.BandageAgentBandageAllies ?? false;
         private bool PetBandagingEnabled => ProfileManager.CurrentProfile?.BandageAgentBandagePets ?? false;
+        private bool FriendlyPetBandagingEnabled => ProfileManager.CurrentProfile?.BandageAgentBandageFriendlyPets ?? false;
         private int HealDelayMs => ProfileManager.CurrentProfile?.BandageAgentDelay ?? 3000;
         private bool CheckForBuff => ProfileManager.CurrentProfile?.BandageAgentCheckForBuff ?? false;
         private int HpPercentageThreshold => ProfileManager.CurrentProfile?.BandageAgentHPPercentage ?? 80;
@@ -279,8 +280,11 @@ namespace ClassicUO.Game.Managers
             bool isFriend = !isPlayer && FriendBandagingEnabled && FriendsListManager.Instance.IsFriend(mobile);
             bool isAlly = !isPlayer && AllyBandagingEnabled && mobile.NotorietyFlag == NotorietyFlag.Ally;
             bool isPet = !isPlayer && PetBandagingEnabled && mobile.IsRenamable;
+            bool isFriendlyPet = !isPlayer
+                && FriendlyPetBandagingEnabled
+                && IsFriendlyPartyPet(mobile, World.Instance?.Party);
 
-            if (!isPlayer && !isFriend && !isAlly && !isPet)
+            if (!isPlayer && !isFriend && !isAlly && !isPet && !isFriendlyPet)
                 return false;
 
             if (isPlayer && DisableSelfHeal)
@@ -307,8 +311,11 @@ namespace ClassicUO.Game.Managers
             bool isFriend = !isPlayer && FriendBandagingEnabled && FriendsListManager.Instance.IsFriend(mobile.Serial);
             bool isAlly = !isPlayer && AllyBandagingEnabled && mobile.NotorietyFlag == NotorietyFlag.Ally;
             bool isPet = !isPlayer && PetBandagingEnabled && mobile.IsRenamable;
+            bool isFriendlyPet = !isPlayer
+                && FriendlyPetBandagingEnabled
+                && IsFriendlyPartyPet(mobile, World.Instance?.Party);
 
-            if (!isPlayer && !isFriend && !isAlly && !isPet)
+            if (!isPlayer && !isFriend && !isAlly && !isPet && !isFriendlyPet)
                 return false;
 
             // Check if self-healing is disabled
@@ -340,6 +347,22 @@ namespace ClassicUO.Game.Managers
 
             return true;
         }
+
+        /// <summary>
+        /// Identifies a friendly creature that can represent another party member's pet.
+        /// Standard mobile/party packets do not include a pet-owner serial, so this deliberately
+        /// uses the narrow client-side approximation of a blue/green non-player creature seen
+        /// while grouped. Renamable mobiles are excluded because the existing pet option controls
+        /// the local player's own pets.
+        /// </summary>
+        internal static bool IsFriendlyPartyPet(Mobile mobile, PartyManager party) =>
+            mobile != null
+            && party?.InParty == true
+            && !mobile.IsHuman
+            && !mobile.IsGargoyle
+            && !mobile.IsRenamable
+            && !party.Contains(mobile.Serial)
+            && mobile.NotorietyFlag is NotorietyFlag.Innocent or NotorietyFlag.Ally;
 
         private void AttemptHealMobile(Mobile mobile)
         {
