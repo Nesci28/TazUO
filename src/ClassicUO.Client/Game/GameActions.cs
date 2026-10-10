@@ -46,6 +46,7 @@ internal static class GameActions
             }
         }
 
+        DualBoxManager.Instance.BroadcastWarMode(war);
         Socket.Send_ChangeWarMode(war);
     }
 
@@ -547,9 +548,9 @@ internal static class GameActions
     }
 
     private static uint _lastAttackQuery;
-    internal static void Attack(World world, uint serial)
+    internal static void Attack(World world, uint serial, bool skipCriminalQuery = false)
     {
-        if (ProfileManager.CurrentProfile is { EnabledCriminalActionQuery:true })
+        if (!skipCriminalQuery && ProfileManager.CurrentProfile is { EnabledCriminalActionQuery:true })
         {
             Mobile m = world.Mobiles.Get(serial);
 
@@ -581,7 +582,7 @@ internal static class GameActions
                     {
                         if (s)
                         {
-                            Socket.Send_AttackRequest(serial);
+                            Attack(world, serial, true);
                         }
                     }
                 ){ Type = QuestionGump.QuestionType.Attack };
@@ -597,6 +598,7 @@ internal static class GameActions
 
         world.TargetManager.NewTargetSystemSerial = serial;
         world.TargetManager.LastAttack = serial;
+        DualBoxManager.Instance.BroadcastAttack(serial);
         Socket.Send_AttackRequest(serial);
     }
 
@@ -1051,6 +1053,7 @@ internal static class GameActions
 
     internal static void ReplyGump(World world, uint local, uint server, int button, uint[] switches = null, Tuple<ushort, string>[] entries = null)
     {
+        DualBoxManager.Instance.BroadcastGumpResponse(server, button, switches, entries);
         ScriptRecorder.Instance.RecordReplyGump(server, button, switches, entries);
         ScriptingInfoGump.AddOrUpdateInfo("Last Gump Button", button);
 

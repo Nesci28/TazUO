@@ -739,6 +739,11 @@ namespace ClassicUO.Game.GameObjects
 
         public bool Walk(Direction direction, bool run)
         {
+            if (!DualBoxManager.Instance.AllowLocalWalk())
+            {
+                return false;
+            }
+
             if (!ProfileManager.CurrentProfile.AutoAvoidObstacules
                 || Pathfinder.AutoWalking)
             {
@@ -908,6 +913,8 @@ namespace ClassicUO.Game.GameObjects
 
                 AsyncNetClient.Socket.Send_WalkRequest(direction, Walker.WalkSequence, run, Walker.FastWalkStack.GetValue());
 
+                DualBoxManager.Instance.OnLocalStepRequested(startX, startY, startZ, step);
+
                 if (Walker.WalkSequence == 0xFF)
                 {
                     Walker.WalkSequence = 1;
@@ -959,14 +966,15 @@ namespace ClassicUO.Game.GameObjects
             }
         }
 
-        public bool WalkNotAvoid(Direction direction, bool run)
+        public bool WalkNotAvoid(Direction direction, bool run, bool honorAlwaysRun = true)
         {
             if (Walker.WalkingFailed || Walker.LastStepRequestTime > Time.Ticks || Walker.StepsCount >= Constants.MAX_STEP_COUNT || Client.Game.UO.Version >= ClientVersion.CV_60142 && IsParalyzed || SpeedMode == CharacterSpeedType.CantWalkOrRun)
             {
                 return false;
             }
 
-            run |= ProfileManager.CurrentProfile.AlwaysRun;
+            if (honorAlwaysRun)
+                run |= ProfileManager.CurrentProfile.AlwaysRun;
 
             if (SpeedMode >= CharacterSpeedType.CantRun || Stamina <= 1 && !IsDead || IsHidden && ProfileManager.CurrentProfile.AlwaysRunUnlessHidden)
             {
@@ -1093,6 +1101,8 @@ namespace ClassicUO.Game.GameObjects
 
 
             AsyncNetClient.Socket.Send_WalkRequest(direction, Walker.WalkSequence, run, Walker.FastWalkStack.GetValue());
+
+            DualBoxManager.Instance.OnLocalStepRequested(startX, startY, startZ, step);
 
 
             if (Walker.WalkSequence == 0xFF)

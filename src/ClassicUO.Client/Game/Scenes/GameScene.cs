@@ -267,6 +267,8 @@ namespace ClassicUO.Game.Scenes
 
             if (ProfileManager.CurrentProfile.VoiceRecognitionEnabled)
                 VoiceRecognitionManager.Instance.InitializeAsync(ProfileManager.CurrentProfile.VoiceModelPath, startListeningAfter: true);
+
+            DualBoxManager.Instance.StartClient();
         }
 
         private void ChatOnMessageReceived(object sender, MessageEventArgs e)
@@ -412,6 +414,8 @@ namespace ClassicUO.Game.Scenes
 
         public override void Unload()
         {
+            DualBoxManager.Instance.Stop();
+
             if (IsDestroyed)
             {
                 if(Instance == this)
@@ -1154,7 +1158,8 @@ namespace ClassicUO.Game.Scenes
             _world.Weather.UpdateAudio();
             _animatedStaticsManager.Process();
             _world.BoatMovingManager.Update();
-            _world.Player.Pathfinder.ProcessAutoWalk();
+            DualBoxManager.Instance.ProcessAutoWalk(_world.Player.Pathfinder);
+            DualBoxManager.Instance.Update();
             _world.DelayedObjectClickManager.Update();
             Profiler.ExitContext("WorldUpdate");
 

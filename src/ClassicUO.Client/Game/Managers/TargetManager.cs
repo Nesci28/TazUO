@@ -284,6 +284,7 @@ namespace ClassicUO.Game.Managers
             if (IsTargeting)
             {
                 //UIManager.RemoveTargetLineGump(LastTarget);
+                DualBoxManager.Instance.OnTargetCursorActivated(targeting);
             }
             else if (lastTargetting)
             {
@@ -301,6 +302,8 @@ namespace ClassicUO.Game.Managers
 
         public void CancelTarget()
         {
+            DualBoxManager.Instance.OnTargetCursorCancelled();
+
             if (TargetingState == CursorTarget.MultiPlacement)
             {
                 _world.HouseManager.Remove(0);
@@ -426,6 +429,8 @@ namespace ClassicUO.Game.Managers
                                                                                    _targetCursorId,
                                                                                    (byte)TargetingType);
 
+                                                DualBoxManager.Instance.OnEntityTargetSelected(serial);
+
                                                 ClearTargetingWithoutTargetCancelPacket();
 
                                                 if (LastTargetInfo.Serial != serial)
@@ -481,6 +486,8 @@ namespace ClassicUO.Game.Managers
                                                                entity.Z,
                                                                _targetCursorId,
                                                                (byte)TargetingType);
+
+                            DualBoxManager.Instance.OnEntityTargetSelected(serial);
 
                             if (SerialHelper.IsMobile(serial) && LastTargetInfo.Serial != serial)
                             {
@@ -598,7 +605,51 @@ namespace ClassicUO.Game.Managers
             }
         }
 
-        public void Target(ushort graphic, ushort x, ushort y, short z, bool wet = false)
+        /// <summary>
+        /// Responds to an object target cursor with a mobile serial even when that mobile has not
+        /// been loaded into the local world. Party invitations are resolved server-side by serial.
+        /// </summary>
+        internal bool TargetMobileSerial(uint serial)
+        {
+            if (!IsTargeting
+                || TargetingState != CursorTarget.Object
+                || !SerialHelper.IsMobile(serial))
+            {
+                return false;
+            }
+
+            Entity entity = _world.Get(serial);
+            AsyncNetClient.Socket.Send_TargetObject(
+                serial,
+                entity?.Graphic ?? 0,
+                entity?.X ?? 0,
+                entity?.Y ?? 0,
+                entity?.Z ?? 0,
+                _targetCursorId,
+                (byte)TargetingType
+            );
+
+            ClearTargetingWithoutTargetCancelPacket();
+            Mouse.CancelDoubleClick = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Sends a location target to the server.
+        /// </summary>
+        /// <param name="adjustSurfaceHeight">
+        /// Adds the selected static tile's height when the coordinates came directly from the
+        /// world picker. Set this to <see langword="false"/> when replaying coordinates that have
+        /// already been normalized for the target packet.
+        /// </param>
+        public void Target(
+            ushort graphic,
+            ushort x,
+            ushort y,
+            short z,
+            bool wet = false,
+            bool adjustSurfaceHeight = true
+        )
         {
             if (!IsTargeting)
             {
@@ -651,7 +702,7 @@ namespace ClassicUO.Game.Managers
 
                 ref StaticTiles itemData = ref Client.Game.UO.FileManager.TileData.StaticData[graphic];
 
-                if (Client.Game.UO.Version >= ClientVersion.CV_7090 && itemData.IsSurface)
+                if (adjustSurfaceHeight && Client.Game.UO.Version >= ClientVersion.CV_7090 && itemData.IsSurface)
                 {
                     z += itemData.Height;
                 }
@@ -767,6 +818,8 @@ namespace ClassicUO.Game.Managers
                                             z,
                                             _targetCursorId,
                                             (byte)TargetingType);
+
+            DualBoxManager.Instance.OnLocationTargetSelected(graphic, x, y, z);
 
 
             Mouse.CancelDoubleClick = true;

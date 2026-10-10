@@ -1,6 +1,7 @@
 using System;
 using ClassicUO.LegionScripting;
 using ClassicUO.LegionScripting.ApiClasses;
+using ClassicUO.Game.Managers;
 using FluentAssertions;
 using IronPython.Hosting;
 using Microsoft.Scripting;
@@ -83,6 +84,22 @@ public class PythonScriptingTests : IDisposable
         _api.ProcessCallbacks();
 
         _api.GetSharedVar("clicked").Should().Be(99);
+    }
+
+    [Fact]
+    public void PythonScript_DualBoxCommandCallback_ReceivesCommand()
+    {
+        Run("""
+            def on_dualbox_command(command):
+                API.SetSharedVar("dualbox-command", command)
+
+            API.OnDualBoxCommand(on_dualbox_command)
+            """);
+
+        DualBoxManager.Instance.DispatchScriptCommand("assist leader");
+        _api.ProcessCallbacks();
+
+        _api.GetSharedVar("dualbox-command").Should().Be("assist leader");
     }
 
     [Fact]

@@ -163,6 +163,8 @@ namespace ClassicUO.Game.Managers
                 StepsCount = 0;
                 CurrentWalkSequence = 0;
             }
+
+            DualBoxManager.Instance.OnWalkConfirmed(sequence, !isBadStep);
         }
 
         public void Reset()

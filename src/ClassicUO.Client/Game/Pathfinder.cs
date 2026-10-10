@@ -249,7 +249,10 @@ namespace ClassicUO.Game
                         {
                             case Mobile mobile:
                                 {
-                                    if (!ignoreGameCharacters && !mobile.IsDead && !mobile.IgnoreCharacters)
+                                    if (!ignoreGameCharacters
+                                        && !mobile.IsDead
+                                        && !mobile.IgnoreCharacters
+                                        && !DualBoxManager.Instance.ShouldIgnoreMobile(mobile.Serial))
                                     {
                                         list.Add
                                         (
@@ -1230,6 +1233,9 @@ namespace ClassicUO.Game
 
                     if (!_world.Player.Walk((Direction)p.Direction, _run))
                     {
+                        if (DualBoxManager.Instance.IsWaitingForClients)
+                            return;
+
                         // For computed paths (WorldMap nav), give the pathfinder a chance to replan
                         // around the blocked tile — likely a dynamic item not in statics.mul.
                         // Tear down first so the hook can safely issue a new StartComputedPath.

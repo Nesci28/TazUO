@@ -47,6 +47,7 @@ internal static class SecureTrading
                 trading.HeIsAccepting = id2 != 0;
 
                 trading.RequestUpdateContents();
+                DualBoxManager.Instance.TryAutoAcceptTrade(trading);
             }
         }
         else if (type == 3 || type == 4)
