@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
 {
@@ -957,12 +958,40 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 return true;
 
             string normalizedItemName = Normalize(itemName);
-            if (_cachedNormalizedItemNames.Contains(normalizedItemName, StringComparer.OrdinalIgnoreCase))
-                return true;
-
             string withoutStackAmount = StripLeadingStackAmount(itemName);
-            return !withoutStackAmount.Equals(normalizedItemName, StringComparison.OrdinalIgnoreCase) &&
-                   _cachedNormalizedItemNames.Contains(withoutStackAmount, StringComparer.OrdinalIgnoreCase);
+
+            foreach (string configuredName in ItemNames)
+            {
+                string match = configuredName?.Trim();
+                if (string.IsNullOrEmpty(match))
+                    continue;
+
+                if (match.StartsWith("$", StringComparison.Ordinal))
+                {
+                    if (match.Length == 1)
+                        continue;
+
+                    try
+                    {
+                        if (Regex.IsMatch(itemName ?? string.Empty, match[1..]))
+                            return true;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // An invalid pattern should not prevent other configured names from matching.
+                    }
+
+                    continue;
+                }
+
+                string normalizedMatch = Normalize(match);
+                if (normalizedMatch.Equals(normalizedItemName, StringComparison.OrdinalIgnoreCase) ||
+                    (!withoutStackAmount.Equals(normalizedItemName, StringComparison.OrdinalIgnoreCase) &&
+                     normalizedMatch.Equals(withoutStackAmount, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+
+            return false;
         }
 
         internal bool MatchesSlot(byte layer)
