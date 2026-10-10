@@ -10,7 +10,7 @@ public static class FriendsListTabContent
 {
     public static Widget Build()
     {
-        var friendsListPanel = new VerticalStackPanel { Spacing = 4 };
+        var friendsListPanel = new MyraVerticalStackPanel { Spacing = 4 };
 
         void BuildFriendsList()
         {
@@ -63,7 +63,7 @@ public static class FriendsListTabContent
 
         BuildFriendsList();
 
-        var root = new VerticalStackPanel { Spacing = 6 };
+        var root = new MyraVerticalStackPanel { Spacing = 6 };
         root.Widgets.Add(new MyraLabel("Manage your friends list.", MyraLabel.TextStyle.H3));
         root.Widgets.Add(new MyraButton("Add by Target", () =>
         {
@@ -88,7 +88,7 @@ public static class FriendsListTabContent
                 }
             });
         }));
-        root.Widgets.Add(new ScrollViewer { Height = 300, Content = friendsListPanel });
+        root.Widgets.Add(new MyraScrollViewer { Height = 300, Content = friendsListPanel });
 
         return root;
     }

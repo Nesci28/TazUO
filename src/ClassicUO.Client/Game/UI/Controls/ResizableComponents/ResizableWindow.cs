@@ -495,14 +495,14 @@ public class ResizableWindow : Window, IDisposable
     /// <returns>A new <see cref="ScrollViewer" /> containing the widget.</returns>
     private ScrollViewer WrapWithScrollViewer(Widget widget)
     {
-        var scroller = new ScrollViewer
+        var scroller = new MyraScrollViewer
         {
             ShowHorizontalScrollBar = (Props.Resize.ScrollerMode & ScrollViewerMode.Horizontal) != 0,
             ShowVerticalScrollBar = (Props.Resize.ScrollerMode & ScrollViewerMode.Vertical) != 0
         };
 
         // We need a panel here to serve as a sort-of barrier between the scroller and the widget, otherwise we can get superposition.
-        var panel = new Panel
+        var panel = new MyraPanel
         {
             // Note that if the scroll component's height/width changes post-construction, that won't be reflected. Might improve later.
             //Padding = new Thickness(scroller.VerticalScrollbarWidth(), scroller.HorizontalScrollbarHeight())

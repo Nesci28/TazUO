@@ -8,6 +8,7 @@ namespace ClassicUO.Game.UI.MyraWindows.Widgets;
 public class LinkLabel : MyraLabel
 {
     private string _link;
+    private bool _visited;
 
     public LinkLabel(
         string text,
@@ -32,14 +33,22 @@ public class LinkLabel : MyraLabel
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(link);
         _link = link;
-        TextColor = Color.DodgerBlue;
-        OverTextColor = Color.DeepSkyBlue;
+        ApplyCurrentTheme();
+    }
+
+    public override void ApplyCurrentTheme()
+    {
+        base.ApplyCurrentTheme();
+
+        TextColor = _visited ? MyraStyle.AccentPressedColor : MyraStyle.AccentColor;
+        OverTextColor = MyraStyle.TextHighlightColor;
     }
 
     public override void OnTouchDown(TouchEventArgs args)
     {
         base.OnTouchDown(args);
         PlatformHelper.LaunchBrowser(_link);
-        TextColor = Color.MediumPurple;
+        _visited = true;
+        ApplyCurrentTheme();
     }
 }

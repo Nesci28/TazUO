@@ -26,7 +26,7 @@ public class QuickOptionsWindow : MyraControl
     public QuickOptionsWindow(string title) : base(title)
     {
         Title = title;
-        _stack = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING, Padding = new Thickness(8) };
+        _stack = new MyraVerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING, Padding = new Thickness(8) };
 
         SetRootContent(_stack);
         CenterInScreen();
@@ -93,11 +93,11 @@ public class QuickOptionsWindow : MyraControl
         if (items == null || items.Length == 0)
             throw new ArgumentException("Items array cannot be null or empty.", nameof(items));
 
-        var row = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = VerticalAlignment.Center };
+        var row = new MyraHorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING, VerticalAlignment = VerticalAlignment.Center };
         row.Widgets.Add(new MyraLabel(label, MyraLabel.TextStyle.P));
 
 #pragma warning disable CS0612, CS0618
-        var combo = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
+        var combo = new MyraComboBox { VerticalAlignment = VerticalAlignment.Center };
 
         if (tooltip != null)
             combo.Tooltip = tooltip;

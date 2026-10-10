@@ -3,7 +3,6 @@ using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using Microsoft.Xna.Framework;
 using Myra.Graphics2D;
-using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
 
 namespace ClassicUO.Game.UI.MyraWindows;
@@ -101,7 +100,7 @@ public class ConfirmationModal : MyraControl
     /// </summary>
     private VerticalStackPanel GetContent(Widget modalContent)
     {
-        var content = new VerticalStackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var content = new MyraVerticalStackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
         content.Widgets.Add(modalContent);
         content.Widgets.Add(GetButtonGrid());
         return content;
@@ -113,7 +112,7 @@ public class ConfirmationModal : MyraControl
     /// </summary>
     private Grid GetButtonGrid()
     {
-        var buttonGrid = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var buttonGrid = new MyraGrid { HorizontalAlignment = HorizontalAlignment.Stretch };
 
         buttonGrid.ColumnsProportions.Add(new Proportion(ProportionType.Auto));
         buttonGrid.ColumnsProportions.Add(new Proportion(ProportionType.Fill));
@@ -132,17 +131,11 @@ public class ConfirmationModal : MyraControl
         buttonGrid.Widgets.Add(spacer);
         Grid.SetColumn(spacer, 1);
 
-        var confirmButton = new MyraButton(_confirmButtonLabel ?? "Confirm", () =>
+        var confirmButton = MyraStyle.ApplyButtonDestructiveStyle(new MyraButton(_confirmButtonLabel ?? "Confirm", () =>
         {
             _rootWindow.Close();
             _onClose(true);
-        })
-        {
-            BorderThickness = new Thickness(0, 0, 0, 3),
-            Border = new SolidBrush(new Color(185, 20, 60, 120)),
-            Background = new SolidBrush(new Color(220, 20, 60, 150)),
-            OverBackground = new SolidBrush(new Color(240, 20, 60, 50))
-        };
+        }));
 
         buttonGrid.Widgets.Add(confirmButton);
         Grid.SetColumn(confirmButton, 2);

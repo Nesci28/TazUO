@@ -18,8 +18,8 @@ using ClassicUO.Utility.Debounce;
 using ClassicUO.Utility.Logging;
 using FontStashSharp.RichText;
 using Microsoft.Xna.Framework;
+using Myra.Events;
 using Myra.Graphics2D;
-using Myra.Graphics2D.Brushes;
 using Myra.Graphics2D.UI;
 using Myra.Graphics2D.UI.WrapPanel;
 
@@ -37,10 +37,18 @@ public class ScriptManagerWindow : MyraControl
 
     public static ScriptManagerWindow Instance { get; private set; }
 
+    private const int MIN_WIDTH  = 200;
+    private const int MIN_HEIGHT = 200;
+    private const int SCRIPT_NAME_MAX_WIDTH = 260;
+
     private readonly HashSet<string> _collapsedGroups = [];
     private bool _pendingReload = true;
     private string _searchFilter = "";
-    private readonly VerticalStackPanel _scriptListPanel = new() { Spacing = 2, Padding = new Thickness(2, 0, 2, 4) };
+    private readonly VerticalStackPanel _scriptListPanel = new MyraVerticalStackPanel
+    {
+        Spacing = 2,
+        Padding = new Thickness(2, 0, 2, 4)
+    };
 
     // Tracks which group/subgroup the last context menu was invoked on
     private string _contextMenuGroup = "";
@@ -108,6 +116,23 @@ public class ScriptManagerWindow : MyraControl
 
     public void Refresh() => _pendingReload = true;
 
+    protected override void OnThemeChanged()
+    {
+        int width = Math.Max(MIN_WIDTH, _rootWindow.Width ?? _rootWindow.Bounds.Width);
+        int height = Math.Max(MIN_HEIGHT, _rootWindow.Height ?? _rootWindow.Bounds.Height);
+
+        base.OnThemeChanged();
+        ApplyContentTheme();
+        RebuildScriptList();
+
+        if (!_rootWindow.IsMinimized)
+        {
+            _rootWindow.Width = width;
+            _rootWindow.Height = height;
+        }
+
+    }
+
     public override void PreDraw()
     {
         base.PreDraw();
@@ -148,20 +173,38 @@ public class ScriptManagerWindow : MyraControl
     private void Build()
     {
         _mainGrid = new MyraGrid();
+        ApplyContentTheme();
+        _rootWindow.Height = Math.Clamp(_rootWindow.Height ?? _rootWindow.Bounds.Height, StyleConstantsDefaults.WINDOW_MIN_HEIGHT, 600);
         _mainGrid.AddRow();                                           // Row 0: menu bar (Auto)
         _mainGrid.AddRow(new Proportion(ProportionType.Fill));        // Row 1: script list (Fill)
         _mainGrid.AddColumn(new Proportion(ProportionType.Fill));     // single Fill column
 
         _mainGrid.AddWidget(BuildMenuBar(), 0, 0);
 
-        _mainGrid.AddWidget(_scriptListPanel, 1, 0);
+        _scriptListPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _scriptListPanel.VerticalAlignment = VerticalAlignment.Top;
+        _mainGrid.AddWidget(_scriptListPanel.WrapInScroll(600), 1, 0);
 
         SetRootContent(_mainGrid);
+        ApplyContentTheme();
+    }
+
+    private void ApplyContentTheme()
+    {
+        if (_mainGrid == null)
+            return;
+
+        _mainGrid.Background = MyraStyle.UsesLegacyChrome ? null : MyraStyle.SurfaceBackgroundBrush;
+        _mainGrid.Border = MyraStyle.UsesLegacyChrome
+            ? MyraStyle.Brush(new Color(0, 0, 0, MyraStyle.STANDARD_BORDER_ALPHA))
+            : MyraStyle.Brush(MyraStyle.BorderColor);
+        _mainGrid.BorderThickness = new Thickness(1);
+        _mainGrid.Padding = new Thickness(MyraStyle.STANDARD_SPACING);
     }
 
     private WrapPanel BuildMenuBar()
     {
-        var bar = new WrapPanel
+        var bar = new MyraWrapPanel
         {
             UniformSizing = false,
             Orientation = Orientation.Horizontal,
@@ -174,7 +217,7 @@ public class ScriptManagerWindow : MyraControl
         bar.Widgets.Add(new MyraButton(TazLang.Get("scriptmanager_menu", "Menu"), ShowMainMenu));
         bar.Widgets.Add(new MyraButton(TazLang.Get("scriptmanager_addbutton", "Add +"), ShowAddMenu));
 
-        var searchBox = new MyraInputBox { HintText = TazLang.Get("scriptmanager_search_hint", "Search..."), Width = 180 };
+        var searchBox = new MyraSearchBox(TazLang.Get("scriptmanager_search_hint", "Search..."));
         searchBox.TextChangedByUser += (_, _) =>
         {
             _searchFilter = searchBox.Text ?? "";
@@ -256,18 +299,22 @@ public class ScriptManagerWindow : MyraControl
 
         bool isCollapsed = _collapsedGroups.Contains(fullGroupPath);
 
-        var groupRow = new HorizontalStackPanel
-        {
-            Spacing = 4,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var groupRow = new MyraListRow();
 
         if (!string.IsNullOrEmpty(indent))
             groupRow.Widgets.Add(new MyraLabel(indent, MyraLabel.TextStyle.P));
 
-        groupRow.Widgets.Add(CreateCollapseExpandButton(isCollapsed, fullGroupPath, normalizedParentGroup, normalizedGroupName));
+        groupRow.Widgets.Add(new MyraNavigationButton(isCollapsed ? "+" : "-", () =>
+        {
+            ToggleGroupState(isCollapsed, fullGroupPath, normalizedParentGroup, normalizedGroupName);
+            RebuildScriptList();
+        }, 30));
 
-        var groupLabel = new MyraLabel(groupName, MyraLabel.TextStyle.P);
+        var groupLabel = new MyraLabel(groupName, MyraLabel.TextStyle.P)
+        {
+            MaxWidth = SCRIPT_NAME_MAX_WIDTH,
+            SingleLine = true
+        };
         groupLabel.TouchDown += (s, e) =>
         {
             ToggleGroupState(isCollapsed, fullGroupPath, normalizedParentGroup, normalizedGroupName);
@@ -275,7 +322,7 @@ public class ScriptManagerWindow : MyraControl
         };
         groupRow.Widgets.Add(groupLabel);
 
-        groupRow.Widgets.Add(new MyraButton("...", () => ShowGroupContextMenu(parentGroup, groupName)));
+        groupRow.Widgets.Add(new MyraNavigationButton("...", () => ShowGroupContextMenu(parentGroup, groupName), 32));
 
         // Add the group to the actual parent script panel
         _scriptListPanel.Widgets.Add(groupRow);
@@ -325,26 +372,26 @@ public class ScriptManagerWindow : MyraControl
 
     private void BuildScriptWidget(ScriptFile script, string indent)
     {
-        var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        var row = new MyraListRow();
 
         if (!string.IsNullOrEmpty(indent))
             row.Widgets.Add(new MyraLabel(indent, MyraLabel.TextStyle.P));
 
-        row.Widgets.Add(new MyraButton("...", () => ShowScriptContextMenu(script)));
+        row.Widgets.Add(new MyraNavigationButton("...", () => ShowScriptContextMenu(script), 32));
 
         bool isPlaying = script.IsPlaying;
         string playBtnText = isPlaying
             ? TazLang.Get("scriptmanager_stopbutton", "Stop")
             : TazLang.Get("scriptmanager_playbutton", "Play");
 
-        var playStopBtn = new MyraButton(playBtnText, () =>
+        var playStopBtn = new MyraNavigationButton(playBtnText, () =>
         {
             if (script.IsPlaying)
                 LegionScripting.LegionScripting.StopScript(script);
             else
                 LegionScripting.LegionScripting.PlayScript(script);
             RebuildScriptList();
-        });
+        }, 64);
 
         row.Widgets.Add(playStopBtn);
 
@@ -357,23 +404,33 @@ public class ScriptManagerWindow : MyraControl
                 ? TazLang.Get("scriptmanager_autostart_global_tooltip", "Autostart: All characters")
                 : TazLang.Get("scriptmanager_autostart_char_tooltip", "Autostart: This character");
 
-            row.Widgets.Add(new MyraLabel(hasGlobal ? "[G]" : "[C]", MyraLabel.TextStyle.P)
+            var autoStartLabel = new MyraLabel(hasGlobal ? "[G]" : "[C]", MyraLabel.TextStyle.P)
             {
-                TextColor = hasGlobal ? Color.Gold : new Color(0, 204, 255, 255),
+                TextColor = hasGlobal
+                    ? MyraStyle.ScriptGlobalAutoStartColor
+                    : MyraStyle.ScriptCharacterAutoStartColor,
                 Tooltip = autostartTooltip
-            });
+            };
+
+            row.Widgets.Add(autoStartLabel);
         }
 
         string displayName = script.FileName;
         int dot = displayName.LastIndexOf('.');
         if (dot != -1) displayName = displayName.Substring(0, dot);
 
-        MyraLabel displayLabel;
-        row.Widgets.Add(displayLabel = new MyraLabel(displayName, MyraLabel.TextStyle.P) { Tooltip = script.FileName });
+        var displayLabel = new MyraLabel(displayName, MyraLabel.TextStyle.P)
+        {
+            MaxWidth = SCRIPT_NAME_MAX_WIDTH,
+            SingleLine = true,
+            Tooltip = script.FileName
+        };
+
+        row.Widgets.Add(displayLabel);
 
         if (isPlaying)
         {
-            displayLabel.Background = new SolidBrush(new Color(51, 153, 51, 255));
+            displayLabel.Background = MyraStyle.Brush(MyraStyle.ScriptRunningBackgroundColor);
             displayLabel.Padding = new Thickness(2);
         }
 
@@ -490,7 +547,7 @@ public class ScriptManagerWindow : MyraControl
     private void ShowNewScriptDialog(string contextGroup, string contextSubGroup)
     {
         var nameBox = new MyraInputBox { HintText = TazLang.Get("scriptmanager_scriptname_hint", "script_name"), Width = 220 };
-        var content = new VerticalStackPanel { Spacing = 4 };
+        var content = new MyraVerticalStackPanel { Spacing = 4 };
         content.Widgets.Add(new MyraLabel(TazLang.Get("scriptmanager_entername_script", "Enter a name for this script:"), MyraLabel.TextStyle.P));
         content.Widgets.Add(nameBox);
 
@@ -506,7 +563,7 @@ public class ScriptManagerWindow : MyraControl
     private void ShowNewGroupDialog()
     {
         var nameBox = new MyraInputBox { HintText = TazLang.Get("scriptmanager_groupname_hint", "group_name"), Width = 220 };
-        var content = new VerticalStackPanel { Spacing = 4 };
+        var content = new MyraVerticalStackPanel { Spacing = 4 };
         content.Widgets.Add(new MyraLabel(TazLang.Get("scriptmanager_entername_group", "Enter a name for this group:"), MyraLabel.TextStyle.P));
         content.Widgets.Add(nameBox);
 
@@ -524,7 +581,7 @@ public class ScriptManagerWindow : MyraControl
         if (dot != -1) displayName = displayName.Substring(0, dot);
 
         var nameBox = new MyraInputBox { Text = displayName, Width = 220 };
-        var content = new VerticalStackPanel { Spacing = 4 };
+        var content = new MyraVerticalStackPanel { Spacing = 4 };
         content.Widgets.Add(new MyraLabel(TazLang.Get("scriptmanager_newname_script", [displayName]), MyraLabel.TextStyle.P));
         content.Widgets.Add(nameBox);
 
@@ -537,7 +594,7 @@ public class ScriptManagerWindow : MyraControl
     private void ShowRenameGroupDialog(string groupName, string parentGroup)
     {
         var nameBox = new MyraInputBox { Text = groupName, Width = 220 };
-        var content = new VerticalStackPanel { Spacing = 4 };
+        var content = new MyraVerticalStackPanel { Spacing = 4 };
         content.Widgets.Add(new MyraLabel(TazLang.Get("scriptmanager_newname_group", [groupName]), MyraLabel.TextStyle.P));
         content.Widgets.Add(nameBox);
 
@@ -549,7 +606,8 @@ public class ScriptManagerWindow : MyraControl
 
     private void ShowDeleteConfirm(string title, string message, Action onConfirm)
     {
-        var label = new MyraLabel(message, MyraLabel.TextStyle.P) { TextColor = Color.OrangeRed };
+        var label = new MyraLabel(message, MyraLabel.TextStyle.P)
+            .WithThemeTextColor(() => MyraStyle.DangerBorderColor);
         new MyraDialog(title, label, ok => { if (ok) onConfirm(); });
     }
 
@@ -814,18 +872,46 @@ public class ScriptManagerWindow : MyraControl
         catch (Exception ex) { GameActions.Print(World.Instance, TazLang.Get("scriptmanager_errordeletinggroup", [ex.Message]), 32); Log.Error(ex.ToString()); }
     }
 
+    private sealed class ClearSearchButton : MyraLabel
+    {
+        private readonly Action _onClick;
+
+        public ClearSearchButton(Action onClick) : base("X", MyraLabel.TextStyle.H2, MyraLabel.AlignMode.Right)
+        {
+            _onClick = onClick;
+            Wrap = false;
+            ApplyCurrentTheme();
+        }
+
+        public override void ApplyCurrentTheme()
+        {
+            base.ApplyCurrentTheme();
+            TextColor = MyraStyle.AccentColor;
+            OverTextColor = MyraStyle.TextHighlightColor;
+            HorizontalAlignment = HorizontalAlignment.Right;
+            VerticalAlignment = VerticalAlignment.Center;
+        }
+
+        public override void OnTouchDown(TouchEventArgs args)
+        {
+            base.OnTouchDown(args);
+            _onClick();
+        }
+    }
+
+
     private sealed class ZipDeleteDialog : MyraControl
     {
         public ZipDeleteDialog(string scriptName, string zipName, Action onDeleteScript, Action onDeleteZip)
             : base(TazLang.Get("scriptmanager_deletezipscript_title", "Delete Zip Script"))
         {
-            var layout = new VerticalStackPanel { Spacing = 8, Padding = new Thickness(8) };
+            var layout = new MyraVerticalStackPanel { Spacing = 8, Padding = new Thickness(8) };
 
             layout.Widgets.Add(new MyraLabel(
                 TazLang.Get("scriptmanager_deletezipscript_msg", [scriptName, zipName]),
-                MyraLabel.TextStyle.P) { TextColor = Color.OrangeRed });
+                MyraLabel.TextStyle.P).WithThemeTextColor(() => MyraStyle.DangerBorderColor));
 
-            var btnRow = new HorizontalStackPanel
+            var btnRow = new MyraHorizontalStackPanel
             {
                 Spacing = 8,
                 HorizontalAlignment = HorizontalAlignment.Right
