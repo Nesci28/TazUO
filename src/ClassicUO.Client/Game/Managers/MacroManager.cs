@@ -2349,6 +2349,22 @@ namespace ClassicUO.Game.Managers
 
                     switch (macro.SubCode)
                     {
+                        case MacroSubType.Serial:
+                            if (
+                                macro is MacroObjectString serialMacro
+                                && StringHelper.TryParseUint(serialMacro.Text?.Trim(), out uint serial)
+                            )
+                            {
+                                Item serialItem = _world.Items.Get(serial);
+
+                                if (serialItem != null && !serialItem.IsDestroyed)
+                                {
+                                    GameActions.DoubleClick(_world, serialItem);
+                                }
+                            }
+
+                            break;
+
                         case MacroSubType.BestHealPotion:
                             Span<int> healpotion_clilocs = stackalloc int[3] { 1041330, 1041329, 1041328 };
 
@@ -3420,7 +3436,7 @@ namespace ClassicUO.Game.Managers
 
                             MacroObject m;
 
-                            if (xmlElement.HasAttribute("text"))
+                            if (xmlElement.HasAttribute("text") || code == MacroType.UseObject)
                             {
                                 m = new MacroObjectString(code, sub, xmlElement.GetAttribute("text"));
                             }
@@ -3477,6 +3493,7 @@ namespace ClassicUO.Game.Managers
                 case MacroType.SetOrganizerSource:
                 case MacroType.SetZoomLevel:
                 case MacroType.PrivateSay:
+                case MacroType.UseObject:
                     obj = new MacroObjectString(code, MacroSubType.MSC_NONE);
 
                     break;
@@ -3618,6 +3635,28 @@ namespace ClassicUO.Game.Managers
                     break;
             }
         }
+
+        public static MacroSubType[] GetSubTypesByCode(MacroType code)
+        {
+            int count = 0;
+            int offset = 0;
+            GetBoundByCode(code, ref count, ref offset);
+
+            int extraCount = code == MacroType.UseObject ? 1 : 0;
+            var subTypes = new MacroSubType[count + extraCount];
+
+            for (int i = 0; i < count; i++)
+            {
+                subTypes[i] = (MacroSubType)(offset + i);
+            }
+
+            if (code == MacroType.UseObject)
+            {
+                subTypes[^1] = MacroSubType.Serial;
+            }
+
+            return subTypes;
+        }
     }
 
 
@@ -3758,7 +3797,7 @@ namespace ClassicUO.Game.Managers
                 sbyte subMenuType = sbyte.Parse(xmlAction.GetAttribute("submenutype"));
 
                 MacroObject m;
-                if (xmlAction.HasAttribute("text"))
+                if (xmlAction.HasAttribute("text") || code == MacroType.UseObject)
                     m = new MacroObjectString(code, sub, xmlAction.GetAttribute("text"));
                 else
                     m = new MacroObject(code, sub);
