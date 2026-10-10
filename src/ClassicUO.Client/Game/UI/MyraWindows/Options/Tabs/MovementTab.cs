@@ -73,8 +73,8 @@ public static class MovementTab
                 new VisualContainerProps { LabelText = TazLang.Get("mog_movementtab_autofollow") },
                 Option.Slider(
                     TazLang.Get("mog_tazuo_autofollowdistance"),
-                    1,
-                    10,
+                    Constants.MIN_AUTO_FOLLOW_DISTANCE,
+                    Constants.MAX_AUTO_FOLLOW_DISTANCE,
                     new Accessor<int>(() => profile.AutoFollowDistance),
                     search: new SearchMetadata(TazLang.Get("mog_tazuo_autofollowdistance"), Keywords: [TazLang.Get("mog_kw_distance")])
                 ),
