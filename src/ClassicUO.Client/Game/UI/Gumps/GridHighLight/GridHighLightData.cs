@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using ClassicUO.Utility.Logging;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
@@ -738,7 +739,25 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 return true;
 
             string cleanedUpItemName = CleanItemName(itemName);
-            return ItemNames.Any(name => string.Equals(cleanedUpItemName, name.Trim(), StringComparison.OrdinalIgnoreCase));
+            return ItemNames.Any(name =>
+            {
+                string match = name.Trim();
+                if (!match.StartsWith("$"))
+                    return string.Equals(cleanedUpItemName, match, StringComparison.OrdinalIgnoreCase);
+
+                if (match.Length == 1)
+                    return false;
+
+                try
+                {
+                    // Preserve the original name and pattern, including case and leading digits.
+                    return Regex.IsMatch(itemName ?? string.Empty, match[1..]);
+                }
+                catch (ArgumentException)
+                {
+                    return false;
+                }
+            });
         }
 
         private static bool IsWeightInRange(string propertyString, int minWeight, int maxWeight)

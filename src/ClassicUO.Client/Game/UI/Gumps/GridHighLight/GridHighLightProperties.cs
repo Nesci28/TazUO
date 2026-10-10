@@ -140,7 +140,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             _content.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_itemname"), MyraLabel.TextStyle.P));
 
             for (int i = 0; i < _data.ItemNames.Count; i++)
-                _content.Widgets.Add(BuildStringRow(_data.ItemNames, i, null));
+                _content.Widgets.Add(BuildStringRow(_data.ItemNames, i, null,
+                    TazLang.Get("gridhighlight_itemname_tooltip")));
 
             _content.Widgets.Add(new MyraButton(TazLang.Get("gridhighlight_additemname"), () =>
             {
@@ -353,11 +354,11 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         /// <summary>Builds a row for a plain string list (item names / negatives / rarities) with an
         /// optional suggestion dropdown, an editable text box and a delete button.</summary>
-        private Widget BuildStringRow(List<string> list, int index, string[] suggestions)
+        private Widget BuildStringRow(List<string> list, int index, string[] suggestions, string tooltip = null)
         {
             var row = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
 
-            var input = new MyraInputBox { Text = list[index] ?? "", Width = 230 };
+            var input = new MyraInputBox { Text = list[index] ?? "", Width = 230, Tooltip = tooltip };
             input.TextChangedByUser += (_, _) => list[index] = input.Text ?? "";
 
             // Setting Text programmatically doesn't raise TextChangedByUser, so commit the value to
