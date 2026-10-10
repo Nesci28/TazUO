@@ -595,6 +595,10 @@ namespace ClassicUO.Game.UI.Gumps.GridContainers;
                 {
                     return contents.OrderBy((x) => x.ItemData.Layer).ThenBy((x) => x.Graphic).ThenBy((x) => x.Hue).ToList();
                 }
+                else if (sortMode == GridSortMode.Weight) // Sort by weight
+                {
+                    return contents.OrderBy((x) => x.ItemData.Weight).ThenBy((x) => x.Graphic).ThenBy((x) => x.Hue).ToList();
+                }
                 else // Default: Sort by graphic + hue
                 {
                     return contents.OrderBy((x) => x.Graphic).ThenBy((x) => x.Hue).ToList();
