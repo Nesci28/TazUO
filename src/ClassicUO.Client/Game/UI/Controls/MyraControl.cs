@@ -177,6 +177,7 @@ public class MyraControl : IGui, IDisposable
     public bool IsFromServer { get; set; }
     public Point Location { get; set; } = Point.Zero;
     public bool HasKeyboardFocus => UIManager.KeyboardFocusControl == this;
+    internal bool HasFocusedTextInput => _desktop.FocusedKeyboardWidget is Myra.Graphics2D.UI.TextBox or SpinButton;
     public bool ModalClickOutsideAreaClosesThisControl { get; protected set; } = true;
 
     /// <summary>
