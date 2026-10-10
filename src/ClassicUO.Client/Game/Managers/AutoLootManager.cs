@@ -266,7 +266,15 @@ namespace ClassicUO.Game.Managers
         /// </summary>
         private bool CheckAndLoot(Item i, bool ignorePlayerEquippedSourceGuard = false)
         {
-            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial) || (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(i))) return false;
+            if (
+                !_loaded
+                || i == null
+                || _quickContainsLookup.Contains(i.Serial)
+                || i.LootWizardPending
+                || i.LootWizardRejected
+                || (!ignorePlayerEquippedSourceGuard && IsFromPlayerEquippedLootSource(i))
+            )
+                return false;
 
             if(i.IsCorpse)
             {

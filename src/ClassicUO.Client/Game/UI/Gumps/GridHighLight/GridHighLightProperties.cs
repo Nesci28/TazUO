@@ -8,6 +8,7 @@ using ClassicUO.Game.UI.MyraWindows;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
+using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 using Myra.Graphics2D.UI.WrapPanel;
 
@@ -84,11 +85,25 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 TazLang.Get("gridhighlight_allowextra"),
                 TazLang.Get("gridhighlight_acceptextra_tooltip")));
 
+            MyraCheckButton lootWizard = MyraCheckButton.CreateWithCallback(
+                _data.LootWizard,
+                v => { _data.LootWizard = v; GridHighlightData.ConfigurationChanged(); },
+                TazLang.Get("gridhighlight_lootwizard"),
+                TazLang.Get("gridhighlight_lootwizard_tooltip"));
+            lootWizard.Enabled = _data.LootOnMatch;
+            lootWizard.Margin = new Thickness(24, 0, 0, 0);
+
             _content.Widgets.Add(MyraCheckButton.CreateWithCallback(
                 _data.LootOnMatch,
-                v => { _data.LootOnMatch = v; GridHighlightData.ConfigurationChanged(); },
+                v =>
+                {
+                    _data.LootOnMatch = v;
+                    GridHighlightData.ConfigurationChanged();
+                    lootWizard.Enabled = v;
+                },
                 TazLang.Get("gridhighlight_lootonmatch"),
                 TazLang.Get("gridhighlight_lootonmatch_tooltip")));
+            _content.Widgets.Add(lootWizard);
 
             // Destination container + target picker
             var destRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
