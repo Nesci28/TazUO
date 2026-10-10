@@ -7,13 +7,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Myra.Graphics2D.UI;
+using Myra.Graphics2D.UI.WrapPanel;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
 {
     /// <summary>
     /// Myra-based editor for the shared, configurable property lists used by grid highlighting.
     /// Each category is a multiline text box (one property per line); edits are parsed, de-duplicated
-    /// and persisted to the profile when the box loses focus.
+    /// and persisted to the shared grid-highlight settings file when the box loses focus.
     /// </summary>
     public class GridHighlightConfig : MyraControl
     {
@@ -57,7 +58,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             var root = new VerticalStackPanel { Spacing = MyraStyle.STANDARD_SPACING };
             root.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_config_title"), MyraLabel.TextStyle.P));
 
-            var columns = new HorizontalStackPanel { Spacing = 4 };
+            var columns = new WrapPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalSpacing = 8,
+                VerticalSpacing = 8,
+                Width = 560
+            };
 
             foreach ((string label, HashSet<string> set, Action<List<string>> save) in categories)
             {
@@ -66,9 +73,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
                 var input = new MyraInputBox
                 {
-                    Text = string.Join("\n", set),
+                    Text = string.Join("\n", set.OrderBy(value => value, StringComparer.OrdinalIgnoreCase)),
                     Width = 175,
-                    MinHeight = 420,
+                    MinHeight = 200,
                     Multiline = true,
                     VerticalAlignment = VerticalAlignment.Stretch
                 };
@@ -88,12 +95,12 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                     GridHighlightData.RecheckMatchStatus();
                 };
 
-                column.Widgets.Add(new ScrollViewer { MaxHeight = 420, Content = input });
+                column.Widgets.Add(new ScrollViewer { MaxHeight = 200, Content = input });
                 columns.Widgets.Add(column);
             }
 
             root.Widgets.Add(columns);
-            SetRootContent(root);
+            SetRootContent(new ScrollViewer { MaxHeight = 560, Content = root });
         }
     }
 }

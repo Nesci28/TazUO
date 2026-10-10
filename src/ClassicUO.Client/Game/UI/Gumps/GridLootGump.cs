@@ -548,6 +548,17 @@ namespace ClassicUO.Game.UI.Gumps
                     hueVector.Z = 1;
                 }
 
+                if (item is { MatchesHighlightData: true })
+                {
+                    GridItem.DrawHighlightBorder(
+                        batcher,
+                        new Rectangle(x, y + _hit.Y, _hit.Width, _hit.Height),
+                        SolidColorTextureCache.GetTexture(item.HighlightColor),
+                        new Vector3(1, 0, 1),
+                        ProfileManager.CurrentProfile.GridHighlightSize
+                    );
+                }
+
                 return true;
             }
         }
