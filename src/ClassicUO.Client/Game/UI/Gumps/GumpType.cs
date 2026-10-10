@@ -40,6 +40,7 @@ namespace ClassicUO.Game.UI.Gumps
         HealthBarCollector,
         OldJournal,
         ActionBar,
-        DualBox
+DualBox,
+        HealthBarGrabber
     }
 }

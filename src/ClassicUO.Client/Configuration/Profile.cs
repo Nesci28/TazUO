@@ -1361,6 +1361,10 @@ namespace ClassicUO.Configuration
                                 case GumpType.DualBox:
                                     gump = new DualBoxGump(world, x, y);
                                     break;
+
+                                case GumpType.HealthBarGrabber:
+                                    gump = new HealthbarGrabberGump(world);
+                                    break;
                             }
 
                             if (gump == null)
