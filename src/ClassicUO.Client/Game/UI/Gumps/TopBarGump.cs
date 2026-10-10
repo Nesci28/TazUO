@@ -15,7 +15,7 @@ using ClassicUO.Game.UI.MyraWindows;
 
 namespace ClassicUO.Game.UI.Gumps
 {
-    public class TopBarGump : Gump
+    public partial class TopBarGump : Gump
     {
         private RighClickableButton XmlGumps;
 
@@ -33,6 +33,7 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     X = 5,
                     Y = 3,
+                    ButtonAction = ButtonAction.SwitchPage,
                     ToPage = 1
                 },
                 2

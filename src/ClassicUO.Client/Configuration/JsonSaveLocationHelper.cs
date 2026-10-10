@@ -3,7 +3,9 @@ using System.IO;
 using ClassicUO.Game;
 using ClassicUO.Network;
 using ClassicUO.Utility;
+using ClassicUO.Game.Managers;
 
+using ClassicUO.Configuration;
 namespace ClassicUO.Configuration
 {
     /// <summary>

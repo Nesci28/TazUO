@@ -106,6 +106,7 @@ namespace ClassicUO.Game.UI.Gumps
             Add(_button);
             Resize();
 
+#if !TAZUO_IOS
             if (ProfileManager.CurrentProfile.LastVersionHistoryShown != CUOEnviroment.Version.ToString())
             {
                 UIManager.Add(new VersionHistory(world));
@@ -113,6 +114,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 LegionScripting.LegionScripting.DownloadApiPy();
             }
+#endif
 
             if (Settings.GlobalSettings.FPS < GameController.SupportedRefreshRate)
             {

@@ -164,7 +164,14 @@ public partial class ScriptFile : IDisposable
         if (PythonEngine != null && !LegionScripting.LScriptSettings.DisableModuleCache)
             return;
 
-        PythonEngine = Python.CreateEngine(new Dictionary<string, object>() { { "RecursionLimit", 100 } });
+        var options = new Dictionary<string, object>() { { "RecursionLimit", 100 } };
+#if TAZUO_IOS
+        // iOS has no terminal attached to the app process.  IronPython's default
+        // console bootstrap tries to discover one and can fail before a script
+        // reaches LegionAPI, so keep console support disabled on the native port.
+        options["ConsoleSupportLevel"] = "None";
+#endif
+        PythonEngine = Python.CreateEngine(options);
 
         string dir = System.IO.Path.GetDirectoryName(FullPath);
         ICollection<string> paths = PythonEngine.GetSearchPaths();

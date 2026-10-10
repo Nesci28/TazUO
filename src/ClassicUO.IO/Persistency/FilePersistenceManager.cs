@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
+using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 
 namespace ClassicUO.IO.Persistency;
@@ -98,7 +99,7 @@ public class FilePersistenceManager<TEntryType> where TEntryType : struct, Enum
     public FilePersistenceManager(string persistencyDirName)
     {
         AssertValidDirName(persistencyDirName);
-        _cacheDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, persistencyDirName);
+        _cacheDirectory = Path.Combine(FileSystemHelper.GetWritableDataDirectory(), persistencyDirName);
 
         if (!Directory.Exists(_cacheDirectory))
             Directory.CreateDirectory(_cacheDirectory);

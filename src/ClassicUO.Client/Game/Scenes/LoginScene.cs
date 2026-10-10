@@ -401,6 +401,73 @@ namespace ClassicUO.Game.Scenes
             }
         }
 
+        /// <summary>
+        /// Disconnect the active login/game connection and return to the login screen.
+        /// This is used by Legion automation and keeps the transition on the game thread.
+        /// </summary>
+        public void DisconnectToLogin()
+        {
+            GameScene gameScene = Client.Game.GetScene<GameScene>();
+            if (gameScene != null)
+                gameScene.DisconnectionRequested = true;
+
+            LoginHandshake.Instance.Disconnect();
+            LoginHandshake.Instance.SetLoginStep(LoginSteps.Main);
+        }
+
+        /// <summary>
+        /// Connect using the credentials already stored by the launcher/client.
+        /// </summary>
+        public bool ConnectSaved()
+        {
+            string account = Settings.GlobalSettings.Username;
+            string encryptedPassword = Settings.GlobalSettings.Password;
+
+            if (string.IsNullOrWhiteSpace(account) || string.IsNullOrWhiteSpace(encryptedPassword))
+                return false;
+
+            try
+            {
+                Connect(account, Crypter.Decrypt(encryptedPassword));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to connect with saved credentials: {ex}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Select a character by its displayed name when the character list is active.
+        /// </summary>
+        public bool SelectCharacterByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name) || CurrentLoginStep != LoginSteps.CharacterSelection || Characters == null)
+                return false;
+
+            for (uint i = 0; i < Characters.Length; i++)
+            {
+                if (string.Equals(Characters[i], name, StringComparison.OrdinalIgnoreCase))
+                {
+                    SelectCharacter(i);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Select a character slot when the character-selection screen is active.</summary>
+        public bool SelectCharacterSlot(uint index)
+        {
+            if (CurrentLoginStep != LoginSteps.CharacterSelection || Characters == null || index >= Characters.Length || string.IsNullOrEmpty(Characters[index]))
+                return false;
+
+            SelectCharacter(index);
+            return true;
+        }
+
         public int GetServerIndexByName(string name) => LoginHandshake.Instance.GetServerIndexByName(name);
 
         public int GetServerIndexFromSettings()

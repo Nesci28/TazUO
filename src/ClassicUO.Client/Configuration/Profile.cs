@@ -1,3 +1,4 @@
+using ClassicUO.Configuration;
 // SPDX-License-Identifier: BSD-2-Clause
 
 using ClassicUO.Common.Enums;

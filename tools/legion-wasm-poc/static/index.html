@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<title>TazUO Legion WASM proof of concept</title>
+<style>
+  body { margin: 0; padding: 2rem 1rem; background: #111827; color: #e5e7eb; font: 16px system-ui, sans-serif; }
+  main { max-width: 52rem; margin: auto; } button { padding: .7rem 1rem; margin-right: .5rem; }
+  pre { min-height: 12rem; padding: 1rem; background: #030712; border: 1px solid #374151; white-space: pre-wrap; }
+  .top-tabs { display: flex; gap: .2rem; overflow-x: auto; padding: .25rem; background: #101b25; border: 1px solid #725b2f; border-radius: .35rem; }
+  .top-tabs button { flex: 0 0 auto; padding: .35rem .7rem; margin: 0; color: #e5d6aa; background: #1b2b31; border: 1px solid #796037; border-radius: .2rem; font-size: .78rem; }
+  .top-tabs button.active { color: #fff4d0; background: #394a4c; box-shadow: inset 0 -2px #d0a34a; }
+  .game-hud { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-top: .6rem; padding: .45rem .7rem; color: #f4e7c4; background: rgba(8, 15, 25, .86); border: 1px solid #70572b; border-radius: .3rem; font-size: .82rem; }
+  .bars { display: flex; gap: .35rem; }
+  .bar { min-width: 4.2rem; padding: .15rem .35rem; border-radius: .2rem; text-align: center; color: white; font-size: .72rem; }
+  .hp { background: #8b2635; } .mp { background: #285795; } .sp { background: #3e7d45; }
+  .mobile-controls { position: fixed; z-index: 10; left: 50%; bottom: max(.6rem, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; justify-content: center; width: min(94vw, 32rem); padding: .55rem; margin: 0; background: rgba(8, 13, 21, .86); border: 1px solid #796037; border-radius: .55rem; box-shadow: 0 0 .8rem rgba(0, 0, 0, .45); }
+  .mobile-controls button { min-width: 3.5rem; min-height: 3.5rem; touch-action: manipulation; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 3.5rem); gap: .25rem; }
+  .dpad button:first-child { grid-column: 2; }
+  .dpad button:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .dpad button:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .dpad button:nth-child(4) { grid-column: 3; grid-row: 2; }
+  .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .joystick { display:none; position:relative; width:8.5rem; height:8.5rem; flex:0 0 auto; border-radius:50%; background:rgba(35,48,61,.82); border:2px solid rgba(213,178,92,.85); touch-action:none; }
+  .joystick::after { content:""; position:absolute; inset:18%; border:1px solid rgba(255,255,255,.2); border-radius:50%; }
+  .joystick-knob { position:absolute; left:50%; top:50%; width:3.1rem; height:3.1rem; transform:translate(-50%,-50%); border-radius:50%; background:rgba(210,220,225,.92); border:2px solid #8d6b2e; z-index:1; pointer-events:none; }
+  #game-canvas { display: block; width: 100%; max-width: 52rem; height: 32rem; margin: .7rem 0 5rem; background: #0b1220; border: 1px solid #374151; border-radius: .5rem; }
+  .game-panel { display: none; }
+  .bottom-tabs { display: none; }
+  #remote-screen { display:none; }
+  body.game-mode { padding: 0; overflow: hidden; background: #050a0d; }
+  body.game-mode main { max-width: none; margin: 0; }
+  body.game-mode h1, body.game-mode main > p, body.game-mode main > button, body.game-mode #output,
+  body.game-mode #heartbeat, body.game-mode #control-output { display: none; }
+  body.game-mode #game-canvas { position: fixed; inset: 0; z-index: 1; width: 100vw; height: 100vh; max-width: none; margin: 0; border: 0; border-radius: 0; }
+  body.remote-mode #game-canvas { display:none; }
+  body.remote-mode #remote-screen { display:block; position:fixed; inset:0; z-index:1; width:100vw; height:100vh; object-fit:contain; background:#000; image-rendering:auto; }
+  body.remote-mode .top-tabs, body.remote-mode .game-hud, body.remote-mode .game-panel,
+  body.remote-mode .bottom-tabs, body.remote-mode > main > h1, body.remote-mode > main > p,
+  body.remote-mode > main > button, body.remote-mode #output { display:none !important; }
+  body.remote-mode .mobile-controls { right:.8rem !important; left:auto !important; bottom:.8rem !important; transform:none !important; width:17rem !important; background:rgba(8,13,21,.78); }
+  body.remote-mode .joystick { display:none !important; }
+  body.remote-mode .dpad { display:grid !important; }
+  body.remote-mode .actions { justify-content:center; }
+  body.game-mode .top-tabs { position: fixed; z-index: 5; top: .35rem; left: .5rem; right: .5rem; justify-content: flex-start; opacity: .94; }
+  body.game-mode .game-hud { position: fixed; z-index: 5; top: 3.15rem; right: .6rem; max-width: 31rem; width: auto; margin: 0; }
+  body.game-mode .game-panel { display: block; position: fixed; z-index: 6; top: 5.6rem; right: .7rem; bottom: 5.6rem; width: min(25rem, 30vw); min-width: 18rem; overflow: hidden; color: #eee1bd; background: rgba(8, 13, 21, .94); border: 1px solid #8d6b2e; border-radius: .45rem; box-shadow: 0 0 1rem rgba(0,0,0,.55); }
+  body.game-mode .game-panel[hidden] { display: none; }
+  .panel-title { display:flex; justify-content:space-between; align-items:center; padding:.6rem .75rem; color:#f3dfad; font-weight:700; border-bottom:1px solid #70572b; }
+  .panel-close { min-width:2rem !important; min-height:2rem !important; padding:.2rem !important; margin:0 !important; color:#f4e7c4; background:#372425; border:1px solid #8d6b2e; }
+  .panel-body { height: calc(100% - 3rem); overflow:auto; padding:.7rem; }
+  .stat-row { display:flex; justify-content:space-between; padding:.35rem .2rem; border-bottom:1px solid rgba(141,107,46,.35); }
+  .inventory-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.3rem; }
+  .inventory-slot { aspect-ratio:1; display:grid; place-items:center; color:#d7c9a4; background:#18212a; border:1px solid #6f654e; font-size:1.35rem; }
+  .journal-line { padding:.35rem .2rem; border-bottom:1px solid rgba(141,107,46,.25); font-size:.78rem; }
+  .chat-box { min-height:7rem; padding:.6rem; color:#d7e0e7; background:#070d14; border:1px solid #394754; }
+  .map-mini { height:10rem; background:radial-gradient(circle at 55% 45%,#d4b478 0 4%,transparent 5%), linear-gradient(135deg,#35624d,#1b3b39 45%,#245d73); border:1px solid #516d64; }
+  .script-status { padding:.55rem; color:#b7d5bc; background:#10261d; border:1px solid #376241; }
+  body.game-mode .bottom-tabs { position:fixed; z-index:7; display:flex; left:50%; bottom:.55rem; transform:translateX(-50%); gap:.15rem; padding:.25rem; background:rgba(8,13,21,.9); border:1px solid #796037; border-radius:.35rem; }
+  body.game-mode .bottom-tabs button { min-width:4rem; min-height:2.3rem; margin:0; padding:.3rem .55rem; color:#e6d5ad; background:#1b2b31; border:1px solid #66552f; border-radius:.2rem; }
+  body.game-mode .bottom-tabs button.active { background:#35484b; color:#fff5d5; }
+  body.game-mode .mobile-controls { position: fixed; z-index: 10; right: 31vw; left: auto; bottom: .8rem; transform: none; width: 17rem; padding: .4rem; }
+  body.game-mode .actions { justify-content: center; }
+  body.game-mode .joystick { display:block; }
+  body.game-mode .dpad { display:none; }
+  body.game-mode .mobile-controls button { min-width: 2.65rem; min-height: 2.65rem; padding: .35rem; font-size: .78rem; }
+  @media (orientation: landscape) and (max-height: 600px) {
+    body.game-mode .mobile-controls { right: 31vw; width: 17rem; }
+    body.game-mode .game-panel { top: 5.3rem; bottom: 5.2rem; width: min(25rem, 30vw); }
+  }
+</style>
+<main>
+  <nav class="top-tabs" aria-label="Game panels">
+    <button data-panel="character">Character</button><button data-panel="inventory">Inventory</button><button data-panel="journal">Journal</button><button data-panel="chat">Chat</button><button data-panel="map">World Map</button><button data-panel="legion">Legion Script</button><button data-panel="more">More</button>
+  </nav>
+  <h1>Legion Python/WASM proof of concept</h1>
+  <p>Pyodide executes a real Python Legion script in WebAssembly. The pause operation yields back to
+    the browser event loop, so the heartbeat below continues while the script waits.</p>
+  <button id="run">Run Legion script</button>
+  <button id="stop">Stop running script</button>
+  <button id="busy">Run watchdog test</button>
+  <button id="network">Test WebSocket gateway</button>
+  <div class="game-hud"><strong>Weaver · Britannia</strong><div class="bars"><span class="bar hp">HP 114/114</span><span class="bar mp">MP 39/39</span><span class="bar sp">SP 82/82</span></div></div>
+  <aside id="game-panel" class="game-panel" hidden aria-live="polite"></aside>
+  <canvas id="game-canvas" width="832" height="384" aria-label="Browser game scene"></canvas>
+  <img id="remote-screen" alt="Live TazUO client stream">
+  <section class="mobile-controls" aria-label="Mobile controls">
+    <div id="joystick" class="joystick" role="application" aria-label="Movement joystick"><div class="joystick-knob"></div></div>
+    <div class="dpad" aria-label="Movement">
+      <button data-action="move:north">▲</button>
+      <button data-action="move:west">◀</button>
+      <button data-action="move:south">▼</button>
+      <button data-action="move:east">▶</button>
+    </div>
+    <div class="actions" aria-label="Actions">
+      <button data-action="target">Target</button>
+      <button data-action="context">Context</button>
+      <button data-action="chat">Chat</button>
+    </div>
+  </section>
+  <nav class="bottom-tabs" aria-label="Quick game panels">
+    <button data-panel="inventory">Gear</button><button data-panel="map">Map</button><button data-panel="chat">Chat</button><button data-panel="more">More</button>
+  </nav>
+  <p>Last control action: <output id="control-output">none</output></p>
+  <p>Browser heartbeat: <output id="heartbeat">0</output></p>
+  <pre id="output">Ready.</pre>
+</main>
+<script src="legion-poc.js"></script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>

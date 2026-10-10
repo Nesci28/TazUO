@@ -16,7 +16,6 @@ using ClassicUO.Game;
 using ClassicUO.IO;
 using ClassicUO.IO.Persistency.Migrations;
 using ClassicUO.Utility.Logging;
-
 namespace ClassicUO.Configuration;
 
 /// <summary>

@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using ClassicUO.Game.Managers;
 
+using ClassicUO.Configuration;
 namespace ClassicUO.Configuration
 {
     /// <summary>Uniform read/write access to a scoped tooltip-override store.</summary>
