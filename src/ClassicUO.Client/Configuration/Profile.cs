@@ -1231,7 +1231,6 @@ namespace ClassicUO.Configuration
 
                             switch (type)
                             {
-                                case GumpType.SpellBar: gump = new SpellBar(world); break;
                                 case GumpType.Buff:
                                     if (ProfileManager.CurrentProfile.UseImprovedBuffBar)
                                         gump = new ImprovedBuffGump(world);
