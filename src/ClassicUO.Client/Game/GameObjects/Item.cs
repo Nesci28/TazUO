@@ -37,6 +37,13 @@ namespace ClassicUO.Game.GameObjects
         public Color[] HighlightColors = Array.Empty<Color>();
         public string HighlightName = string.Empty;
         public bool ShouldAutoLoot;
+        /// <summary>
+        /// True while the grid-highlight loot wizard is waiting for a decision about this item.
+        /// Regular auto loot must leave the item alone until the wizard completes.
+        /// </summary>
+        public bool LootWizardPending;
+        /// <summary>True after the player rejects this item's loot wizard prompt.</summary>
+        public bool LootWizardRejected;
         public bool HighlightChecked;
         public string CustomName { get; set; }
 

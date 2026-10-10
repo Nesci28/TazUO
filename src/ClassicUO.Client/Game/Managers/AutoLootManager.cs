@@ -147,7 +147,7 @@ namespace ClassicUO.Game.Managers
         /// </summary>
         private void CheckAndLoot(Item i)
         {
-            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial)) return;
+            if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial) || i.LootWizardPending || i.LootWizardRejected) return;
 
             if(i.IsCorpse)
             {

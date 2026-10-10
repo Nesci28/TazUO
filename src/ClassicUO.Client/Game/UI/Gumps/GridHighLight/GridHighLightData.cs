@@ -2,6 +2,7 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.GameObjects;
+using ClassicUO.Game.UI.MyraWindows;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         private static readonly Queue<uint> _queue = new();
         private static readonly HashSet<uint> _queuedItems = new();
+        private static readonly Queue<LootWizardRequest> _lootWizardQueue = new();
+        private static LootWizardWindow _lootWizardWindow;
         private static bool hasQueuedItems;
 
         private readonly Dictionary<string, string> _normalizeCache = new();
@@ -156,6 +159,12 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             set => _entry.LootOnMatch = value;
         }
 
+        public bool LootWizard
+        {
+            get => _entry.LootWizard;
+            set => _entry.LootWizard = value;
+        }
+
         public uint DestinationContainer
         {
             get => _entry.DestinationContainer;
@@ -225,10 +234,108 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         public static void Unload()
         {
+            CancelLootWizardRequests();
             allConfigs = null;
             _queue.Clear();
             _queuedItems.Clear();
             hasQueuedItems = false;
+        }
+
+        private sealed class LootWizardRequest
+        {
+            public World World { get; init; }
+            public Item Item { get; init; }
+            public AutoLootManager.AutoLootConfigEntry Entry { get; init; }
+        }
+
+        private static void RequestLootWizard(World world, Item item, GridHighlightData match)
+        {
+            if (item == null || item.LootWizardPending || item.ShouldAutoLoot)
+                return;
+
+            item.LootWizardPending = true;
+            item.LootWizardRejected = false;
+            _lootWizardQueue.Enqueue(new LootWizardRequest
+            {
+                World = world,
+                Item = item,
+                Entry = match.GetLootEntry()
+            });
+
+            ShowNextLootWizard();
+        }
+
+        private static void ShowNextLootWizard()
+        {
+            if (_lootWizardWindow is { IsDisposed: false } || _lootWizardQueue.Count == 0)
+                return;
+
+            _lootWizardWindow = null;
+
+            while (_lootWizardQueue.Count > 0)
+            {
+                LootWizardRequest request = _lootWizardQueue.Dequeue();
+                Item item = request.Item;
+
+                if (!IsValidLootWizardItem(request))
+                {
+                    if (item != null)
+                        item.LootWizardPending = false;
+                    continue;
+                }
+
+                _lootWizardWindow = new LootWizardWindow(
+                    request.World,
+                    item,
+                    confirmed => CompleteLootWizard(request, confirmed));
+                return;
+            }
+        }
+
+        private static void CompleteLootWizard(LootWizardRequest request, bool confirmed)
+        {
+            _lootWizardWindow = null;
+
+            Item item = request.Item;
+            bool validItem = confirmed && IsValidLootWizardItem(request);
+            if (item != null)
+            {
+                item.LootWizardPending = false;
+                item.LootWizardRejected = !validItem;
+            }
+
+            if (validItem)
+            {
+                item.ShouldAutoLoot = true;
+                AutoLootManager.Instance.LootItem(item, request.Entry);
+            }
+
+            ShowNextLootWizard();
+        }
+
+        private static bool IsValidLootWizardItem(LootWizardRequest request)
+        {
+            if (request?.World == null || request.Item == null || request.Item.IsDestroyed)
+                return false;
+
+            if (request.World.Items.Get(request.Item.Serial) != request.Item)
+                return false;
+
+            Item root = request.World.Items.Get(request.Item.RootContainer);
+            return root is { IsCorpse: true };
+        }
+
+        private static void CancelLootWizardRequests()
+        {
+            while (_lootWizardQueue.Count > 0)
+            {
+                LootWizardRequest request = _lootWizardQueue.Dequeue();
+                if (request.Item != null)
+                    request.Item.LootWizardPending = false;
+            }
+
+            _lootWizardWindow?.Dispose();
+            _lootWizardWindow = null;
         }
 
         public static void ProcessItemOpl(World world, Item item)
@@ -316,8 +423,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                         Item root = World.Items.Get(data.item.RootContainer);
                         if (root != null && root.IsCorpse)
                         {
-                            AutoLootManager.Instance.LootItem(data.item, lootMatch.GetLootEntry());
-                            data.item.ShouldAutoLoot = true;
+                            if (lootMatch.LootWizard)
+                                RequestLootWizard(World, data.item, lootMatch);
+                            else
+                            {
+                                AutoLootManager.Instance.LootItem(data.item, lootMatch.GetLootEntry());
+                                data.item.ShouldAutoLoot = true;
+                            }
                         }
                     }
                 }
@@ -362,6 +474,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         /// <summary>Clears cached highlight results and queues eligible items for matching again.</summary>
         public static void RecheckMatchStatus()
         {
+            CancelLootWizardRequests();
             AllConfigs = null; // Reset configs
 
             World world = World.Instance;
@@ -380,6 +493,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 item.HighlightColor = Color.Transparent;
                 item.HighlightColors = Array.Empty<Color>();
                 item.ShouldAutoLoot = false;
+                item.LootWizardPending = false;
+                item.LootWizardRejected = false;
                 item.HighlightChecked = false;
 
                 ProcessItemOpl(world, kvp.Key);
