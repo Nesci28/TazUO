@@ -4,5 +4,6 @@ public enum GridSortMode
 {
     GraphicAndHue = 0,
     Name = 1,
-    Layer = 2
+    Layer = 2,
+    Weight = 3
 }
