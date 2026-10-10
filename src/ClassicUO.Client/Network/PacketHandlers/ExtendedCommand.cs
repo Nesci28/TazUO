@@ -216,13 +216,18 @@ internal static class ExtendedCommand
             //===========================================================================================
             //===========================================================================================
             case 0x14: // display popup/context menu
-                UIManager.ShowGamePopup(
-                    new PopupMenuGump(world, PopupMenuData.Parse(ref p))
-                    {
-                        X = world.DelayedObjectClickManager.LastMouseX,
-                        Y = world.DelayedObjectClickManager.LastMouseY
-                    }
-                );
+                PopupMenuData popupData = PopupMenuData.Parse(ref p);
+
+                if (!MobileDefaultContextActionManager.TryHandlePopupResponse(world, popupData))
+                {
+                    UIManager.ShowGamePopup(
+                        new PopupMenuGump(world, popupData)
+                        {
+                            X = world.DelayedObjectClickManager.LastMouseX,
+                            Y = world.DelayedObjectClickManager.LastMouseY
+                        }
+                    );
+                }
 
                 break;
 
