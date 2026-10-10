@@ -113,6 +113,8 @@ internal static class GumpHelpers
         int page = 0;
 
         bool textBoxFocused = false;
+        ushort lastItemGraphic = 0;
+        Control lastItemArtControl = null;
 
         // Reused across commands: no control constructor retains the list, so the per-command
         // allocation can be avoided.
@@ -147,7 +149,12 @@ internal static class GumpHelpers
                     StringComparison.OrdinalIgnoreCase
                 )
             )
-                gump.Add(new ButtonTileArt(gparams), page);
+            {
+                var itemArt = new ButtonTileArt(gparams);
+                gump.Add(itemArt, page);
+                lastItemGraphic = itemArt.Graphic;
+                lastItemArtControl = itemArt;
+            }
             else if (
                 string.Equals(
                     entry,
@@ -176,6 +183,11 @@ internal static class GumpHelpers
                 string.Equals(entry, "gumppic", StringComparison.OrdinalIgnoreCase)
             )
             {
+                bool isTilePicAsGumpPic = string.Equals(
+                    entry,
+                    "tilepicasgumppic",
+                    StringComparison.InvariantCultureIgnoreCase
+                );
                 GumpPic pic;
                 bool isVirtue = gparams.Count >= 6
                                 && gparams[5].IndexOf(
@@ -299,6 +311,12 @@ internal static class GumpHelpers
                     pic = new GumpPic(gparams);
 
                 gump.Add(pic, page);
+
+                if (isTilePicAsGumpPic)
+                {
+                    lastItemGraphic = UInt16Converter.Parse(gparams[3]);
+                    lastItemArtControl = pic;
+                }
             }
             else if (
                 string.Equals(
@@ -445,7 +463,12 @@ internal static class GumpHelpers
                 string.Equals(entry, "tilepichue", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(entry, "tilepic", StringComparison.OrdinalIgnoreCase)
             )
-                gump.Add(new StaticPic(gparams), page);
+            {
+                var itemArt = new StaticPic(gparams);
+                gump.Add(itemArt, page);
+                lastItemGraphic = itemArt.Graphic;
+                lastItemArtControl = itemArt;
+            }
             else if (
                 string.Equals(entry, "noclose", StringComparison.OrdinalIgnoreCase)
             )
@@ -528,9 +551,51 @@ internal static class GumpHelpers
             {
                 if (world.ClientFeatures.TooltipsEnabled && gump.Children.Count != 0)
                 {
-                    gump.Children[gump.Children.Count - 1].SetTooltip(
-                        SerialHelper.Parse(gparams[1])
-                    );
+                    IGui itemControl = gump.Children[gump.Children.Count - 1];
+                    uint itemSerial = SerialHelper.Parse(gparams[1]);
+                    ushort itemGraphic = 0;
+
+                    if (itemControl is StaticPic itemArt)
+                    {
+                        itemGraphic = itemArt.Graphic;
+                    }
+                    else if (itemControl is ButtonTileArt buttonItemArt)
+                    {
+                        itemGraphic = buttonItemArt.Graphic;
+                    }
+                    else
+                    {
+                        // Some server gumps attach itemproperty to a row/control placed after the
+                        // tile art. Associate the nearest preceding item art with that control.
+                        for (int i = gump.Children.Count - 2; i >= 0; i--)
+                        {
+                            if (gump.Children[i] is StaticPic precedingItemArt)
+                            {
+                                itemGraphic = precedingItemArt.Graphic;
+                                break;
+                            }
+
+                            if (gump.Children[i] is ButtonTileArt precedingButtonItemArt)
+                            {
+                                itemGraphic = precedingButtonItemArt.Graphic;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (itemGraphic == 0)
+                        itemGraphic = lastItemGraphic;
+
+                    if (itemControl is Control control)
+                        control.SetItemPropertyTooltip(itemSerial, itemGraphic);
+                    else
+                        itemControl.SetTooltip(itemSerial);
+
+                    // The item art can overlap the row/background control that itemproperty
+                    // targets. Attach the same metadata to both so hit-testing either one gives
+                    // Ctrl+hover enough information to build the comparison tooltip.
+                    if (lastItemArtControl != null && lastItemArtControl != itemControl)
+                        lastItemArtControl.SetItemPropertyTooltip(itemSerial, itemGraphic);
 
                     if (
                         uint.TryParse(gparams[1], out uint s)
@@ -538,6 +603,9 @@ internal static class GumpHelpers
                     )
                         SharedStore.AddMegaCliLocRequest(s);
                 }
+
+                lastItemGraphic = 0;
+                lastItemArtControl = null;
             }
             else if (
                 string.Equals(entry, "noresize", StringComparison.OrdinalIgnoreCase)
