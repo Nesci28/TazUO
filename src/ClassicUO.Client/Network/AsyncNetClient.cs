@@ -27,7 +27,6 @@ namespace ClassicUO.Network
 
         public event EventHandler OnConnected, OnDisconnected;
         public event EventHandler<SocketError> OnError;
-        public EndPoint RemoteEndPoint => _socket?.Client?.RemoteEndPoint;
 
         public uint? GetTcpRoundTripTime() => TcpRoundTripTime.Get(_socket?.Client);
 
@@ -222,13 +221,6 @@ namespace ClassicUO.Network
         public uint? TcpRoundTripTime => _socket?.GetTcpRoundTripTime();
         public PingManager PingManager { get; }
         public NetStatistics Statistics { get; }
-
-        /// <summary>
-        ///     Remote endpoint of the active game connection, or <c>null</c> when disconnected.
-        ///     Needed to derive the IP for ICMP fallback pings, since the 0x73 packet ping may be
-        ///     unanswered by some servers.
-        /// </summary>
-        public EndPoint RemoteEndPoint => _socket?.RemoteEndPoint;
 
         public AsyncNetClient()
         {
