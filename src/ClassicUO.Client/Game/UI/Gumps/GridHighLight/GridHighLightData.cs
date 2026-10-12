@@ -82,6 +82,12 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             set => _entry.AcceptExtraProperties = value;
         }
 
+        public bool? IsMedable
+        {
+            get => _entry.IsMedable;
+            set => _entry.IsMedable = value;
+        }
+
         public int MinimumProperty
         {
             get => _entry.MinimumProperty;
@@ -386,9 +392,32 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             }
         }
 
-        public bool IsMatch(ItemPropertiesData itemData) => AcceptExtraProperties
+        public bool IsMatch(ItemPropertiesData itemData)
+        {
+            if (itemData == null || (IsMedable.HasValue && !MatchesMedability(itemData)))
+                return false;
+
+            return AcceptExtraProperties
                 ? IsMatchFromProperties(itemData)
                 : IsMatchFromItemPropertiesData(itemData);
+        }
+
+        private bool MatchesMedability(ItemPropertiesData itemData)
+        {
+            Item item = itemData.item;
+            if (item == null)
+                return false; // Tooltip text alone cannot identify the armor material.
+
+            bool mageArmor = item.World.OPL.MatchClilocs(item.Serial, false, ClilocValues.MageArmor) ||
+                itemData.singlePropertyData.Any(p => Normalize(p.Name) == "mage armor");
+            bool spellChanneling = item.World.OPL.MatchClilocs(item.Serial, false, ClilocValues.SpellChanneling) ||
+                itemData.singlePropertyData.Any(p => Normalize(p.Name) == "spell channeling");
+
+            // Appearance replacements must not change the underlying armor's eligibility.
+            ushort graphic = item.OriginalGraphic;
+            byte layer = Client.Game.UO.FileManager.TileData.GetStaticTile(graphic).Layer;
+            return ItemMeditationEligibility.Get(graphic, layer, mageArmor, spellChanneling) == IsMedable;
+        }
 
         public bool DoesPropertyMatch(ItemPropertiesData.SinglePropertyData property)
         {
