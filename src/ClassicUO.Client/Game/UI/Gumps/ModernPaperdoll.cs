@@ -448,14 +448,14 @@ namespace ClassicUO.Game.UI.Gumps
 
                 _durabilityBar.Hue = ProfileManager.CurrentProfile.ModernPaperDollDurabilityHue;
 
-                if (_world.DurabilityManager.TryGetDurability(item.Serial, out DurabiltyProp durabilty))
+                if (_world.DurabilityManager.TryGetDurability(item.Serial, out DurabilityInfo durability))
                 {
-                    if (durabilty.Percentage > (float)ProfileManager.CurrentProfile.ModernPaperDoll_DurabilityPercent / (float)100)
+                    if (durability.Percentage > (float)ProfileManager.CurrentProfile.ModernPaperDoll_DurabilityPercent / (float)100)
                     {
                         _durabilityBar.IsVisible = false;
                         return;
                     }
-                    _durabilityBar.Height = (int)(Height * durabilty.Percentage);
+                    _durabilityBar.Height = (int)(Height * durability.Percentage);
                     _durabilityBar.Y = Height - _durabilityBar.Height;
                     _durabilityBar.IsVisible = true;
                 }
@@ -777,7 +777,7 @@ namespace ClassicUO.Game.UI.Gumps
                     if (e.Button == MouseButtonType.Left)
                     {
                         UIManager.GetGump<DurabilitysGump>()?.Dispose();
-                        UIManager.Add(new DurabilitysGump(world));
+                        UIManager.Add(new DurabilitysGump(world, LocalSerial));
                     }
                 };
                 Add(durability);

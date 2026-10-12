@@ -99,7 +99,8 @@ public sealed class MobileAnimationTimingTests : IDisposable
         X = _mobile.X + 1,
         Y = _mobile.Y,
         Direction = (byte)Direction.East,
-        TimeDiff = 100
+        Arrival = Time.Ticks,
+        Duration = 100
     });
 
     public void Dispose()

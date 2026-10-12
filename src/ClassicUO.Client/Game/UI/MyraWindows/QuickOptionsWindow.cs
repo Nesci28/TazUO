@@ -73,7 +73,7 @@ public class QuickOptionsWindow : MyraControl
         int width = 200,
         string? tooltip = null,
         Func<char, bool>? inputFilter = null,
-        bool password = false
+        bool isPassword = false
     )
     {
         WrapPanel row = MyraInputBox.LabeledHorizontalStackPanel(label, out MyraInputBox input, width, value, tooltip: tooltip);
@@ -81,12 +81,20 @@ public class QuickOptionsWindow : MyraControl
         if (inputFilter != null)
             input.InputFilter = inputFilter;
 
-        if (password)
+        if (isPassword)
             input.PasswordField = true;
 
         input.TextChangedByUser += (_, _) => onChange(input.Text ?? string.Empty);
 
         _stack.Widgets.Add(row);
+        Refresh();
+        return this;
+    }
+
+    /// <summary>Appends a button that invokes <paramref name="onClick"/> when pressed.</summary>
+    public QuickOptionsWindow AddButton(string label, Action onClick)
+    {
+        _stack.Widgets.Add(new MyraButton(label, onClick));
         Refresh();
         return this;
     }

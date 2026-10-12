@@ -17,7 +17,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
     /// <summary>
     /// Myra-based editor for a single grid highlight configuration. Exposes the matching options
     /// (allowed extra properties, auto loot, match/property counts), the item name list, the property
-    /// rules, the equipment slot filter and the disqualifying/rarity lists. Structural changes
+    /// rules, the meditation/equipment slot filters and the disqualifying/rarity lists. Structural changes
     /// (adding/removing rows) rebuild the scrollable body in place.
     /// </summary>
     public class GridHighlightProperties : MyraControl
@@ -84,6 +84,26 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 v => { _data.AcceptExtraProperties = v; GridHighlightData.ConfigurationChanged(); },
                 TazLang.Get("gridhighlight_allowextra"),
                 TazLang.Get("gridhighlight_acceptextra_tooltip")));
+
+            var medable = new ComboView
+            {
+                MinWidth = 160,
+                VerticalAlignment = VerticalAlignment.Center,
+                Tooltip = TazLang.Get("gridhighlight_medable_tooltip")
+            };
+            medable.ListView.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_medable_any"), MyraLabel.TextStyle.P));
+            medable.ListView.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_medable_yes"), MyraLabel.TextStyle.P));
+            medable.ListView.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_medable_no"), MyraLabel.TextStyle.P));
+            medable.ListView.SelectedIndex = _data.IsMedable switch { true => 1, false => 2, _ => 0 };
+            medable.ListView.SelectedIndexChanged += (_, _) =>
+            {
+                if (medable.ListView.SelectedIndex is int index)
+                {
+                    _data.IsMedable = index switch { 1 => true, 2 => false, _ => (bool?)null };
+                    GridHighlightData.ConfigurationChanged();
+                }
+            };
+            _content.Widgets.Add(new MyraLabel(TazLang.Get("gridhighlight_medable"), MyraLabel.TextStyle.P).PlaceBefore(medable));
 
             MyraCheckButton lootWizard = MyraCheckButton.CreateWithCallback(
                 _data.LootWizard,

@@ -1116,7 +1116,6 @@ namespace ClassicUO.Game.Scenes
                 return false;
             }
 
-            _rightMousePressed = true;
             _continueRunning = false;
             StopFollowing();
 
@@ -1124,6 +1123,10 @@ namespace ClassicUO.Game.Scenes
             {
                 if ((ProfileManager.CurrentProfile.UseShiftToPathfind && !HotKeys.IsPressed(HotKeyRegistrar.PathfindId)) || ProfileManager.CurrentProfile.PathfindSingleClick)
                 {
+                    // Pathfinding is not requested for this click, so mirror OnRightMouseDown: the
+                    // second click of a rapid pair still counts as holding the button to walk.
+                    _rightMousePressed = true;
+
                     return false;
                 }
 
@@ -1142,6 +1145,10 @@ namespace ClassicUO.Game.Scenes
                                 TextType.CLIENT
                             );
 
+                            // The pathfinder drives movement now. Leave _rightMousePressed false so
+                            // MoveCharacterByMouseInput does not override it with a cursor walk —
+                            // the release is skipped after a consumed double-click, so nothing would
+                            // reset it afterwards.
                             return true;
                         }
                     }
@@ -1168,6 +1175,8 @@ namespace ClassicUO.Game.Scenes
                 //    }
                 //}
             }
+
+            _rightMousePressed = true;
 
             return false;
         }

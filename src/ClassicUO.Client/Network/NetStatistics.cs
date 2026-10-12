@@ -39,6 +39,8 @@ namespace ClassicUO.Network
 
         public uint Ping => socket.PingManager.Ping;
 
+        public uint LastPing => socket.PingManager.LastPing;
+
         public PingSource CurrentPingSource => Ping == 0 ? PingSource.Disabled : PingSource.Packet;
 
         public void PingReceived(byte idx) => socket.PingManager.ProtocolPingReceived(idx);

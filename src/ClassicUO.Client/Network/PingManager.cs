@@ -102,6 +102,26 @@ public sealed class PingManager
         }
     }
 
+    /// <summary>Gets the most recent sample from the source currently supplying <see cref="Ping"/>.</summary>
+    public uint LastPing
+    {
+        get
+        {
+            lock (_sync)
+            {
+                bool useProtocol = _protocolPingCount > 0 &&
+                    (_networkPingCount == 0 || Elapsed(_getTicks(), _lastProtocolPingReceived) <= PROTOCOL_PING_FRESHNESS_MS);
+
+                if (useProtocol)
+                    return _protocolPings[(_protocolPingWriteIndex + SAMPLE_COUNT - 1) % SAMPLE_COUNT];
+
+                return _networkPingCount > 0
+                    ? _networkPings[(_networkPingWriteIndex + SAMPLE_COUNT - 1) % SAMPLE_COUNT]
+                    : 0;
+            }
+        }
+    }
+
     /// <summary>
     /// Gets the time at which the last UO protocol ping was received. ICMP replies intentionally
     /// do not update this value because it is also used to detect a hung game connection.

@@ -17,6 +17,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public string HighlightColor { get; set; } = "#FF0000";
         public List<GridHighlightProperty> Properties { get; set; } = new();
         public bool AcceptExtraProperties { get; set; } = true;
+        /// <summary>Null accepts either kind of equipment; true requires medable, false non-medable.</summary>
+        public bool? IsMedable { get; set; }
         public bool Overweight { get; set; }
         public int MinimumWeight { get; set; } = 0;
         public int MaximumWeight { get; set; } = 0;

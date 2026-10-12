@@ -87,6 +87,12 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             set => _entry.AcceptExtraProperties = value;
         }
 
+        public bool? IsMedable
+        {
+            get => _entry.IsMedable;
+            set => _entry.IsMedable = value;
+        }
+
         public int MinimumProperty
         {
             get => _entry.MinimumProperty;
@@ -601,7 +607,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
         public bool IsMatch(ItemPropertiesData itemData)
         {
-            if (itemData == null)
+            if (itemData == null || (IsMedable.HasValue && !MatchesMedability(itemData)))
                 return false;
 
             EnsureCache();
@@ -674,6 +680,21 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             return true;
         }
 
+        private bool MatchesMedability(ItemPropertiesData itemData)
+        {
+            Item item = itemData.item;
+            if (item == null)
+                return false; // Tooltip text alone cannot identify the armor material.
+
+            bool mageArmor = item.World.OPL.MatchClilocs(item.Serial, false, ClilocValues.MageArmor) ||
+                itemData.singlePropertyData.Any(p => Normalize(p.Name) == "mage armor");
+
+            // Appearance replacements must not change the underlying armor's eligibility.
+            ushort graphic = item.OriginalGraphic;
+            byte layer = Client.Game.UO.FileManager.TileData.GetStaticTile(graphic).Layer;
+            return ItemMeditationEligibility.Get(graphic, layer, mageArmor) == IsMedable;
+        }
+
         public bool DoesPropertyMatch(ItemPropertiesData.SinglePropertyData property)
         {
             if (property == null)
@@ -727,7 +748,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                    _cachedNormalizedRulesProperties.Count > 0 ||
                    _cachedNormalizedRulesExcludeNegatives.Count > 0 ||
                    _cachedNormalizedRulesRequiredRarities.Count > 0 ||
-                   Overweight || MinimumProperty > 0 || MaximumProperty > 0 ||
+                   IsMedable.HasValue || Overweight || MinimumProperty > 0 || MaximumProperty > 0 ||
                    MinimumMatchingProperty > 0 || MaximumMatchingProperty > 0 ||
                    HasNonDefaultSlotSelection();
         }
