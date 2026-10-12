@@ -410,13 +410,11 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
 
             bool mageArmor = item.World.OPL.MatchClilocs(item.Serial, false, ClilocValues.MageArmor) ||
                 itemData.singlePropertyData.Any(p => Normalize(p.Name) == "mage armor");
-            bool spellChanneling = item.World.OPL.MatchClilocs(item.Serial, false, ClilocValues.SpellChanneling) ||
-                itemData.singlePropertyData.Any(p => Normalize(p.Name) == "spell channeling");
 
             // Appearance replacements must not change the underlying armor's eligibility.
             ushort graphic = item.OriginalGraphic;
             byte layer = Client.Game.UO.FileManager.TileData.GetStaticTile(graphic).Layer;
-            return ItemMeditationEligibility.Get(graphic, layer, mageArmor, spellChanneling) == IsMedable;
+            return ItemMeditationEligibility.Get(graphic, layer, mageArmor) == IsMedable;
         }
 
         public bool DoesPropertyMatch(ItemPropertiesData.SinglePropertyData property)

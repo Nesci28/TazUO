@@ -19,8 +19,5 @@ public enum ClilocValues : int
     LockedDownAndSecured = 501644, // 0x7A78C
 
     /// <summary>"Mage Armor" - armor does not impede meditation.</summary>
-    MageArmor = 1060437,
-
-    /// <summary>"Spell Channeling" - equipment can remain equipped while casting or meditating.</summary>
-    SpellChanneling = 1060482
+    MageArmor = 1060437
 }

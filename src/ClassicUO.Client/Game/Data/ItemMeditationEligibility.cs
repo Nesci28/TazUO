@@ -161,21 +161,20 @@ namespace ClassicUO.Game.Data
             0x2B6B, 0x3162, // WoodlandLegs
         };
 
-        /// <summary>Returns null for non-equipment and unrecognized armor types.</summary>
-        internal static bool? Get(ushort graphic, byte layer, bool mageArmor, bool spellChanneling)
+        /// <summary>Returns null for held items, non-equipment and unrecognized armor types.</summary>
+        internal static bool? Get(ushort graphic, byte layer, bool mageArmor)
         {
             if (graphic == 0 || !IsEquipmentLayer(layer))
                 return null;
 
             if (layer is (byte)Layer.OneHanded or (byte)Layer.TwoHanded)
             {
-                // Books can stay equipped during meditation without Spell Channeling.
-                return spellChanneling || graphic is 0x0EFA or 0x2252 or 0x2253 or 0x238C or 0x23A0
-                    or 0x2D50 or 0x2D9D or 0x225A or 0x225B or 0x22C5;
+                // The filter describes armor material; Spell Channeling on held gear is separate.
+                return null;
             }
 
-            // Mage Armor and Spell Channeling override an armor meditation penalty.
-            if (mageArmor || spellChanneling)
+            // Mage Armor makes otherwise non-medable armor medable.
+            if (mageArmor)
                 return true;
 
             if (MedableArmor.Contains(graphic))

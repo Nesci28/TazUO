@@ -109,14 +109,23 @@ public class GridHighlightMedableTests : IDisposable
     }
 
     [Theory]
-    [InlineData(1060437)]
-    [InlineData(1060482)]
-    public void LocalizedMeditationProperties_AreDetectedByCliloc(int cliloc)
+    [InlineData(1060437, true)] // Mage Armor
+    [InlineData(1060482, false)] // Spell Channeling is a separate property
+    public void LocalizedMageArmor_IsDetectedByCliloc(int cliloc, bool medable)
     {
         var data = ItemData(PlateChest, Layer.Torso, extraProperties: "Propriété localisée", clilocs: new[] { cliloc });
 
-        Rule(true).IsMatch(data).Should().BeTrue();
-        Rule(false).IsMatch(data).Should().BeFalse();
+        Rule(true).IsMatch(data).Should().Be(medable);
+        Rule(false).IsMatch(data).Should().Be(!medable);
+    }
+
+    [Fact]
+    public void SpellChanneling_DoesNotMakePlateArmorMedable()
+    {
+        var data = ItemData(PlateChest, Layer.Torso, extraProperties: "Spell Channeling");
+
+        Rule(true).IsMatch(data).Should().BeFalse();
+        Rule(false).IsMatch(data).Should().BeTrue();
     }
 
     [Theory]
@@ -124,7 +133,7 @@ public class GridHighlightMedableTests : IDisposable
     [InlineData(0x13DB, Layer.Torso, false)] // Studded leather
     [InlineData(0x1718, Layer.Helmet, true)] // Wizard hat
     [InlineData(0x1088, Layer.Neck, true)] // Beaded necklace
-    [InlineData(0x0EFA, Layer.OneHanded, true)] // Spellbook
+    [InlineData(0x1517, Layer.Shirt, true)] // Cloth shirt
     public void StandardEquipment_UsesItsMeditationEligibility(int graphic, Layer layer, bool medable)
     {
         var data = ItemData((ushort)graphic, layer);
@@ -156,17 +165,19 @@ public class GridHighlightMedableTests : IDisposable
     }
 
     [Theory]
-    [InlineData(Layer.OneHanded)]
-    [InlineData(Layer.TwoHanded)]
-    public void HeldEquipment_RequiresSpellChannelingToBeMedable(Layer layer)
+    [InlineData(0x0F5E, Layer.OneHanded)] // Sword
+    [InlineData(0x1B76, Layer.TwoHanded)] // Shield
+    [InlineData(0x0EFA, Layer.OneHanded)] // Spellbook
+    public void HeldEquipment_IsExcludedFromArmorMedabilityFilters(int graphic, Layer layer)
     {
-        var ordinary = ItemData(0x0F5E, layer);
-        var channeling = ItemData(0x0F5E, layer, extraProperties: "Spell Channeling");
+        var ordinary = ItemData((ushort)graphic, layer);
+        var channeling = ItemData((ushort)graphic, layer, extraProperties: "Spell Channeling");
 
         Rule(true).IsMatch(ordinary).Should().BeFalse();
-        Rule(false).IsMatch(ordinary).Should().BeTrue();
-        Rule(true).IsMatch(channeling).Should().BeTrue();
+        Rule(false).IsMatch(ordinary).Should().BeFalse();
+        Rule(true).IsMatch(channeling).Should().BeFalse();
         Rule(false).IsMatch(channeling).Should().BeFalse();
+        Rule(null).IsMatch(channeling).Should().BeTrue();
     }
 
     [Theory]
