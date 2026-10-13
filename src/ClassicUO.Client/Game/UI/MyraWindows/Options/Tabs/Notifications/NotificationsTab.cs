@@ -50,6 +50,14 @@ internal static partial class NotificationsTab
                         TazLang.Get("healthnotifications_debuffs", "Debuffs")
                     ]
                 )
+            )
+            .AddTab(
+                TazLang.Get("gridhighlightnotifications_tab"),
+                GetGridHighlightSection,
+                new SearchMetadata(
+                    TazLang.Get("gridhighlightnotifications_title"),
+                    Keywords: ["grid", "highlight", "notification", "match"]
+                )
             );
     }
 

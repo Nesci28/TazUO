@@ -1,3 +1,4 @@
+using ClassicUO.Configuration;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using System;
@@ -31,6 +32,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public GridHighlightSlot GridHighlightSlot { get; set; } = new();
         public bool LootOnMatch { get; set; } = false;
         public bool LootWizard { get; set; } = false;
+        public bool ShowNotification { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public GridHighlightNotificationSettings Notification { get; set; }
         public uint DestinationContainer { get; set; } = 0;
         public Color GetHighlightColor() => HighlightColor.FromHtmlHex(Color.Red);
 

@@ -173,6 +173,19 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             set => _entry.LootWizard = value;
         }
 
+        public bool ShowNotification
+        {
+            get => _entry.ShowNotification;
+            set
+            {
+                _entry.ShowNotification = value;
+                if (value)
+                    _entry.Notification ??= new GridHighlightNotificationSettings();
+            }
+        }
+
+        internal GridHighlightSetupEntry Entry => _entry;
+
         public uint DestinationContainer
         {
             get => _entry.DestinationContainer;
@@ -246,6 +259,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 _subscribed = false;
             }
             CancelLootWizardRequests();
+            GridHighlightNotificationManager.Clear();
             allConfigs = null;
             _queue.Clear();
             _queuedItems.Clear();
@@ -500,6 +514,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                     data.item.HighlightColor = bestMatch.HighlightColor;
                     data.item.HighlightColors = matches.Select(match => match.HighlightColor).ToArray();
                     data.item.HighlightName = bestMatch.Name;
+
+                    foreach (GridHighlightData match in matches)
+                        GridHighlightNotificationManager.NotifyMatch(World, data.item, match.Entry);
 
                     GridHighlightData lootMatch = GetAutoLootMatch(matches);
                     if (lootMatch != null)

@@ -2,6 +2,7 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows;
+using ClassicUO.Game.UI.MyraWindows.Options;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Utility.Logging;
 using System;
@@ -145,7 +146,11 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 MinWidth = 150,
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
-            nameBox.TextChangedByUser += (_, _) => data.Name = nameBox.Text ?? "";
+            nameBox.TextChangedByUser += (_, _) =>
+            {
+                data.Name = nameBox.Text ?? "";
+                UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
+            };
             nameBox.LostFocus = () => GridHighlightData.ConfigurationChanged();
             AddRowWidget(row, nameBox, 1);
 
@@ -170,6 +175,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 ClosePropertyEditors();
                 GridHighlightData.ConfigurationChanged();
                 RebuildList();
+                UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
             }) { Tooltip = TazLang.Get("gridhighlight_up_tooltip") }, 4);
 
             AddRowWidget(row, new MyraButton(TazLang.Get("gridhighlight_down"), () =>
@@ -178,6 +184,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 ClosePropertyEditors();
                 GridHighlightData.ConfigurationChanged();
                 RebuildList();
+                UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
             }) { Tooltip = TazLang.Get("gridhighlight_down_tooltip") }, 5);
 
             AddRowWidget(row, MyraStyle.ApplyButtonDangerStyle(new MyraButton("X", () =>
@@ -186,6 +193,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 ClosePropertyEditors();
                 RebuildList();
                 GridHighlightData.ConfigurationChanged();
+                UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
             }) { Tooltip = TazLang.Get("gridhighlight_delete_tooltip") }), 6);
 
             return row;
