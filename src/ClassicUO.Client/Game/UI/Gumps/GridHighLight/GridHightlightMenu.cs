@@ -2,6 +2,7 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows;
+using ClassicUO.Game.UI.MyraWindows.Options;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
@@ -115,7 +116,11 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             }, tooltip: TazLang.Get("gridhighlight_enabled_tooltip")));
 
             var nameBox = new MyraInputBox { Text = data.Name ?? "", Width = 150 };
-            nameBox.TextChangedByUser += (_, _) => data.Name = nameBox.Text ?? "";
+            nameBox.TextChangedByUser += (_, _) =>
+            {
+                data.Name = nameBox.Text ?? "";
+                UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
+            };
             row.Widgets.Add(nameBox);
 
             var colorButton = new MyraButton(TazLang.Get("gridhighlight_color")) { Tooltip = TazLang.Get("gridhighlight_color_tooltip") };
@@ -150,6 +155,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 data.Delete();
                 RebuildList();
                 GridHighlightData.RecheckMatchStatus();
+                UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
             }) { Tooltip = TazLang.Get("gridhighlight_delete_tooltip") }));
 
             return row;

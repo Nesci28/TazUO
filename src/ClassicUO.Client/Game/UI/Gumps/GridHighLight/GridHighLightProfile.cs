@@ -1,6 +1,8 @@
+using ClassicUO.Configuration;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ClassicUO.Game.UI.Gumps.GridHighLight
 {
@@ -24,6 +26,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public List<string> RequiredRarities { get; set; } = new();
         public GridHighlightSlot GridHighlightSlot { get; set; } = new();
         public bool LootOnMatch { get; set; } = false;
+        public bool ShowNotification { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public GridHighlightNotificationSettings Notification { get; set; }
         public uint DestinationContainer { get; set; } = 0;
         public bool IsHighlightProperties { get; set; } = true;
 

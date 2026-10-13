@@ -5,6 +5,7 @@ using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.MyraWindows;
+using ClassicUO.Game.UI.MyraWindows.Options;
 using ClassicUO.Game.UI.MyraWindows.Widgets;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
@@ -54,6 +55,13 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             UIManager.Add(new GridHighlightProperties(world, keyLoc));
         }
 
+        internal static void RefreshOpenWindows()
+        {
+            foreach (IGui gump in UIManager.Gumps)
+                if (gump is GridHighlightProperties window && !window.IsDisposed)
+                    window.Rebuild();
+        }
+
         private void Rebuild()
         {
             _content.Widgets.Clear();
@@ -83,11 +91,24 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 TazLang.Get("gridhighlight_allowextra"),
                 TazLang.Get("gridhighlight_acceptextra_tooltip")));
 
-            _content.Widgets.Add(MyraCheckButton.CreateWithCallback(
+            var matchActions = new HorizontalStackPanel { Spacing = MyraStyle.STANDARD_SPACING * 2 };
+            matchActions.Widgets.Add(MyraCheckButton.CreateWithCallback(
                 _data.LootOnMatch,
                 v => _data.LootOnMatch = v,
                 TazLang.Get("gridhighlight_lootonmatch"),
                 TazLang.Get("gridhighlight_lootonmatch_tooltip")));
+            matchActions.Widgets.Add(MyraCheckButton.CreateWithCallback(
+                _data.ShowNotification,
+                v =>
+                {
+                    _data.ShowNotification = v;
+                    GridHighlightsConfig.Current.Save();
+                    GridHighlightData.RecheckMatchStatus();
+                    UIManager.GetGump<OptionsWindow>()?.RefreshCurrentContent();
+                },
+                TazLang.Get("gridhighlight_shownotification"),
+                TazLang.Get("gridhighlight_shownotification_tooltip")));
+            _content.Widgets.Add(matchActions);
 
             // Destination container + target picker
             var destRow = new HorizontalStackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };

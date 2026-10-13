@@ -339,6 +339,11 @@ public sealed class BackpackNotificationManager
             ? TazLang.Get("backpacknotifications_receivedtemplate", "{rule} received: {item}")
             : rule.Announcement;
 
+        return FormatAnnouncement(template, ruleName, itemName);
+    }
+
+    internal static string FormatAnnouncement(string template, string ruleName, string itemName)
+    {
         if (template.Contains("{0}", StringComparison.Ordinal) || template.Contains("{1}", StringComparison.Ordinal))
         {
             try
