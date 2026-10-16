@@ -392,6 +392,7 @@ public partial class GridContainer : ResizableGump
                 Height = 20
             };
             _searchBox.PlaceHolderText = TazLang.Get("gridcontainer_search", "Search...");
+            _searchBox.SetTooltip(TazLang.Get("gridcontainer_search_tooltip", "Search by name, properties, or serial (decimal or 0x hexadecimal)."));
             _searchBox.TextChanged += (sender, e) => { UpdateItems(); };
 
             _searchClearButton = new NiceButton(_borderWidth + _background.Width - 16, _borderWidth + LABEL_HEIGHT, 16, _searchBox.Height, ButtonAction.Default, TazLang.Get("gridcontainer_clearsearch", "X"));
