@@ -1,15 +1,43 @@
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using ClassicUO.Configuration;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.UI.Gumps.GridHighLight;
 
 namespace ClassicUO.Game.Managers;
 
-/// <summary>Shows grid match alerts once per item and rule during a game session.</summary>
+/// <summary>Shows grid match alerts for newly discovered corpse loot during a game session.</summary>
 internal static class GridHighlightNotificationManager
 {
     private static readonly GridHighlightNotificationTracker Tracker = new();
+
+    public static void OnSceneLoad()
+    {
+        Clear();
+        EventSink.OnItemAddedToContainerInternal += OnItemAddedToContainer;
+    }
+
+    private static void OnItemAddedToContainer(object sender, ItemContainerUpdateEventArgs e)
+    {
+        if (e.Item?.World.InGame != true || !e.Item.World.ClientFeatures.TooltipsEnabled)
+            return;
+
+        // Capture the source before auto-looting or later container refreshes replace the item.
+        ObserveItem(e.Item);
+        if (Tracker.HasPendingNotification(e.Item.Serial))
+        {
+            if (e.Item.IsLootable)
+                GridHighlightData.ProcessItemOpl(e.Item.World, e.Item);
+            else
+                CompleteItem(e.Item.Serial);
+        }
+    }
+
+    public static void ObserveItem(Item item, bool allowNotification = true) =>
+        Tracker.ObserveItem(item, GridHighlightsConfig.Current.Highlights, allowNotification);
+
+    public static void CompleteItem(uint serial) => Tracker.CompleteItem(serial);
+
+    public static void SuppressPendingNotifications() => Tracker.SuppressPendingNotifications();
 
     public static void NotifyMatch(World world, Item item, GridHighlightSetupEntry rule)
     {
@@ -51,18 +79,63 @@ internal static class GridHighlightNotificationManager
 
     public static void Clear()
     {
+        EventSink.OnItemAddedToContainerInternal -= OnItemAddedToContainer;
         Tracker.Clear();
     }
 }
 
 internal sealed class GridHighlightNotificationTracker
 {
-    // Item identity permits serial reuse, and weak keys release removed world items.
-    private readonly ConditionalWeakTable<Item, HashSet<GridHighlightSetupEntry>> _announced = new();
+    // A container reload or transfer can create a new Item for the same server serial.
+    // Remember observations for the session, and keep rule references only until properties arrive.
+    private readonly HashSet<uint> _seenItems = new();
+    private readonly Dictionary<uint, HashSet<GridHighlightSetupEntry>> _pendingRules = new();
+
+    internal void ObserveItem(Item item, IEnumerable<GridHighlightSetupEntry> rules, bool allowNotification = true)
+    {
+        if (item == null || item.IsDestroyed || item.OnGround || item.IsMulti)
+            return;
+
+        if (!allowNotification)
+        {
+            _seenItems.Add(item.Serial);
+            CompleteItem(item.Serial);
+            return;
+        }
+
+        uint rootSerial = item.RootContainer;
+        if (rootSerial == 0 || !_seenItems.Add(item.Serial))
+            return;
+
+        Item root = item.World.Items.Get(rootSerial);
+        if (root?.IsCorpse != true)
+            return;
+
+        var enabledRules = new HashSet<GridHighlightSetupEntry>();
+        foreach (GridHighlightSetupEntry rule in rules)
+        {
+            if (rule.Enabled && rule.ShowNotification)
+                enabledRules.Add(rule);
+        }
+
+        if (enabledRules.Count > 0)
+            _pendingRules.Add(item.Serial, enabledRules);
+    }
+
+    internal bool HasPendingNotification(uint serial) => _pendingRules.ContainsKey(serial);
 
     internal bool TryAnnounce(Item item, GridHighlightSetupEntry rule) =>
         item != null && rule?.Enabled == true && rule.ShowNotification
-        && _announced.GetOrCreateValue(item).Add(rule);
+        && _pendingRules.TryGetValue(item.Serial, out HashSet<GridHighlightSetupEntry> rules)
+        && rules.Remove(rule);
 
-    internal void Clear() => _announced.Clear();
+    internal void CompleteItem(uint serial) => _pendingRules.Remove(serial);
+
+    internal void SuppressPendingNotifications() => _pendingRules.Clear();
+
+    internal void Clear()
+    {
+        _seenItems.Clear();
+        _pendingRules.Clear();
+    }
 }

@@ -239,6 +239,7 @@ namespace ClassicUO.Game.Scenes
             SpellDefinition.LoadCustomSpells(_world);
             SpellVisualRangeManager.Instance.OnSceneLoad();
             BackpackNotificationManager.Instance.OnSceneLoad();
+            GridHighlightNotificationManager.OnSceneLoad();
             HealthNotificationManager.Instance.OnSceneLoad();
             AutoLootManager.Instance.OnSceneLoad();
             AutoSkinningManager.Instance.OnSceneLoad();

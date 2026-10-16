@@ -259,6 +259,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             if (!world.ClientFeatures.TooltipsEnabled)
                 return;
 
+            GridHighlightNotificationManager.ObserveItem(world.Items.Get(serial));
+
             // Check if already queued to avoid duplicates
             if (!_queuedItems.Add(serial))
                 return;
@@ -287,6 +289,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 {
                     // Item was removed, remove from hashset and skip
                     _queuedItems.Remove(ser);
+                    GridHighlightNotificationManager.CompleteItem(ser);
                     continue;
                 }
 
@@ -295,6 +298,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 {
                     // Item moved to ground or is multi, remove from hashset and skip
                     _queuedItems.Remove(ser);
+                    GridHighlightNotificationManager.CompleteItem(ser);
                     continue;
                 }
 
@@ -342,6 +346,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 {
                     data.item.HighlightColors = Array.Empty<Color>();
                 }
+
+                // An evaluated discovery is finished even when no rule matched.
+                GridHighlightNotificationManager.CompleteItem(data.item.Serial);
             }
 
             // Requeue items that don't have OPL data yet
@@ -380,6 +387,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         public static void RecheckMatchStatus()
         {
             AllConfigs = null; // Reset configs
+            GridHighlightNotificationManager.SuppressPendingNotifications();
 
             World world = World.Instance;
             if (world == null)
@@ -399,6 +407,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 item.ShouldAutoLoot = false;
                 item.HighlightChecked = false;
 
+                GridHighlightNotificationManager.ObserveItem(item, allowNotification: false);
                 ProcessItemOpl(world, kvp.Key);
             }
         }
