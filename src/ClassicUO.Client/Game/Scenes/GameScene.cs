@@ -258,6 +258,7 @@ namespace ClassicUO.Game.Scenes
             _world.CombatDamageTracker.OnSceneLoad();
             SpellVisualRangeManager.Instance.OnSceneLoad();
             BackpackNotificationManager.Instance.OnSceneLoad();
+            GridHighlightNotificationManager.OnSceneLoad();
             HealthNotificationManager.Instance.OnSceneLoad();
             AutoLootManager.Instance.OnSceneLoad();
             GridHighlightData.OnSceneLoad();

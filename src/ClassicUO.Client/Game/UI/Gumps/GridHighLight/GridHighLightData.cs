@@ -423,6 +423,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             if (!world.ClientFeatures.TooltipsEnabled)
                 return;
 
+            GridHighlightNotificationManager.ObserveItem(world.Items.Get(serial));
+
             if (world.OPL.TryGetNameAndData(serial, out _, out _))
             {
                 _waitingForOpl.Remove(serial);
@@ -476,6 +478,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 if (!World.Items.TryGetValue(ser, out Item item))
                 {
                     _waitingForOpl.Remove(ser);
+                    GridHighlightNotificationManager.CompleteItem(ser);
                     continue;
                 }
 
@@ -484,6 +487,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                 {
                     if (!IsEligibleItem(World, item))
                         ResetItemHighlight(item);
+                    GridHighlightNotificationManager.CompleteItem(ser);
                     continue;
                 }
 
@@ -537,6 +541,9 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
                     data.item.HighlightColors = Array.Empty<Color>();
                     data.item.HighlightName = string.Empty;
                 }
+
+                // An evaluated discovery is finished even when no rule matched.
+                GridHighlightNotificationManager.CompleteItem(data.item.Serial);
             }
         }
 
@@ -565,6 +572,7 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
         {
             CancelLootWizardRequests();
             AllConfigs = null; // Reset configs
+            GridHighlightNotificationManager.SuppressPendingNotifications();
 
             World world = World.Instance;
             if (world == null)
@@ -582,6 +590,8 @@ namespace ClassicUO.Game.UI.Gumps.GridHighLight
             {
                 Item item = kvp.Value;
                 ResetItemHighlight(item);
+
+                GridHighlightNotificationManager.ObserveItem(item, allowNotification: false);
 
                 // Grid highlights are rendered for items inside item containers, not equipped/mobile items.
                 if (hasEnabledConfigs && IsEligibleItem(world, item))
