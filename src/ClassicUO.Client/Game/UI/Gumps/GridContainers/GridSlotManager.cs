@@ -550,6 +550,9 @@ namespace ClassicUO.Game.UI.Gumps.GridContainers;
             if (item == null)
                 return false;
 
+            if (StringHelper.TryParseUint(search.Trim(), out uint serial) && item.Serial == serial)
+                return true;
+
             if (item.OPLName.ContainsIgnoreCase(search) || item.OPLData.ContainsIgnoreCase(search))
                 return true;
 

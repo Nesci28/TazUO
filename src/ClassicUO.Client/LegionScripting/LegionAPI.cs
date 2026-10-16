@@ -634,6 +634,39 @@ namespace ClassicUO.LegionScripting
             Global
         }
 
+        /// <summary>
+        /// How a graphic effect created by `CreateEffect` behaves.
+        /// </summary>
+        public enum EffectType : byte
+        {
+            /// <summary>Travels from the source to the target.</summary>
+            Moving = 0x00,
+
+            /// <summary>Draws a lightning bolt from the source.</summary>
+            Lightning = 0x01,
+
+            /// <summary>Stationary, positioned at the source coordinates.</summary>
+            FixedXYZ = 0x02,
+
+            /// <summary>Stationary, follows the source serial (or source coordinates).</summary>
+            FixedFrom = 0x03,
+        }
+
+        /// <summary>
+        /// Blend mode used when drawing a graphic effect. Mirrors the values the server sends.
+        /// </summary>
+        public enum EffectBlendMode
+        {
+            Normal = 0x00,
+            Multiply = 0x01,
+            Screen = 0x02,
+            ScreenMore = 0x03,
+            ScreenLess = 0x04,
+            NormalHalfTransparent = 0x05,
+            ShadowBlue = 0x06,
+            ScreenRed = 0x07
+        }
+
         #endregion
 
         #region Methods
@@ -706,7 +739,7 @@ namespace ClassicUO.LegionScripting
         /// </returns>
         public string RequestHotkey(string prompt = "Press a hotkey", double timeout = 30)
         {
-            var gate = new object();
+            object gate = new object();
             string captured = null;
 
             HotkeyCaptureWindow window = OnMain(() => new HotkeyCaptureWindow(
@@ -1350,31 +1383,23 @@ namespace ClassicUO.LegionScripting
         /// <param name="amt">0 to grab entire stack</param>
         /// <param name="x">Offset from your location</param>
         /// <param name="y">Offset from your location</param>
-        /// <param name="z">Offset from your location. Leave blank in most cases</param>
+        /// <param name="z">Z offset from your location. Leave blank to auto-use the ground/static z at the destination tile</param>
         /// <param name="OSI">True if you are playing OSI</param>
-        public void QueueMoveItemOffset(uint serial, ushort amt = 0, int x = 0, int y = 0, int z = 0, bool OSI = false) => OnMain
+        public void QueueMoveItemOffset(uint serial, ushort amt = 0, int x = 0, int y = 0, int z = int.MinValue, bool OSI = false) => OnMain
         (() =>
             {
                 if (World?.Map == null || World?.Player == null)
                     return;
 
-                World.Map.GetMapZ(World.Player.X + x, World.Player.Y + y, out sbyte gz, out sbyte gz2);
-
-                bool useCalculatedZ = false;
-
-                if (gz > z)
+                if (z == int.MinValue)
                 {
-                    z = gz;
-                    useCalculatedZ = true;
+                    World.Map.GetMapZ(World.Player.X + x, World.Player.Y + y, out sbyte gz, out sbyte gz2);
+                    z = gz2 > gz ? gz2 : gz;
                 }
-                if (gz2 > z)
+                else
                 {
-                    z = gz2;
-                    useCalculatedZ = true;
-                }
-
-                if (!useCalculatedZ)
                     z = World.Player.Z + z;
+                }
 
                 ObjectActionQueue.Instance.Enqueue(new MoveRequest(serial, OSI ? uint.MaxValue : 0, amt, World.Player.X + x, World.Player.Y + y, z).ToObjectActionQueueItem(), ActionPriority.MoveItem);
             }
@@ -1394,31 +1419,23 @@ namespace ClassicUO.LegionScripting
         /// <param name="amt">0 to grab entire stack</param>
         /// <param name="x">Offset from your location</param>
         /// <param name="y">Offset from your location</param>
-        /// <param name="z">Offset from your location. Leave blank in most cases</param>
+        /// <param name="z">Z offset from your location. Leave blank to auto-use the ground/static z at the destination tile</param>
         /// <param name="OSI">True if you are playing OSI</param>
-        public void MoveItemOffset(uint serial, int amt = 0, int x = 0, int y = 0, int z = 0, bool OSI = false) => OnMain
+        public void MoveItemOffset(uint serial, int amt = 0, int x = 0, int y = 0, int z = int.MinValue, bool OSI = false) => OnMain
         (() =>
             {
                 if (World?.Map == null || World?.Player == null)
                     return;
 
-                World.Map.GetMapZ(World.Player.X + x, World.Player.Y + y, out sbyte gz, out sbyte gz2);
-
-                bool useCalculatedZ = false;
-
-                if (gz > z)
+                if (z == int.MinValue)
                 {
-                    z = gz;
-                    useCalculatedZ = true;
+                    World.Map.GetMapZ(World.Player.X + x, World.Player.Y + y, out sbyte gz, out sbyte gz2);
+                    z = gz2 > gz ? gz2 : gz;
                 }
-                if (gz2 > z)
+                else
                 {
-                    z = gz2;
-                    useCalculatedZ = true;
-                }
-
-                if (!useCalculatedZ)
                     z = World.Player.Z + z;
+                }
 
                 GameActions.PickUp(World, serial, 0, 0, amt);
                 GameActions.DropItem(serial, World.Player.X + x, World.Player.Y + y, z, OSI ? uint.MaxValue : 0);
@@ -2923,6 +2940,94 @@ namespace ClassicUO.LegionScripting
         /// <returns>True if the cooldown bar exists, false otherwise</returns>
         public bool CooldownExists(string name) => OnMain
             (() => Game.Managers.CoolDownBarManager.CoolDownBarExists(name));
+
+        /// <summary>
+        /// Creates and displays a graphic effect in the world, the same kind the server sends for spells,
+        /// projectiles, explosions, etc. This is a purely local, visual effect - no packet is sent and only
+        /// you see it.
+        /// The type decides how it behaves: `EffectType.FixedXYZ` and
+        /// `EffectType.FixedFrom` stay in place, `EffectType.Moving` travels from
+        /// the source to the target, and `EffectType.Lightning` draws a bolt from the source.
+        /// Positions come from the source/target serials when given, otherwise from the coordinates, which
+        /// default to the player's position.
+        /// Example:
+        /// ```py
+        /// # A stationary animation on the tile next to the player, for 2 seconds
+        /// API.CreateEffect(0x373A, sourceX=API.Player.X + 1, sourceY=API.Player.Y, hue=0x0481)
+        ///
+        /// # A projectile fired from the player at the nearest murderer
+        /// mob = API.NearestMobile([API.Notoriety.Murderer], 8)
+        /// if mob:
+        ///   API.CreateEffect(0x36D0, type=API.EffectType.Moving, source=API.Player, target=mob)
+        /// ```
+        /// </summary>
+        /// <param name="graphic">The animation/art graphic to draw.</param>
+        /// <param name="type">How the effect behaves. Defaults to a stationary effect.</param>
+        /// <param name="source">Serial of the source item/mobile. Takes priority over the source coordinates.</param>
+        /// <param name="target">Serial of the target item/mobile. Takes priority over the target coordinates.</param>
+        /// <param name="hue">Hue to color the effect. 0 means no hue.</param>
+        /// <param name="sourceX">Source X coordinate. Defaults to the player's X.</param>
+        /// <param name="sourceY">Source Y coordinate. Defaults to the player's Y.</param>
+        /// <param name="sourceZ">Source Z coordinate. Defaults to the player's Z.</param>
+        /// <param name="targetX">Target X coordinate. Defaults to the source X.</param>
+        /// <param name="targetY">Target Y coordinate. Defaults to the source Y.</param>
+        /// <param name="targetZ">Target Z coordinate. Defaults to the source Z.</param>
+        /// <param name="duration">How long the effect lasts, in seconds. 0 or less makes it last until it leaves the area.</param>
+        /// <param name="speed">Animation speed. 0 uses the default speed.</param>
+        /// <param name="fixedDirection">Hold the effect's direction instead of rotating it to face the target.</param>
+        /// <param name="doesExplode">Create an explosion at the target when a moving effect arrives.</param>
+        /// <param name="blendMode">How the effect is blended over the world.</param>
+        public void CreateEffect(
+            ushort graphic,
+            EffectType type = EffectType.FixedXYZ,
+            uint source = 0,
+            uint target = 0,
+            ushort hue = 0,
+            int? sourceX = null,
+            int? sourceY = null,
+            int? sourceZ = null,
+            int? targetX = null,
+            int? targetY = null,
+            int? targetZ = null,
+            double duration = 2,
+            byte speed = 0,
+            bool fixedDirection = false,
+            bool doesExplode = false,
+            EffectBlendMode blendMode = EffectBlendMode.Normal
+        ) => OnMain
+        (() =>
+            {
+                if (World?.Player == null)
+                    return;
+
+                int sx = sourceX ?? World.Player.X;
+                int sy = sourceY ?? World.Player.Y;
+                int sz = sourceZ ?? World.Player.Z;
+
+                int durationTicks = duration > 0 ? (int)(duration * 1000 / Constants.ITEM_EFFECT_ANIMATION_DELAY) : 0;
+
+                World.SpawnEffect
+                (
+                    (GraphicEffectType)type,
+                    source,
+                    target,
+                    graphic,
+                    hue,
+                    (ushort)sx,
+                    (ushort)sy,
+                    (sbyte)sz,
+                    (ushort)(targetX ?? sx),
+                    (ushort)(targetY ?? sy),
+                    (sbyte)(targetZ ?? sz),
+                    speed,
+                    durationTicks,
+                    fixedDirection,
+                    doesExplode,
+                    false,
+                    (GraphicEffectBlendMode)blendMode
+                );
+            }
+        );
 
         /// <summary>
         /// Adds an item or mobile to your ignore list.
